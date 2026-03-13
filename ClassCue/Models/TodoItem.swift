@@ -18,6 +18,9 @@ struct TodoItem: Identifiable, Codable, Equatable {
     var category: Category = .prep
     var bucket: Bucket = .today
     var linkedContext: String = ""
+    var studentOrGroup: String = ""
+    var followUpNote: String = ""
+    var reminder: Reminder = .none
 
     enum Priority: String, Codable, CaseIterable {
 
@@ -102,6 +105,36 @@ struct TodoItem: Identifiable, Codable, Equatable {
         }
     }
 
+    enum Reminder: String, Codable, CaseIterable {
+        case none
+        case afterSchool
+        case tomorrowMorning
+
+        var displayName: String {
+            switch self {
+            case .none: return "None"
+            case .afterSchool: return "After School"
+            case .tomorrowMorning: return "Tomorrow Morning"
+            }
+        }
+
+        var systemImage: String {
+            switch self {
+            case .none: return "bell.slash"
+            case .afterSchool: return "sunset.fill"
+            case .tomorrowMorning: return "sunrise.fill"
+            }
+        }
+
+        var tint: Color {
+            switch self {
+            case .none: return .secondary
+            case .afterSchool: return .indigo
+            case .tomorrowMorning: return .orange
+            }
+        }
+    }
+
     init(
         id: UUID = UUID(),
         task: String,
@@ -110,7 +143,10 @@ struct TodoItem: Identifiable, Codable, Equatable {
         dueDate: Date? = nil,
         category: Category = .prep,
         bucket: Bucket = .today,
-        linkedContext: String = ""
+        linkedContext: String = "",
+        studentOrGroup: String = "",
+        followUpNote: String = "",
+        reminder: Reminder = .none
     ) {
         self.id = id
         self.task = task
@@ -120,6 +156,9 @@ struct TodoItem: Identifiable, Codable, Equatable {
         self.category = category
         self.bucket = bucket
         self.linkedContext = linkedContext
+        self.studentOrGroup = studentOrGroup
+        self.followUpNote = followUpNote
+        self.reminder = reminder
     }
 
     init(from decoder: Decoder) throws {
@@ -132,5 +171,8 @@ struct TodoItem: Identifiable, Codable, Equatable {
         category = try container.decodeIfPresent(Category.self, forKey: .category) ?? .prep
         bucket = try container.decodeIfPresent(Bucket.self, forKey: .bucket) ?? .today
         linkedContext = try container.decodeIfPresent(String.self, forKey: .linkedContext) ?? ""
+        studentOrGroup = try container.decodeIfPresent(String.self, forKey: .studentOrGroup) ?? ""
+        followUpNote = try container.decodeIfPresent(String.self, forKey: .followUpNote) ?? ""
+        reminder = try container.decodeIfPresent(Reminder.self, forKey: .reminder) ?? .none
     }
 }

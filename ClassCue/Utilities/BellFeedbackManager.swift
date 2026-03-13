@@ -35,7 +35,7 @@ final class BellFeedbackManager {
 
     func play(haptic: HapticPattern, bellSound: BellSound) {
         configureAudioSession()
-        playBundledSound(bellSound)
+        playSound(bellSound)
         playHaptic(haptic)
     }
 
@@ -49,8 +49,12 @@ final class BellFeedbackManager {
         }
     }
 
-    private func playBundledSound(_ bellSound: BellSound) {
-        guard let fileName = bellSound.fileName else { return }
+    private func playSound(_ bellSound: BellSound) {
+        guard let fileName = bellSound.fileName else {
+            guard bellSound.systemID != 0 else { return }
+            AudioServicesPlaySystemSound(bellSound.systemID)
+            return
+        }
 
         let parts = fileName.split(separator: ".", omittingEmptySubsequences: false)
         guard parts.count == 2 else {
@@ -93,6 +97,17 @@ final class BellFeedbackManager {
         case .heavyImpact:
             impactGenerator.prepare()
             impactGenerator.impactOccurred()
+
+        case .lightTap:
+            UIImpactFeedbackGenerator(style: .light).impactOccurred()
+
+        case .rigidTap:
+            if #available(iOS 13.0, *) {
+                UIImpactFeedbackGenerator(style: .rigid).impactOccurred()
+            } else {
+                impactGenerator.prepare()
+                impactGenerator.impactOccurred()
+            }
 
         case .none:
             break

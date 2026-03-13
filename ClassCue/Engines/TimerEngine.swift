@@ -64,6 +64,17 @@ final class TimerEngine: ObservableObject {
         case .heavyImpact:
             impactGenerator.prepare()
             impactGenerator.impactOccurred()
+
+        case .lightTap:
+            UIImpactFeedbackGenerator(style: .light).impactOccurred()
+
+        case .rigidTap:
+            if #available(iOS 13.0, *) {
+                UIImpactFeedbackGenerator(style: .rigid).impactOccurred()
+            } else {
+                impactGenerator.prepare()
+                impactGenerator.impactOccurred()
+            }
             
         case .none:
             break

@@ -9,11 +9,10 @@ import UniformTypeIdentifiers
 struct ImportView: View {
 
     @Binding var alarms: [AlarmItem]
+    @Environment(\.dismiss) private var dismiss
 
     @State private var showErrorAlert = false
     @State private var errorMessage = ""
-    @State private var showSuccessAlert = false
-    @State private var successMessage = ""
     @State private var showingFileImporter = false
     @State private var showingTemplateShareSheet = false
     @State private var pastedCSVText = ""
@@ -83,11 +82,6 @@ struct ImportView: View {
             Button("OK", role: .cancel) { }
         } message: {
             Text(errorMessage)
-        }
-        .alert("Import Complete", isPresented: $showSuccessAlert) {
-            Button("OK", role: .cancel) { }
-        } message: {
-            Text(successMessage)
         }
         .confirmationDialog(
             "How should this import be applied?",
@@ -168,6 +162,14 @@ struct ImportView: View {
         .navigationTitle("Paste CSV")
         .navigationBarTitleDisplayMode(.inline)
         .toolbar {
+            ToolbarItem(placement: .topBarLeading) {
+                if isPasteEditorFocused {
+                    Button("Done") {
+                        isPasteEditorFocused = false
+                    }
+                }
+            }
+
             ToolbarItem(placement: .topBarTrailing) {
                 Button("Clear") {
                     pastedCSVText = ""
@@ -312,7 +314,7 @@ struct ImportView: View {
                 dayOfWeek: dayOfWeek,
                 className: parts[1],
                 location: parts[3],
-                gradeLevel: parts[2],
+                gradeLevel: GradeLevelOption.normalized(parts[2]),
                 startTime: startTime,
                 endTime: endTime,
                 type: type
@@ -350,8 +352,7 @@ struct ImportView: View {
         }
 
         pendingImportedItems = []
-        successMessage = mode.successMessage(count: importedItems.count)
-        showSuccessAlert = true
+        dismiss()
     }
 
     private func mergeSchedule(existing: [AlarmItem], imported: [AlarmItem]) -> [AlarmItem] {

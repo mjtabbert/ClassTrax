@@ -12,6 +12,8 @@ struct AddTodoView: View {
     
     @Binding var todos: [TodoItem]
     let suggestedContexts: [String]
+    let suggestedStudents: [String]
+    let studentSupportsByName: [String: StudentSupportProfile]
     
     var existing: TodoItem? = nil
     
@@ -22,16 +24,23 @@ struct AddTodoView: View {
     @State private var category = TodoItem.Category.prep
     @State private var bucket = TodoItem.Bucket.today
     @State private var linkedContext = ""
+    @State private var studentOrGroup = ""
+    @State private var followUpNote = ""
+    @State private var reminder = TodoItem.Reminder.none
     @State private var hasDueDate = false
     @State private var dueDate = Date()
 
     init(
         todos: Binding<[TodoItem]>,
         suggestedContexts: [String] = [],
+        suggestedStudents: [String] = [],
+        studentSupportsByName: [String: StudentSupportProfile] = [:],
         existing: TodoItem? = nil
     ) {
         _todos = todos
         self.suggestedContexts = suggestedContexts
+        self.suggestedStudents = suggestedStudents
+        self.studentSupportsByName = studentSupportsByName
         self.existing = existing
     }
     
@@ -70,6 +79,37 @@ struct AddTodoView: View {
                             }
                         }
                     }
+
+                    TextField("Student or Group (Optional)", text: $studentOrGroup)
+
+                    if !suggestedStudents.isEmpty {
+                        Picker("Saved Student / Group", selection: $studentOrGroup) {
+                            Text("None").tag("")
+                            ForEach(suggestedStudents, id: \.self) { student in
+                                Text(student).tag(student)
+                            }
+                        }
+                    } else {
+                        Text("Add names in Settings > Student Directory to use a prefilled student picker here.")
+                            .font(.footnote)
+                            .foregroundColor(.secondary)
+                    }
+
+                    if let support = studentSupport {
+                        supportPreview(support)
+                    }
+
+                    TextField("Follow-Up Note (Optional)", text: $followUpNote, axis: .vertical)
+                        .lineLimit(2...4)
+                }
+
+                Section("Reminder") {
+                    Picker("When to Re-surface", selection: $reminder) {
+                        ForEach(TodoItem.Reminder.allCases, id: \.self) { option in
+                            Label(option.displayName, systemImage: option.systemImage)
+                                .tag(option)
+                        }
+                    }
                 }
                 
                 Section("Due Date") {
@@ -106,6 +146,9 @@ struct AddTodoView: View {
                     category = existing.category
                     bucket = existing.bucket
                     linkedContext = existing.linkedContext
+                    studentOrGroup = existing.studentOrGroup
+                    followUpNote = existing.followUpNote
+                    reminder = existing.reminder
 
                     if let existingDueDate = existing.dueDate {
                         hasDueDate = true
@@ -115,6 +158,44 @@ struct AddTodoView: View {
                         dueDate = Date()
                     }
                 }
+            }
+        }
+    }
+
+    private var studentSupport: StudentSupportProfile? {
+        studentSupportsByName[studentOrGroup.trimmingCharacters(in: .whitespacesAndNewlines)]
+    }
+
+    @ViewBuilder
+    private func supportPreview(_ support: StudentSupportProfile) -> some View {
+        VStack(alignment: .leading, spacing: 4) {
+            Text("Saved Support")
+                .font(.caption.weight(.bold))
+                .foregroundColor(.secondary)
+
+            let summary = [support.className, support.gradeLevel]
+                .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
+                .filter { !$0.isEmpty }
+                .joined(separator: " • ")
+
+            if !summary.isEmpty {
+                Text(summary)
+                    .font(.caption2)
+                    .foregroundColor(.secondary)
+            }
+
+            if !support.accommodations.isEmpty {
+                Text(support.accommodations)
+                    .font(.caption)
+                    .foregroundColor(.secondary)
+                    .lineLimit(3)
+            }
+
+            if !support.prompts.isEmpty {
+                Text(support.prompts)
+                    .font(.caption2)
+                    .foregroundColor(.secondary)
+                    .lineLimit(2)
             }
         }
     }
@@ -130,7 +211,10 @@ struct AddTodoView: View {
             dueDate: hasDueDate ? dueDate : nil,
             category: category,
             bucket: bucket,
-            linkedContext: linkedContext.trimmingCharacters(in: .whitespacesAndNewlines)
+            linkedContext: linkedContext.trimmingCharacters(in: .whitespacesAndNewlines),
+            studentOrGroup: studentOrGroup.trimmingCharacters(in: .whitespacesAndNewlines),
+            followUpNote: followUpNote.trimmingCharacters(in: .whitespacesAndNewlines),
+            reminder: reminder
         )
         
         if let existing,
@@ -149,6 +233,8 @@ struct AddTodoView: View {
         todos: .constant([
             TodoItem(task: "Sample Task", priority: .med, dueDate: nil)
         ]),
-        suggestedContexts: []
+        suggestedContexts: [],
+        suggestedStudents: [],
+        studentSupportsByName: [:]
     )
 }

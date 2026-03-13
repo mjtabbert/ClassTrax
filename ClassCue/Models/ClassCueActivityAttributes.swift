@@ -17,6 +17,9 @@ struct ClassCueActivityAttributes: ActivityAttributes {
         var room: String
         var endTime: Date
         var isHeld: Bool
+        var iconName: String
+        var nextClassName: String
+        var nextIconName: String
     }
 
     var className: String

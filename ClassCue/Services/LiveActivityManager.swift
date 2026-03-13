@@ -26,7 +26,15 @@ class LiveActivityManager {
 
     // MARK: - Start Activity
 
-    static func start(className: String, room: String, endTime: Date, isHeld: Bool) {
+    static func start(
+        className: String,
+        room: String,
+        endTime: Date,
+        isHeld: Bool,
+        iconName: String,
+        nextClassName: String,
+        nextIconName: String
+    ) {
         guard ActivityAuthorizationInfo().areActivitiesEnabled else {
             return
         }
@@ -39,7 +47,10 @@ class LiveActivityManager {
             className: className,
             room: room,
             endTime: endTime,
-            isHeld: isHeld
+            isHeld: isHeld,
+            iconName: iconName,
+            nextClassName: nextClassName,
+            nextIconName: nextIconName
         )
 
         let content = ActivityContent(
@@ -48,7 +59,15 @@ class LiveActivityManager {
         )
 
         if resolvedActivity != nil {
-            update(className: className, room: room, endTime: endTime, isHeld: isHeld)
+            update(
+                className: className,
+                room: room,
+                endTime: endTime,
+                isHeld: isHeld,
+                iconName: iconName,
+                nextClassName: nextClassName,
+                nextIconName: nextIconName
+            )
             return
         }
 
@@ -64,7 +83,15 @@ class LiveActivityManager {
 
     // MARK: - Update Activity
 
-    static func update(className: String, room: String, endTime: Date, isHeld: Bool) {
+    static func update(
+        className: String,
+        room: String,
+        endTime: Date,
+        isHeld: Bool,
+        iconName: String,
+        nextClassName: String,
+        nextIconName: String
+    ) {
 
         Task {
             guard let activity = resolvedActivity else { return }
@@ -73,7 +100,10 @@ class LiveActivityManager {
                 className: className,
                 room: room,
                 endTime: endTime,
-                isHeld: isHeld
+                isHeld: isHeld,
+                iconName: iconName,
+                nextClassName: nextClassName,
+                nextIconName: nextIconName
             )
 
             await activity.update(
@@ -85,11 +115,35 @@ class LiveActivityManager {
         }
     }
 
-    static func sync(className: String, room: String, endTime: Date, isHeld: Bool) {
+    static func sync(
+        className: String,
+        room: String,
+        endTime: Date,
+        isHeld: Bool,
+        iconName: String,
+        nextClassName: String,
+        nextIconName: String
+    ) {
         if resolvedActivity == nil {
-            start(className: className, room: room, endTime: endTime, isHeld: isHeld)
+            start(
+                className: className,
+                room: room,
+                endTime: endTime,
+                isHeld: isHeld,
+                iconName: iconName,
+                nextClassName: nextClassName,
+                nextIconName: nextIconName
+            )
         } else {
-            update(className: className, room: room, endTime: endTime, isHeld: isHeld)
+            update(
+                className: className,
+                room: room,
+                endTime: endTime,
+                isHeld: isHeld,
+                iconName: iconName,
+                nextClassName: nextClassName,
+                nextIconName: nextIconName
+            )
         }
     }
 

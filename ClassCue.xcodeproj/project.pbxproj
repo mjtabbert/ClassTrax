@@ -68,9 +68,7 @@
 			membershipExceptions = (
 				App/NotificationDelegate.swift,
 				Assets.xcassets,
-				ClassCue.entitlements,
 				ClassCueApp.swift,
-				ClassCueRelease.entitlements,
 				Components/NextUpCard.swift,
 				ContentView.swift,
 				Engines/BellCountdownEngine.swift,
@@ -82,7 +80,6 @@
 				Models/HapticPattern.swift,
 				Models/ScheduleProfile.swift,
 				Models/TodoItem.swift,
-				Resources,
 				Services/ScheduleHelpers.swift,
 				Services/ScheduleList.swift,
 				Utilities/Appinfo.swift,
@@ -112,7 +109,6 @@
 				Views/TodayView.swift,
 				Views/TodoListView.swift,
 				Views/TypeBadge.swift,
-				WeekdayTab.swift,
 			);
 			target = 27EC66D62F61EB3D00D0870D /* Class CueExtension */;
 		};
@@ -523,6 +519,7 @@
 			buildSettings = {
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
 				ASSETCATALOG_COMPILER_WIDGET_BACKGROUND_COLOR_NAME = WidgetBackground;
+				CODE_SIGN_ENTITLEMENTS = "Class Cue/ClassCueExtension.entitlements";
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
 				DEVELOPMENT_TEAM = XJWF586LVS;
@@ -553,6 +550,7 @@
 			buildSettings = {
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
 				ASSETCATALOG_COMPILER_WIDGET_BACKGROUND_COLOR_NAME = WidgetBackground;
+				CODE_SIGN_ENTITLEMENTS = "Class Cue/ClassCueExtension.entitlements";
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
 				DEVELOPMENT_TEAM = XJWF586LVS;

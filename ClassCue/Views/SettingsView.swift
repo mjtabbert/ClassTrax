@@ -17,6 +17,7 @@ struct SettingsView: View {
     @AppStorage("timer_v6_data") private var savedAlarms: Data = Data()
     @AppStorage("profiles_v1_data") private var savedProfiles: Data = Data()
     @AppStorage("day_overrides_v1_data") private var savedOverrides: Data = Data()
+    @AppStorage("student_support_profiles_v1_data") private var savedStudentProfiles: Data = Data()
     @AppStorage("school_quiet_hours_enabled") private var schoolQuietHoursEnabled = false
     @AppStorage("school_quiet_hour") private var schoolQuietHour = 16
     @AppStorage("school_quiet_minute") private var schoolQuietMinute = 0
@@ -33,6 +34,7 @@ struct SettingsView: View {
     @State private var alarms: [AlarmItem] = []
     @State private var profiles: [ScheduleProfile] = []
     @State private var overrides: [DayOverride] = []
+    @State private var studentProfiles: [StudentSupportProfile] = []
 
     var body: some View {
         NavigationStack {
@@ -41,6 +43,7 @@ struct SettingsView: View {
                 liveActivityStatusSection
                 holidaySection
                 schoolBoundariesSection
+                studentContextSection
                 scheduleToolsSection
                 appToolsSection
                 aboutSection
@@ -59,6 +62,11 @@ struct SettingsView: View {
             .onChange(of: overrides) { _, newValue in
                 saveOverrides(newValue)
             }
+            .onChange(of: studentProfiles) { _, newValue in
+                savedStudentProfiles = (try? JSONEncoder().encode(newValue.sorted {
+                    $0.name.localizedCaseInsensitiveCompare($1.name) == .orderedAscending
+                })) ?? Data()
+            }
             .onChange(of: schoolQuietHoursEnabled) { _, _ in
                 syncSchoolQuietStart()
                 refreshNotifications()
@@ -75,15 +83,33 @@ struct SettingsView: View {
     private var alertsSection: some View {
         Section("Alerts") {
             Picker("Haptic Pattern", selection: $selectedHapticRawValue) {
-                ForEach(HapticPattern.allCases, id: \.rawValue) { pattern in
-                    Text(pattern.rawValue).tag(pattern.rawValue)
+                ForEach(HapticPattern.SourceGroup.allCases, id: \.self) { group in
+                    Section(group.rawValue) {
+                        ForEach(HapticPattern.allCases.filter { $0.sourceGroup == group }, id: \.rawValue) { pattern in
+                            Text(pattern.rawValue).tag(pattern.rawValue)
+                        }
+                    }
                 }
             }
 
             Picker("Sound Pattern", selection: $selectedSoundRawValue) {
-                ForEach(SoundPattern.allCases, id: \.rawValue) { pattern in
-                    Text(pattern.displayName).tag(pattern.rawValue)
+                ForEach(SoundPattern.SourceGroup.allCases, id: \.self) { group in
+                    Section(group.rawValue) {
+                        ForEach(SoundPattern.allCases.filter { $0.sourceGroup == group }, id: \.rawValue) { pattern in
+                            Text(pattern.displayName).tag(pattern.rawValue)
+                        }
+                    }
                 }
+            }
+
+            if let selectedHaptic = HapticPattern(rawValue: selectedHapticRawValue) {
+                LabeledContent("Haptic Source", value: selectedHaptic.sourceGroup.rawValue)
+                    .font(.footnote)
+            }
+
+            if let selectedSound = SoundPattern(rawValue: selectedSoundRawValue) {
+                LabeledContent("Sound Source", value: selectedSound.sourceGroup.rawValue)
+                    .font(.footnote)
             }
 
             Button {
@@ -190,6 +216,29 @@ struct SettingsView: View {
         }
     }
 
+    private var studentContextSection: some View {
+        Section("Class / Student Context") {
+            NavigationLink {
+                StudentDirectoryView(profiles: $studentProfiles)
+            } label: {
+                LabeledContent("Student Directory") {
+                    Text(studentProfiles.isEmpty ? "Not Set" : "\(studentProfiles.count)")
+                        .foregroundColor(studentProfiles.isEmpty ? .secondary : .primary)
+                }
+            }
+
+            if studentProfiles.isEmpty {
+                Text("Open Student Directory to add names, accommodations, and prompts once, then reuse them in tasks and quick capture.")
+                    .font(.footnote)
+                    .foregroundColor(.secondary)
+            } else {
+                Text("Saved student supports now power the student picker and accommodation previews in the task and capture workflows.")
+                    .font(.footnote)
+                    .foregroundColor(.secondary)
+            }
+        }
+    }
+
     private var appToolsSection: some View {
         Section("App Tools") {
             NavigationLink("Launch Readiness") {
@@ -238,6 +287,14 @@ struct SettingsView: View {
             profiles = decodedProfiles
         } else {
             profiles = []
+        }
+
+        if let decodedProfiles = try? JSONDecoder().decode([StudentSupportProfile].self, from: savedStudentProfiles) {
+            studentProfiles = decodedProfiles.sorted {
+                $0.name.localizedCaseInsensitiveCompare($1.name) == .orderedAscending
+            }
+        } else {
+            studentProfiles = []
         }
 
         if let decodedOverrides = try? JSONDecoder().decode([DayOverride].self, from: savedOverrides) {

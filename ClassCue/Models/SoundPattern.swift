@@ -15,10 +15,31 @@ enum SoundPattern: String, CaseIterable, Codable {
     case classicAlarm = "Classic Bell"
     case softChime = "Soft Chime"
     case sharpBell = "Sharp Bell"
+    case systemChime = "System Chime"
+    case systemGlass = "System Glass"
+    case systemAlert = "System Alert"
+    case defaultPhone = "iPhone Default"
     case none = "None"
+
+    enum SourceGroup: String, CaseIterable {
+        case classCue = "ClassCue Sounds"
+        case iPhone = "iPhone System Sounds"
+        case silent = "Silent"
+    }
 
     var displayName: String {
         rawValue
+    }
+
+    var sourceGroup: SourceGroup {
+        switch self {
+        case .classicAlarm, .softChime, .sharpBell:
+            return .classCue
+        case .systemChime, .systemGlass, .systemAlert, .defaultPhone:
+            return .iPhone
+        case .none:
+            return .silent
+        }
     }
 
     // System sound used for quick feedback
@@ -33,6 +54,18 @@ enum SoundPattern: String, CaseIterable, Codable {
 
         case .sharpBell:
             return 1022   // sharper alert
+
+        case .systemChime:
+            return 1016
+
+        case .systemGlass:
+            return 1104
+
+        case .systemAlert:
+            return 1007
+
+        case .defaultPhone:
+            return 1005
 
         case .none:
             return 0
@@ -50,6 +83,9 @@ enum SoundPattern: String, CaseIterable, Codable {
 
         case .sharpBell:
             return "sharp_bell_optimized.caf"
+
+        case .systemChime, .systemGlass, .systemAlert, .defaultPhone:
+            return nil
 
         case .none:
             return nil

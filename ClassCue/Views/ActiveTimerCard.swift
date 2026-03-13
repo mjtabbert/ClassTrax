@@ -122,6 +122,10 @@ struct ActiveTimerCard: View {
                         .scaleEffect(isCriticalCountdown && pulse ? 1.04 : 0.98)
                         .animation(.easeInOut(duration: 0.55).repeatForever(autoreverses: true), value: pulse)
 
+                    if let warningStage {
+                        warningCallout(for: warningStage, compact: false)
+                    }
+
                     detailsBlock(
                         titleFont: isTeacherMode ? .system(size: 38, weight: .bold, design: .rounded) : .largeTitle,
                         detailFont: isTeacherMode ? .title2 : .title3
@@ -189,6 +193,10 @@ struct ActiveTimerCard: View {
                                 .foregroundStyle(isCriticalCountdown ? .red : .primary)
                                 .scaleEffect(isCriticalCountdown && pulse ? 1.04 : 0.98)
 
+                            if let warningStage {
+                                warningCallout(for: warningStage, compact: true)
+                            }
+
                             detailsBlock(titleFont: .title3, detailFont: .caption)
 
                             controlStrip(compact: true)
@@ -241,29 +249,37 @@ struct ActiveTimerCard: View {
 
     @ViewBuilder
     private func detailsBlock(titleFont: Font, detailFont: Font) -> some View {
+        let grade = item.gradeLevel.trimmingCharacters(in: .whitespacesAndNewlines)
+        let room = item.location.trimmingCharacters(in: .whitespacesAndNewlines)
+
         VStack(spacing: 6) {
-            Text(item.className)
-                .font(titleFont.weight(.bold))
-                .lineLimit(1)
-                .minimumScaleFactor(0.75)
+            HStack(spacing: 8) {
+                Text(item.className)
+                    .font(titleFont.weight(.bold))
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.68)
+
+                if !room.isEmpty {
+                    Text("• \(room)")
+                        .font(detailFont.weight(.semibold))
+                        .foregroundColor(.secondary)
+                        .lineLimit(1)
+                        .minimumScaleFactor(0.7)
+                }
+            }
 
             Text(timeRangeText)
                 .font(detailFont.weight(.semibold))
                 .foregroundColor(.secondary)
                 .lineLimit(1)
+                .minimumScaleFactor(0.8)
 
-            if !item.gradeLevel.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
-                Text(item.gradeLevel)
+            if !grade.isEmpty {
+                Text(grade)
                     .font(detailFont)
                     .foregroundColor(.secondary)
                     .lineLimit(1)
-            }
-
-            if !item.location.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
-                Text(item.location)
-                    .font(detailFont)
-                    .foregroundColor(.secondary)
-                    .lineLimit(1)
+                    .minimumScaleFactor(0.8)
             }
         }
     }
@@ -294,7 +310,7 @@ struct ActiveTimerCard: View {
                 LinearGradient(
                     colors: [
                         ringPrimaryColor.opacity(warningStage == nil ? 0.14 : 0.18),
-                        warningBackdropColor.opacity(warningStage == nil ? 0.08 : 0.12),
+                        warningBackdropColor.opacity(warningStage == nil ? 0.10 : 0.22),
                         Color(.systemBackground).opacity(0.72)
                     ],
                     startPoint: .topLeading,
@@ -303,7 +319,7 @@ struct ActiveTimerCard: View {
             )
             .overlay(
                 RoundedRectangle(cornerRadius: 32, style: .continuous)
-                    .stroke((warningStage?.tint ?? ringPrimaryColor).opacity(0.22), lineWidth: warningStage == nil ? 1 : 1.4)
+                    .stroke((warningStage?.tint ?? ringPrimaryColor).opacity(warningStage == nil ? 0.22 : 0.52), lineWidth: warningStage == nil ? 1 : 2)
             )
     }
 
@@ -320,6 +336,37 @@ struct ActiveTimerCard: View {
             .padding(.vertical, 6)
             .background(stage.tint, in: Capsule())
             .shadow(color: stage.tint.opacity(0.25), radius: 8, y: 4)
+    }
+
+    private func warningCallout(for stage: WarningStage, compact: Bool) -> some View {
+        HStack(spacing: compact ? 8 : 10) {
+            Image(systemName: "bell.badge.fill")
+                .font(compact ? .caption.weight(.bold) : .subheadline.weight(.bold))
+
+            Text(stage.prominentLabel)
+                .font((compact ? Font.caption.weight(.black) : .subheadline.weight(.black)))
+                .lineLimit(1)
+        }
+        .foregroundStyle(.white)
+        .padding(.horizontal, compact ? 12 : 14)
+        .padding(.vertical, compact ? 8 : 10)
+        .frame(maxWidth: .infinity)
+        .background(
+            RoundedRectangle(cornerRadius: compact ? 14 : 16, style: .continuous)
+                .fill(
+                    LinearGradient(
+                        colors: [stage.tint, stage.tint.opacity(0.82)],
+                        startPoint: .leading,
+                        endPoint: .trailing
+                    )
+                )
+        )
+        .shadow(color: stage.tint.opacity(0.35), radius: 10, y: 5)
+        .overlay(
+            RoundedRectangle(cornerRadius: compact ? 14 : 16, style: .continuous)
+                .stroke(Color.white.opacity(0.18), lineWidth: 1)
+        )
+        .scaleEffect(pulse ? 1.01 : 0.99)
     }
 
     private var anchoredEndTime: Date {
@@ -431,6 +478,17 @@ private extension ActiveTimerCard {
                 return .orange
             case .oneMinute:
                 return .red
+            }
+        }
+
+        var prominentLabel: String {
+            switch self {
+            case .fiveMinutes:
+                return "5 MINUTES REMAINING"
+            case .twoMinutes:
+                return "2 MINUTES REMAINING"
+            case .oneMinute:
+                return "1 MINUTE REMAINING"
             }
         }
     }

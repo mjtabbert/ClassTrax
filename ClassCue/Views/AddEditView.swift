@@ -73,7 +73,12 @@ struct AddEditView: View {
                         }
                     }
 
-                    TextField("Grade Level", text: $grade)
+                    Picker("Grade Level", selection: $grade) {
+                        Text("None").tag("")
+                        ForEach(GradeLevelOption.optionsForPicker(), id: \.self) { option in
+                            Text(option).tag(option)
+                        }
+                    }
 
                     TextField("Room / Location", text: $room)
                 }
@@ -155,7 +160,7 @@ struct AddEditView: View {
         if let existing {
             name = existing.className
             room = existing.location
-            grade = existing.gradeLevel
+            grade = GradeLevelOption.normalized(existing.gradeLevel)
             type = existing.type
             start = existing.startTime
             end = existing.endTime
@@ -171,7 +176,7 @@ struct AddEditView: View {
     private func saveItem() {
         let trimmedName = name.trimmingCharacters(in: .whitespacesAndNewlines)
         let trimmedRoom = room.trimmingCharacters(in: .whitespacesAndNewlines)
-        let trimmedGrade = grade.trimmingCharacters(in: .whitespacesAndNewlines)
+        let trimmedGrade = GradeLevelOption.normalized(grade)
 
         guard !trimmedName.isEmpty else {
             validationMessage = "Please enter a class name before saving."

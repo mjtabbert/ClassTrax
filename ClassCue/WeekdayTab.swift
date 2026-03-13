@@ -5,15 +5,9 @@
 //  Created by Mike Tabbert on 3/11/26.
 //
 
-
-//
-//  WeekdayTab.swift
-//  ClassCue
-//
-
 import Foundation
 
-enum WeekdayTab: Int, CaseIterable {
+enum WeekdayTab: Int, CaseIterable, Hashable, Identifiable {
 
     case sunday = 1
     case monday
@@ -22,6 +16,8 @@ enum WeekdayTab: Int, CaseIterable {
     case thursday
     case friday
     case saturday
+
+    var id: Int { rawValue }
 
     var title: String {
         switch self {

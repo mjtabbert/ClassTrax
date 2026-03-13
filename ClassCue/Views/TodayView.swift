@@ -8,12 +8,17 @@
 //
 
 import SwiftUI
+import WidgetKit
 
 struct TodayView: View {
 
     @Binding var alarms: [AlarmItem]
     @Binding var todos: [TodoItem]
     @Binding var commitments: [CommitmentItem]
+    @Binding var studentSupportProfiles: [StudentSupportProfile]
+    @Binding var attendanceRecords: [AttendanceRecord]
+    let suggestedStudents: [String]
+    let studentSupportsByName: [String: StudentSupportProfile]
     let activeOverrideName: String?
     let overrideSchedule: [AlarmItem]?
     let ignoreDate: Date?
@@ -39,6 +44,10 @@ struct TodayView: View {
     @State private var showingAddCommitment = false
     @State private var editingCommitment: CommitmentItem?
     @State private var showingQuickCapture = false
+    @State private var editingAlarm: AlarmItem?
+    @State private var showingStudentDirectory = false
+    @State private var rosterItem: AlarmItem?
+    @State private var attendanceItem: AlarmItem?
 
     var body: some View {
 
@@ -98,13 +107,12 @@ struct TodayView: View {
                         .zIndex(1)
                 }
 
-                if let activeItem {
-                    sessionActionButton(for: activeItem)
-                        .padding(.trailing, 20)
-                        .padding(.bottom, 20)
-                        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottomTrailing)
-                        .zIndex(1)
-                }
+                floatingActionMenu(activeItem: activeItem, now: now)
+                    .padding(.trailing, 20)
+                    .padding(.bottom, 20)
+                    .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottomTrailing)
+                    .zIndex(1)
+
             }
             .animation(.spring(response: 0.42, dampingFraction: 0.86), value: activeWarning?.id)
             .onChange(of: warning?.id) { _, newValue in
@@ -122,8 +130,12 @@ struct TodayView: View {
             .onChange(of: liveActivityState(for: activeItem, now: now)) { _, newValue in
                 syncLiveActivity(with: newValue)
             }
+            .onChange(of: widgetSnapshot(activeItem: activeItem, nextItem: nextItem, now: now)) { _, newValue in
+                syncWidgetSnapshot(newValue)
+            }
             .task {
                 syncLiveActivity(with: liveActivityState(for: activeItem, now: now))
+                syncWidgetSnapshot(widgetSnapshot(activeItem: activeItem, nextItem: nextItem, now: now))
             }
             .confirmationDialog(
                 activeItem == nil ? "Class Controls" : "\(activeItem?.className ?? "Class") Controls",
@@ -174,9 +186,37 @@ struct TodayView: View {
                 QuickCaptureView(
                     todos: $todos,
                     suggestedContexts: suggestedTaskContexts,
+                    suggestedStudents: suggestedStudents,
                     preferredContext: preferredCaptureContext(for: adjustedTodaySchedule(for: Date())),
                     preferredCategory: preferredCaptureCategory(for: adjustedTodaySchedule(for: Date()), now: Date())
                 )
+            }
+            .sheet(item: $editingAlarm) { item in
+                AddEditView(
+                    alarms: $alarms,
+                    day: item.dayOfWeek,
+                    existing: item
+                )
+            }
+            .sheet(isPresented: $showingStudentDirectory) {
+                NavigationStack {
+                    StudentDirectoryView(profiles: $studentSupportProfiles)
+                }
+            }
+            .sheet(item: $rosterItem) { item in
+                NavigationStack {
+                    TodayClassRosterView(item: item, students: rosterStudents(for: item))
+                }
+            }
+            .sheet(item: $attendanceItem) { item in
+                NavigationStack {
+                    TodayClassAttendanceView(
+                        item: item,
+                        date: now,
+                        students: rosterStudents(for: item),
+                        records: $attendanceRecords
+                    )
+                }
             }
         }
     }
@@ -196,9 +236,6 @@ struct TodayView: View {
             Text(now.formatted(.dateTime.month().day()))
                 .font(.largeTitle)
                 .fontWeight(.bold)
-
-            Text(now.formatted(.dateTime.hour().minute()))
-                .foregroundColor(.secondary)
         }
         .padding(.top)
     }
@@ -230,8 +267,8 @@ struct TodayView: View {
         ZStack {
             LinearGradient(
                 colors: [
-                    accent.opacity(0.18),
-                    secondary.opacity(0.12),
+                    accent.opacity(0.28),
+                    secondary.opacity(0.20),
                     Color(.systemBackground)
                 ],
                 startPoint: .topLeading,
@@ -239,15 +276,15 @@ struct TodayView: View {
             )
 
             Circle()
-                .fill(accent.opacity(0.14))
+                .fill(accent.opacity(0.24))
                 .frame(width: 320, height: 320)
-                .blur(radius: 24)
+                .blur(radius: 22)
                 .offset(x: 110, y: -180)
 
             Circle()
-                .fill(secondary.opacity(0.14))
+                .fill(secondary.opacity(0.22))
                 .frame(width: 260, height: 260)
-                .blur(radius: 20)
+                .blur(radius: 18)
                 .offset(x: -140, y: -90)
         }
     }
@@ -308,14 +345,19 @@ struct TodayView: View {
                 }
 
                 if let active = activeItem {
-                    ActiveTimerCard(
-                        item: active,
-                        now: now,
-                        isHeld: isHeld(active),
-                        bellSkipped: skippedBellItemIDs.contains(active.id)
-                    )
+                    Button {
+                        editingAlarm = active
+                    } label: {
+                        ActiveTimerCard(
+                            item: active,
+                            now: now,
+                            isHeld: isHeld(active),
+                            bellSkipped: skippedBellItemIDs.contains(active.id)
+                        )
                         .frame(height: 260)
-                        .padding(.horizontal)
+                    }
+                    .buttonStyle(.plain)
+                    .padding(.horizontal)
                 } else if let next = nextItem {
                     NextUpSummaryCard(item: next, now: now)
                         .padding(.horizontal)
@@ -324,6 +366,7 @@ struct TodayView: View {
                 dashboardSummaryRow(
                     now: now,
                     schedule: schedule,
+                    activeItem: activeItem,
                     nextItem: nextItem,
                     todayCommitments: todayCommitments
                 )
@@ -363,13 +406,18 @@ struct TodayView: View {
 
                 Group {
                     if let active = activeItem {
-                        ActiveTimerCard(
-                            item: active,
-                            now: now,
-                            isTeacherMode: true,
-                            isHeld: isHeld(active),
-                            bellSkipped: skippedBellItemIDs.contains(active.id)
-                        )
+                        Button {
+                            editingAlarm = active
+                        } label: {
+                            ActiveTimerCard(
+                                item: active,
+                                now: now,
+                                isTeacherMode: true,
+                                isHeld: isHeld(active),
+                                bellSkipped: skippedBellItemIDs.contains(active.id)
+                            )
+                        }
+                        .buttonStyle(.plain)
                     } else if let next = nextItem {
                         NextUpSummaryCard(
                             item: next,
@@ -382,14 +430,17 @@ struct TodayView: View {
                 }
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
 
-                VStack(spacing: 12) {
-                    dashboardSummaryColumn(
-                        now: now,
-                        schedule: schedule,
-                        nextItem: nextItem,
-                        todayCommitments: todayCommitments
-                    )
-
+                ScrollView {
+                    VStack(spacing: 12) {
+                        dashboardSummaryColumn(
+                            now: now,
+                            schedule: schedule,
+                            activeItem: activeItem,
+                            nextItem: nextItem,
+                            todayCommitments: todayCommitments
+                        )
+                    }
+                    .padding(.bottom, 24)
                 }
                 .frame(width: 320)
             }
@@ -403,14 +454,23 @@ struct TodayView: View {
     private func dashboardSummaryRow(
         now: Date,
         schedule: [AlarmItem],
+        activeItem: AlarmItem?,
         nextItem: AlarmItem?,
         todayCommitments: [CommitmentItem]
     ) -> some View {
         VStack(spacing: 12) {
-            quickActionsCard()
+            teacherContextRibbon(
+                now: now,
+                schedule: schedule,
+                activeItem: activeItem,
+                nextItem: nextItem
+            )
+            .padding(.top, 6)
+            classSectionCard(activeItem: activeItem, nextItem: nextItem, compact: false)
             commitmentsCard(todayCommitments: todayCommitments, compact: false)
             upcomingStrip(schedule: schedule, now: now, nextItem: nextItem)
             topTasksCard(now: now)
+            studentSupportCard(activeItem: activeItem, nextItem: nextItem, compact: false)
             notesSnapshotCard(compact: false)
             schoolBoundaryCard(now: now, schedule: schedule)
             endOfDayCard(now: now, schedule: schedule)
@@ -421,6 +481,7 @@ struct TodayView: View {
     private func dashboardSummaryColumn(
         now: Date,
         schedule: [AlarmItem],
+        activeItem: AlarmItem?,
         nextItem: AlarmItem?,
         todayCommitments: [CommitmentItem]
     ) -> some View {
@@ -433,13 +494,221 @@ struct TodayView: View {
                 }), compact: true)
             }
 
-            quickActionsCard(compact: true)
+            teacherContextRibbon(
+                now: now,
+                schedule: schedule,
+                activeItem: activeItem,
+                nextItem: nextItem,
+                compact: true
+            )
+            .padding(.top, 6)
+            classSectionCard(activeItem: activeItem, nextItem: nextItem, compact: true)
             commitmentsCard(todayCommitments: todayCommitments, compact: true)
             upcomingStrip(schedule: schedule, now: now, nextItem: nextItem, compact: true)
             topTasksCard(now: now, compact: true)
+            studentSupportCard(activeItem: activeItem, nextItem: nextItem, compact: true)
             notesSnapshotCard(compact: true)
             schoolBoundaryCard(now: now, schedule: schedule, compact: true)
             endOfDayCard(now: now, schedule: schedule, compact: true)
+        }
+    }
+
+    @ViewBuilder
+    private func classSectionCard(activeItem: AlarmItem?, nextItem: AlarmItem?, compact: Bool) -> some View {
+        if let item = activeItem ?? nextItem {
+            let linkedTasks = todos.filter {
+                !$0.isCompleted &&
+                $0.linkedContext.trimmingCharacters(in: .whitespacesAndNewlines)
+                    .localizedCaseInsensitiveCompare(item.className.trimmingCharacters(in: .whitespacesAndNewlines)) == .orderedSame
+            }
+            let roster = rosterStudents(for: item)
+            let supportCount = roster.count
+
+            VStack(alignment: .leading, spacing: 8) {
+                HStack {
+                    Label(activeItem != nil ? "Current Class" : "Next Class", systemImage: activeItem != nil ? "studentdesk" : "calendar.badge.clock")
+                        .font((compact ? Font.subheadline : .headline).weight(.bold))
+
+                    Spacer()
+                }
+
+                Text(item.className)
+                    .font((compact ? Font.caption : .subheadline).weight(.semibold))
+
+                let meta = [item.gradeLevel, item.location]
+                    .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
+                    .filter { !$0.isEmpty }
+                    .joined(separator: " • ")
+
+                if !meta.isEmpty {
+                    Text(meta)
+                        .font(compact ? .caption2 : .caption)
+                        .foregroundStyle(.secondary)
+                        .lineLimit(1)
+                }
+
+                HStack(spacing: 10) {
+                    if !roster.isEmpty {
+                        Label("\(roster.count) student\(roster.count == 1 ? "" : "s")", systemImage: "person.3.sequence.fill")
+                            .font(compact ? .caption2 : .caption)
+                            .foregroundStyle(.secondary)
+                    }
+
+                    if !linkedTasks.isEmpty {
+                        Label("\(linkedTasks.count) task\(linkedTasks.count == 1 ? "" : "s")", systemImage: "checklist")
+                            .font(compact ? .caption2 : .caption)
+                            .foregroundStyle(.secondary)
+                    }
+
+                    if supportCount > 0 {
+                        Label("\(supportCount) support\(supportCount == 1 ? "" : "s")", systemImage: "person.crop.circle.badge.checkmark")
+                            .font(compact ? .caption2 : .caption)
+                            .foregroundStyle(.secondary)
+                    }
+                }
+
+                HStack(spacing: 10) {
+                    Button {
+                        rosterItem = item
+                    } label: {
+                        Label("Roster", systemImage: "person.3")
+                            .frame(maxWidth: .infinity)
+                    }
+                    .buttonStyle(.bordered)
+
+                    Button {
+                        attendanceItem = item
+                    } label: {
+                        Label("Attendance", systemImage: "checklist.checked")
+                            .frame(maxWidth: .infinity)
+                    }
+                    .buttonStyle(.borderedProminent)
+                    .disabled(roster.isEmpty)
+                }
+            }
+            .padding(compact ? 12 : 14)
+            .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 22, style: .continuous))
+        }
+    }
+
+    @ViewBuilder
+    private func studentSupportCard(activeItem: AlarmItem?, nextItem: AlarmItem?, compact: Bool) -> some View {
+        let activeSupports = activeItem.map(rosterStudents(for:)) ?? []
+        let nextSupports = nextItem.map(rosterStudents(for:)) ?? []
+        let relevantTasks = topTasks(for: Date()).filter {
+            let key = $0.studentOrGroup.trimmingCharacters(in: .whitespacesAndNewlines)
+            return !key.isEmpty && studentSupportsByName[key] != nil
+        }
+
+        if let activeItem, !activeSupports.isEmpty {
+            VStack(alignment: .leading, spacing: 8) {
+                HStack {
+                    Label("Current Class Support", systemImage: "person.crop.circle.badge.checkmark")
+                        .font((compact ? Font.subheadline : .headline).weight(.bold))
+
+                    Spacer()
+
+                    Button("Open") {
+                        openTodoTab()
+                    }
+                    .font(.caption.weight(.semibold))
+                }
+
+                Text(activeItem.className)
+                    .font((compact ? Font.caption : .subheadline).weight(.semibold))
+
+                supportSummaryList(activeSupports, compact: compact)
+            }
+            .padding(compact ? 12 : 14)
+            .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 22, style: .continuous))
+        } else if let nextItem, !nextSupports.isEmpty {
+            VStack(alignment: .leading, spacing: 8) {
+                HStack {
+                    Label("Next Class Support", systemImage: "person.2.wave.2.fill")
+                        .font((compact ? Font.subheadline : .headline).weight(.bold))
+
+                    Spacer()
+                }
+
+                Text(nextItem.className)
+                    .font((compact ? Font.caption : .subheadline).weight(.semibold))
+
+                supportSummaryList(nextSupports, compact: compact)
+            }
+            .padding(compact ? 12 : 14)
+            .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 22, style: .continuous))
+        } else if let support = relevantTasks.compactMap({ task in
+            studentSupportsByName[task.studentOrGroup.trimmingCharacters(in: .whitespacesAndNewlines)]
+        }).first {
+            VStack(alignment: .leading, spacing: 8) {
+                HStack {
+                    Label("Student Support", systemImage: "person.crop.circle.badge.checkmark")
+                        .font((compact ? Font.subheadline : .headline).weight(.bold))
+
+                    Spacer()
+
+                    Button("Open") {
+                        openTodoTab()
+                    }
+                    .font(.caption.weight(.semibold))
+                }
+
+                Text(support.name)
+                    .font((compact ? Font.caption : .subheadline).weight(.semibold))
+
+                if !support.accommodations.isEmpty {
+                    Text(support.accommodations)
+                        .font(compact ? .caption2 : .caption)
+                        .foregroundStyle(.secondary)
+                        .lineLimit(compact ? 3 : 4)
+                }
+
+                if !support.prompts.isEmpty {
+                    Text(support.prompts)
+                        .font(compact ? .caption2 : .caption)
+                        .foregroundStyle(.secondary)
+                        .lineLimit(compact ? 2 : 3)
+                }
+            }
+            .padding(compact ? 12 : 14)
+            .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 22, style: .continuous))
+        }
+    }
+
+    private func rosterStudents(for item: AlarmItem) -> [StudentSupportProfile] {
+        let gradeKey = normalizedStudentKey(GradeLevelOption.normalized(item.gradeLevel))
+
+        return studentSupportProfiles
+            .filter { profile in
+                let profileGradeKey = normalizedStudentKey(GradeLevelOption.normalized(profile.gradeLevel))
+                guard classNamesMatch(scheduleClassName: item.className, profileClassName: profile.className) else { return false }
+                if gradeKey.isEmpty || profileGradeKey.isEmpty {
+                    return true
+                }
+                return profileGradeKey == gradeKey
+            }
+            .sorted { $0.name.localizedCaseInsensitiveCompare($1.name) == .orderedAscending }
+    }
+
+    @ViewBuilder
+    private func supportSummaryList(_ supports: [StudentSupportProfile], compact: Bool) -> some View {
+        ForEach(Array(supports.prefix(compact ? 2 : 3))) { support in
+            VStack(alignment: .leading, spacing: 2) {
+                Text(support.name)
+                    .font((compact ? Font.caption : .subheadline).weight(.semibold))
+
+                let detail = [support.gradeLevel, support.accommodations, support.prompts]
+                    .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
+                    .filter { !$0.isEmpty }
+                    .joined(separator: " • ")
+
+                if !detail.isEmpty {
+                    Text(detail)
+                        .font(compact ? .caption2 : .caption)
+                        .foregroundStyle(.secondary)
+                        .lineLimit(compact ? 3 : 4)
+                }
+            }
         }
     }
 
@@ -515,6 +784,109 @@ struct TodayView: View {
         )
     }
 
+    private func teacherContextRibbon(
+        now: Date,
+        schedule: [AlarmItem],
+        activeItem: AlarmItem?,
+        nextItem: AlarmItem?,
+        compact: Bool = false
+    ) -> some View {
+        let remainingCount = schedule.filter { endDateToday(for: $0, now: now) > now }.count
+        let label: String
+        let detail: String
+        let tint: Color
+
+        if let nextItem {
+            label = "Next"
+            detail = "\(nextItem.className) at \(startDateToday(for: nextItem, now: now).formatted(date: .omitted, time: .shortened))"
+            tint = nextItem.accentColor == .clear ? .orange : nextItem.accentColor
+        } else if let activeItem {
+            label = "Now"
+            detail = activeItem.className
+            tint = activeItem.accentColor == .clear ? .blue : activeItem.accentColor
+        } else if schedule.isEmpty {
+            label = "Today"
+            detail = "No scheduled blocks"
+            tint = .secondary
+        } else {
+            label = "Today"
+            detail = "Day is wrapped"
+            tint = .indigo
+        }
+
+        return Group {
+            if let nextItem {
+                Button {
+                    editingAlarm = nextItem
+                } label: {
+                    teacherContextRibbonContent(
+                        label: label,
+                        detail: detail,
+                        remainingCount: remainingCount,
+                        tint: tint,
+                        compact: compact,
+                        isInteractive: true
+                    )
+                }
+                .buttonStyle(.plain)
+            } else {
+                teacherContextRibbonContent(
+                    label: label,
+                    detail: detail,
+                    remainingCount: remainingCount,
+                    tint: tint,
+                    compact: compact,
+                    isInteractive: false
+                )
+            }
+        }
+    }
+
+    private func teacherContextRibbonContent(
+        label: String,
+        detail: String,
+        remainingCount: Int,
+        tint: Color,
+        compact: Bool,
+        isInteractive: Bool
+    ) -> some View {
+        HStack(spacing: compact ? 8 : 10) {
+            Label(label, systemImage: label == "Next" ? "calendar.badge.clock" : "play.circle.fill")
+                .font((compact ? Font.caption : .subheadline).weight(.bold))
+                .foregroundStyle(tint)
+
+            Text(detail)
+                .font(compact ? .caption : .subheadline)
+                .foregroundStyle(.primary)
+                .lineLimit(1)
+
+            Spacer(minLength: 0)
+
+            if isInteractive {
+                Image(systemName: "pencil")
+                    .font(compact ? .caption2.weight(.bold) : .caption.weight(.bold))
+                    .foregroundStyle(tint)
+            }
+
+            Text("\(remainingCount) left")
+                .font((compact ? Font.caption2 : .caption).weight(.semibold))
+                .foregroundStyle(.secondary)
+                .padding(.horizontal, compact ? 8 : 10)
+                .padding(.vertical, compact ? 5 : 6)
+                .background(
+                    Capsule(style: .continuous)
+                        .fill(Color(.secondarySystemBackground).opacity(0.92))
+                )
+        }
+        .padding(.horizontal, compact ? 12 : 14)
+        .padding(.vertical, compact ? 10 : 12)
+        .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 18, style: .continuous))
+        .overlay(
+            RoundedRectangle(cornerRadius: 18, style: .continuous)
+                .stroke(tint.opacity(0.14), lineWidth: 1)
+        )
+    }
+
     private func statusPill(title: String, value: String, compact: Bool) -> some View {
         VStack(alignment: .leading, spacing: 2) {
             Text(title)
@@ -532,55 +904,6 @@ struct TodayView: View {
             RoundedRectangle(cornerRadius: 16, style: .continuous)
                 .fill(Color(.secondarySystemBackground).opacity(0.9))
         )
-    }
-
-    private func quickActionsCard(compact: Bool = false) -> some View {
-        VStack(alignment: .leading, spacing: 10) {
-            Label("Quick Actions", systemImage: "bolt.fill")
-                .font((compact ? Font.subheadline : .headline).weight(.bold))
-
-            let columns = [
-                GridItem(.flexible(), spacing: compact ? 8 : 10),
-                GridItem(.flexible(), spacing: compact ? 8 : 10)
-            ]
-
-            LazyVGrid(columns: columns, spacing: compact ? 8 : 10) {
-                quickActionButton(
-                    title: "Schedule",
-                    systemImage: "calendar",
-                    tint: .blue,
-                    compact: compact,
-                    action: openScheduleTab
-                )
-
-                quickActionButton(
-                    title: "Tasks",
-                    systemImage: "checklist",
-                    tint: .orange,
-                    compact: compact,
-                    action: openTodoTab
-                )
-
-                quickActionButton(
-                    title: "Notes",
-                    systemImage: "note.text",
-                    tint: .indigo,
-                    compact: compact,
-                    action: openNotesTab
-                )
-
-                quickActionButton(
-                    title: "Quick Add",
-                    systemImage: "square.and.pencil",
-                    tint: .green,
-                    compact: compact
-                ) {
-                    showingQuickCapture = true
-                }
-            }
-        }
-        .padding(compact ? 12 : 14)
-        .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 22, style: .continuous))
     }
 
     private func commitmentsCard(todayCommitments: [CommitmentItem], compact: Bool) -> some View {
@@ -668,31 +991,81 @@ struct TodayView: View {
         )
     }
 
-    private func quickActionButton(
-        title: String,
-        systemImage: String,
-        tint: Color,
-        compact: Bool,
-        action: @escaping () -> Void
-    ) -> some View {
-        Button(action: action) {
-            VStack(spacing: compact ? 6 : 8) {
-                Image(systemName: systemImage)
-                    .font(compact ? .headline : .title3)
-
-                Text(title)
-                    .font((compact ? Font.caption2 : .caption).weight(.bold))
-                    .lineLimit(1)
+    private func floatingActionMenu(activeItem: AlarmItem?, now: Date) -> some View {
+        Menu {
+            Button("Schedule", systemImage: "calendar") {
+                openScheduleTab()
             }
-            .frame(maxWidth: .infinity)
-            .padding(.vertical, compact ? 10 : 12)
-            .foregroundStyle(tint)
-            .background(
-                RoundedRectangle(cornerRadius: 16, style: .continuous)
-                    .fill(tint.opacity(0.12))
-            )
+
+            Button("Tasks", systemImage: "checklist") {
+                openTodoTab()
+            }
+
+            Button("Notes", systemImage: "note.text") {
+                openNotesTab()
+            }
+
+            Button("Students", systemImage: "person.3") {
+                showingStudentDirectory = true
+            }
+
+            Button("Settings", systemImage: "gearshape") {
+                openSettingsTab()
+            }
+
+            Divider()
+
+            Button("Quick Add", systemImage: "square.and.pencil") {
+                showingQuickCapture = true
+            }
+
+            if let activeItem {
+                Divider()
+
+                Button(isHeld(activeItem) ? "Resume Class" : "Hold Class", systemImage: isHeld(activeItem) ? "play.fill" : "pause.fill") {
+                    toggleHold(for: activeItem, now: now)
+                }
+
+                Button("Extend 1 Minute", systemImage: "plus") {
+                    extend(activeItem, byMinutes: 1)
+                }
+
+                Button("Extend 2 Minutes", systemImage: "plus") {
+                    extend(activeItem, byMinutes: 2)
+                }
+
+                Button("Extend 5 Minutes", systemImage: "plus") {
+                    extend(activeItem, byMinutes: 5)
+                }
+
+                Button(
+                    skippedBellItemIDs.contains(activeItem.id) ? "Bell Already Skipped" : "Skip Bell",
+                    systemImage: skippedBellItemIDs.contains(activeItem.id) ? "bell.slash.fill" : "bell.slash"
+                ) {
+                    if !skippedBellItemIDs.contains(activeItem.id) {
+                        skipBell(for: activeItem)
+                    }
+                }
+                .disabled(skippedBellItemIDs.contains(activeItem.id))
+            }
+        } label: {
+            Label("Actions", systemImage: "plus")
+                .font(.subheadline.weight(.bold))
+                .foregroundStyle(.white)
+                .padding(.horizontal, 18)
+                .padding(.vertical, 14)
+                .background(
+                    Capsule(style: .continuous)
+                        .fill(
+                            LinearGradient(
+                                colors: [.blue, .purple],
+                                startPoint: .topLeading,
+                                endPoint: .bottomTrailing
+                            )
+                        )
+                )
+                .shadow(color: Color.blue.opacity(0.28), radius: 12, y: 6)
         }
-        .buttonStyle(.plain)
     }
 
     private func upcomingStrip(
@@ -1111,6 +1484,18 @@ struct TodayView: View {
             parts.append(task.linkedContext)
         }
 
+        if !task.studentOrGroup.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+            parts.append(task.studentOrGroup)
+        }
+
+        if task.reminder != .none {
+            parts.append(task.reminder.displayName)
+        }
+
+        if !task.followUpNote.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+            parts.append(task.followUpNote)
+        }
+
         if task.priority != .none {
             parts.append("\(task.priority.rawValue) Priority")
         }
@@ -1402,6 +1787,10 @@ struct TodayView: View {
     private func liveActivityState(for activeItem: AlarmItem?, now: Date) -> LiveActivitySnapshot? {
         guard let activeItem else { return nil }
 
+        let nextItem = adjustedTodaySchedule(for: now).first {
+            startDateToday(for: $0, now: now) > now
+        }
+
         let room = activeItem.location.trimmingCharacters(in: .whitespacesAndNewlines)
         let liveHold = liveHoldDuration(for: activeItem, now: now)
         let stableEndTime = endDateToday(for: activeItem, now: now).addingTimeInterval(-liveHold)
@@ -1410,26 +1799,11 @@ struct TodayView: View {
             className: activeItem.className,
             room: room,
             endTime: stableEndTime,
-            isHeld: isHeld(activeItem)
+            isHeld: isHeld(activeItem),
+            iconName: activeItem.scheduleType.symbolName,
+            nextClassName: nextItem?.className ?? "",
+            nextIconName: nextItem?.scheduleType.symbolName ?? ""
         )
-    }
-
-    private func sessionActionButton(for item: AlarmItem) -> some View {
-        Button {
-            showingSessionActions = true
-        } label: {
-            Label(isHeld(item) ? "Controls • On Hold" : "Class Controls", systemImage: "slider.horizontal.3")
-                .font(.subheadline.weight(.bold))
-                .padding(.horizontal, 16)
-                .padding(.vertical, 12)
-                .background(.ultraThinMaterial, in: Capsule())
-                .overlay(
-                    Capsule()
-                        .stroke(item.accentColor.opacity(0.35), lineWidth: 1)
-                )
-        }
-        .foregroundStyle(.primary)
-        .shadow(color: item.accentColor.opacity(0.18), radius: 14, y: 8)
     }
 
     private func syncLiveActivity(with snapshot: LiveActivitySnapshot?) {
@@ -1442,8 +1816,36 @@ struct TodayView: View {
             className: snapshot.className,
             room: snapshot.room,
             endTime: snapshot.endTime,
-            isHeld: snapshot.isHeld
+            isHeld: snapshot.isHeld,
+            iconName: snapshot.iconName,
+            nextClassName: snapshot.nextClassName,
+            nextIconName: snapshot.nextIconName
         )
+    }
+
+    private func widgetSnapshot(activeItem: AlarmItem?, nextItem: AlarmItem?, now: Date) -> ClassCueWidgetSnapshot {
+        func summary(for item: AlarmItem) -> ClassCueWidgetSnapshot.BlockSummary {
+            ClassCueWidgetSnapshot.BlockSummary(
+                className: item.className,
+                room: item.location.trimmingCharacters(in: .whitespacesAndNewlines),
+                gradeLevel: item.gradeLevel.trimmingCharacters(in: .whitespacesAndNewlines),
+                symbolName: item.scheduleType.symbolName,
+                startTime: startDateToday(for: item, now: now),
+                endTime: endDateToday(for: item, now: now),
+                typeName: item.typeLabel
+            )
+        }
+
+        return ClassCueWidgetSnapshot(
+            updatedAt: now,
+            current: activeItem.map(summary),
+            next: nextItem.map(summary)
+        )
+    }
+
+    private func syncWidgetSnapshot(_ snapshot: ClassCueWidgetSnapshot) {
+        WidgetSnapshotStore.save(snapshot)
+        WidgetCenter.shared.reloadTimelines(ofKind: "ClassCueHomeWidget")
     }
 
     private func landscapeHeader(now: Date) -> some View {
@@ -1515,6 +1917,218 @@ private struct LiveActivitySnapshot: Equatable {
     let room: String
     let endTime: Date
     let isHeld: Bool
+    let iconName: String
+    let nextClassName: String
+    let nextIconName: String
+}
+
+private struct TodayClassRosterView: View {
+    let item: AlarmItem
+    let students: [StudentSupportProfile]
+
+    var body: some View {
+        List {
+            Section {
+                VStack(alignment: .leading, spacing: 6) {
+                    Text(item.className)
+                        .font(.headline.weight(.bold))
+
+                    let meta = [item.gradeLevel, item.location]
+                        .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
+                        .filter { !$0.isEmpty }
+                        .joined(separator: " • ")
+
+                    if !meta.isEmpty {
+                        Text(meta)
+                            .font(.subheadline)
+                            .foregroundStyle(.secondary)
+                    }
+                }
+            }
+
+            Section("Roster") {
+                if students.isEmpty {
+                    Text("No students linked to this class and grade yet.")
+                        .foregroundStyle(.secondary)
+                } else {
+                    ForEach(students) { student in
+                        VStack(alignment: .leading, spacing: 6) {
+                            Text(student.name)
+                                .fontWeight(.semibold)
+
+                            let info = [student.gradeLevel, student.className]
+                                .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
+                                .filter { !$0.isEmpty }
+                                .joined(separator: " • ")
+
+                            if !info.isEmpty {
+                                Text(info)
+                                    .font(.caption)
+                                    .foregroundStyle(.secondary)
+                            }
+
+                            if !student.accommodations.isEmpty {
+                                Text(student.accommodations)
+                                    .font(.caption)
+                                    .foregroundStyle(.secondary)
+                            }
+
+                            if !student.prompts.isEmpty {
+                                Text(student.prompts)
+                                    .font(.caption2)
+                                    .foregroundStyle(.secondary)
+                            }
+                        }
+                        .padding(.vertical, 2)
+                    }
+                }
+            }
+        }
+        .navigationTitle("Class Roster")
+        .navigationBarTitleDisplayMode(.inline)
+    }
+}
+
+private struct TodayClassAttendanceView: View {
+    let item: AlarmItem
+    let date: Date
+    let students: [StudentSupportProfile]
+    @Binding var records: [AttendanceRecord]
+
+    @Environment(\.dismiss) private var dismiss
+    @State private var exportURL: URL?
+    @State private var showingShareSheet = false
+
+    private var dateKey: String {
+        AttendanceRecord.dateKey(for: date)
+    }
+
+    var body: some View {
+        List {
+            Section {
+                VStack(alignment: .leading, spacing: 6) {
+                    Text(item.className)
+                        .font(.headline.weight(.bold))
+                    Text("\(date.formatted(date: .abbreviated, time: .omitted)) • \(item.gradeLevel)")
+                        .font(.subheadline)
+                        .foregroundStyle(.secondary)
+                }
+            }
+
+            Section("Attendance") {
+                if students.isEmpty {
+                    Text("No linked students were found for this class and grade.")
+                        .foregroundStyle(.secondary)
+                } else {
+                    ForEach(students) { student in
+                        HStack {
+                            VStack(alignment: .leading, spacing: 2) {
+                                Text(student.name)
+                                    .fontWeight(.semibold)
+                                if !student.accommodations.isEmpty {
+                                    Text(student.accommodations)
+                                        .font(.caption2)
+                                        .foregroundStyle(.secondary)
+                                        .lineLimit(2)
+                                }
+                            }
+
+                            Spacer()
+
+                            Picker(
+                                "Status",
+                                selection: Binding(
+                                    get: { status(for: student) },
+                                    set: { setStatus($0, for: student) }
+                                )
+                            ) {
+                                ForEach(AttendanceRecord.Status.allCases) { status in
+                                    Text(status.rawValue).tag(status)
+                                }
+                            }
+                            .pickerStyle(.menu)
+                        }
+                    }
+                }
+            }
+        }
+        .navigationTitle("Attendance")
+        .navigationBarTitleDisplayMode(.inline)
+        .toolbar {
+            ToolbarItem(placement: .navigationBarLeading) {
+                Button("Done") { dismiss() }
+            }
+
+            ToolbarItem(placement: .navigationBarTrailing) {
+                Button("Export") {
+                    exportAttendance()
+                }
+                .disabled(students.isEmpty)
+            }
+        }
+        .sheet(isPresented: $showingShareSheet) {
+            if let exportURL {
+                ShareSheet(activityItems: [exportURL])
+            }
+        }
+    }
+
+    private func status(for student: StudentSupportProfile) -> AttendanceRecord.Status {
+        records.first(where: {
+            $0.dateKey == dateKey &&
+            classNamesMatch(scheduleClassName: item.className, profileClassName: $0.className) &&
+            normalizedStudentKey($0.gradeLevel) == normalizedStudentKey(GradeLevelOption.normalized(item.gradeLevel)) &&
+            normalizedStudentKey($0.studentName) == normalizedStudentKey(student.name)
+        })?.status ?? .present
+    }
+
+    private func setStatus(_ status: AttendanceRecord.Status, for student: StudentSupportProfile) {
+        let normalizedGrade = GradeLevelOption.normalized(item.gradeLevel)
+        if let index = records.firstIndex(where: {
+            $0.dateKey == dateKey &&
+            classNamesMatch(scheduleClassName: item.className, profileClassName: $0.className) &&
+            normalizedStudentKey($0.gradeLevel) == normalizedStudentKey(normalizedGrade) &&
+            normalizedStudentKey($0.studentName) == normalizedStudentKey(student.name)
+        }) {
+            records[index].status = status
+        } else {
+            records.append(
+                AttendanceRecord(
+                    dateKey: dateKey,
+                    className: item.className,
+                    gradeLevel: normalizedGrade,
+                    studentName: student.name,
+                    status: status
+                )
+            )
+        }
+    }
+
+    private func exportAttendance() {
+        let header = "date,className,gradeLevel,studentName,status"
+        let rows = students.map { student in
+            [
+                dateKey,
+                item.className,
+                GradeLevelOption.normalized(item.gradeLevel),
+                student.name,
+                status(for: student).rawValue
+            ]
+            .map(csvEscape)
+            .joined(separator: ",")
+        }
+        let csv = ([header] + rows).joined(separator: "\n")
+        let filename = "classcue-attendance-\(dateKey)-\(item.className.replacingOccurrences(of: " ", with: "-")).csv"
+        let url = FileManager.default.temporaryDirectory.appendingPathComponent(filename)
+        try? csv.write(to: url, atomically: true, encoding: .utf8)
+        exportURL = url
+        showingShareSheet = true
+    }
+
+    private func csvEscape(_ value: String) -> String {
+        let escaped = value.replacingOccurrences(of: "\"", with: "\"\"")
+        return "\"\(escaped)\""
+    }
 }
 
 private struct InAppWarningBanner: View {

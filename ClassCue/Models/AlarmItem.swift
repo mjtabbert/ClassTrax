@@ -78,6 +78,31 @@ struct AlarmItem: Identifiable, Codable, Hashable {
             }
         }
 
+        var symbolName: String {
+            switch self {
+            case .math:
+                return "function"
+            case .ela:
+                return "text.book.closed.fill"
+            case .science:
+                return "atom"
+            case .socialStudies:
+                return "globe.americas.fill"
+            case .prep:
+                return "pencil.and.ruler.fill"
+            case .recess:
+                return "figure.run"
+            case .lunch:
+                return "fork.knife"
+            case .transition:
+                return "arrow.left.arrow.right"
+            case .other:
+                return "square.grid.2x2.fill"
+            case .blank:
+                return "circle.dashed"
+            }
+        }
+
         init(from decoder: Decoder) throws {
             let container = try decoder.singleValueContainer()
             let rawValue = try container.decode(String.self)
