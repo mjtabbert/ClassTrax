@@ -1,9 +1,9 @@
 //
 //  LaunchPrepView.swift
-//  ClassCue
+//  ClassTrax
 //
 //  Created by Mr. Mike on 3/7/26 at 6:25 PM
-//  Version: ClassCue Dev Build 22
+//  Version: ClassTrax Dev Build 22
 //
 
 import SwiftUI

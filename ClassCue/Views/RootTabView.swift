@@ -1,6 +1,6 @@
 //
 //  RootTabView.swift
-//  ClassCue
+//  ClassTrax
 //
 //  Developer: Mr. Mike
 //  Last Updated: March 12, 2026
@@ -354,21 +354,21 @@ struct RootTabView: View {
         let legacyProfiles = decodeLegacyProfiles()
         let legacyOverrides = decodeLegacyOverrides()
 
-        ClassCuePersistence.importFirstSliceIfNeeded(
+        ClassTraxPersistence.importFirstSliceIfNeeded(
             legacyAlarms: legacyAlarms,
             legacyStudentProfiles: legacyStudentProfiles,
             legacyClassDefinitions: legacyClassDefinitions,
             legacyCommitments: legacyCommitments,
             into: modelContext
         )
-        ClassCuePersistence.importSecondSliceIfNeeded(
+        ClassTraxPersistence.importSecondSliceIfNeeded(
             legacyTodos: legacyTodos,
             legacyFollowUpNotes: legacyFollowUpNotes,
             legacySubPlans: legacySubPlans,
             legacyDailySubPlans: legacyDailySubPlans,
             into: modelContext
         )
-        ClassCuePersistence.importThirdSliceIfNeeded(
+        ClassTraxPersistence.importThirdSliceIfNeeded(
             legacyAttendanceRecords: legacyAttendanceRecords,
             legacyProfiles: legacyProfiles,
             legacyOverrides: legacyOverrides,
@@ -392,7 +392,7 @@ struct RootTabView: View {
         while !Task.isCancelled && scenePhase == .active {
             try? await Task.sleep(for: Self.cloudSyncRefreshInterval)
             guard !Task.isCancelled, scenePhase == .active else { return }
-            guard ClassCuePersistence.activeContainerMode == .cloudKit else { continue }
+            guard ClassTraxPersistence.activeContainerMode == .cloudKit else { continue }
             guard Date().timeIntervalSince(lastLocalMutationAt) >= Self.localMutationRefreshPauseSeconds else {
                 continue
             }
@@ -404,9 +404,9 @@ struct RootTabView: View {
 
     private func refreshFromPersistence() {
         isRefreshingFromPersistence = true
-        let persistenceSnapshot = ClassCuePersistence.loadFirstSlice(from: modelContext)
-        let secondSliceSnapshot = ClassCuePersistence.loadSecondSlice(from: modelContext)
-        let thirdSliceSnapshot = ClassCuePersistence.loadThirdSlice(from: modelContext)
+        let persistenceSnapshot = ClassTraxPersistence.loadFirstSlice(from: modelContext)
+        let secondSliceSnapshot = ClassTraxPersistence.loadSecondSlice(from: modelContext)
+        let thirdSliceSnapshot = ClassTraxPersistence.loadThirdSlice(from: modelContext)
         alarms = persistenceSnapshot.alarms.map {
             AlarmItem(
                 id: $0.id,
@@ -491,7 +491,7 @@ struct RootTabView: View {
     }
 
     private func loadStudentProfiles() {
-        let snapshot = ClassCuePersistence.loadFirstSlice(from: modelContext)
+        let snapshot = ClassTraxPersistence.loadFirstSlice(from: modelContext)
         studentProfiles = snapshot.studentProfiles
             .map {
                 StudentSupportProfile(
@@ -513,7 +513,7 @@ struct RootTabView: View {
     }
 
     private func loadClassDefinitions() {
-        let snapshot = ClassCuePersistence.loadFirstSlice(from: modelContext)
+        let snapshot = ClassTraxPersistence.loadFirstSlice(from: modelContext)
         classDefinitions = snapshot.classDefinitions.sorted {
             $0.displayName.localizedCaseInsensitiveCompare($1.displayName) == .orderedAscending
         }
@@ -539,7 +539,7 @@ struct RootTabView: View {
         classDefinitions: [ClassDefinitionItem],
         commitments: [CommitmentItem]
     ) {
-        ClassCuePersistence.saveFirstSlice(
+        ClassTraxPersistence.saveFirstSlice(
             alarms: alarms,
             studentProfiles: studentProfiles,
             classDefinitions: classDefinitions,
@@ -553,9 +553,9 @@ struct RootTabView: View {
         subPlans: [SubPlanItem],
         dailySubPlans: [DailySubPlanItem]
     ) {
-        ClassCuePersistence.saveSecondSlice(
+        ClassTraxPersistence.saveSecondSlice(
             todos: todos,
-            followUpNotes: ClassCuePersistence.loadFollowUpNotes(from: modelContext),
+            followUpNotes: ClassTraxPersistence.loadFollowUpNotes(from: modelContext),
             subPlans: subPlans,
             dailySubPlans: dailySubPlans,
             into: modelContext
@@ -689,7 +689,7 @@ struct RootTabView: View {
         profiles: [ScheduleProfile],
         overrides: [DayOverride]
     ) {
-        ClassCuePersistence.saveThirdSlice(
+        ClassTraxPersistence.saveThirdSlice(
             attendanceRecords: attendanceRecords,
             profiles: profiles,
             overrides: overrides,

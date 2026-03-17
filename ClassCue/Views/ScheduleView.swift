@@ -1,10 +1,10 @@
 //
 //  ScheduleView.swift
-//  ClassCue
+//  ClassTrax
 //
 //  Developer: Mr. Mike
 //  Last Updated: March 12, 2026
-//  Build: ClassCue Dev Build 26
+//  Build: ClassTrax Dev Build 26
 //
 
 import SwiftUI
@@ -559,16 +559,16 @@ struct ScheduleView: View {
     }
 
     private func loadProfiles() {
-        profiles = ClassCuePersistence.loadThirdSlice(from: modelContext).profiles
+        profiles = ClassTraxPersistence.loadThirdSlice(from: modelContext).profiles
     }
 
     private func loadOverrides() {
-        overrides = ClassCuePersistence.loadThirdSlice(from: modelContext).overrides
+        overrides = ClassTraxPersistence.loadThirdSlice(from: modelContext).overrides
     }
 
     private func saveProfiles() {
-        let snapshot = ClassCuePersistence.loadThirdSlice(from: modelContext)
-        ClassCuePersistence.saveThirdSlice(
+        let snapshot = ClassTraxPersistence.loadThirdSlice(from: modelContext)
+        ClassTraxPersistence.saveThirdSlice(
             attendanceRecords: snapshot.attendanceRecords,
             profiles: profiles,
             overrides: overrides,
@@ -580,8 +580,8 @@ struct ScheduleView: View {
     }
 
     private func saveOverrides(_ overrides: [DayOverride]) {
-        let snapshot = ClassCuePersistence.loadThirdSlice(from: modelContext)
-        ClassCuePersistence.saveThirdSlice(
+        let snapshot = ClassTraxPersistence.loadThirdSlice(from: modelContext)
+        ClassTraxPersistence.saveThirdSlice(
             attendanceRecords: snapshot.attendanceRecords,
             profiles: profiles,
             overrides: overrides,

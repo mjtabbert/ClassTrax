@@ -1,10 +1,10 @@
 //
 //  ScheduleList.swift
-//  ClassCue
+//  ClassTrax
 //
 //  Developer: Mr. Mike
 //  Last Updated: March 11, 2026
-//  Build: ClassCue Dev Build 25
+//  Build: ClassTrax Dev Build 25
 //
 
 import SwiftUI

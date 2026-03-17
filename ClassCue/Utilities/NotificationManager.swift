@@ -1,10 +1,10 @@
 //
 //  NotificationManager.swift
-//  ClassCue
+//  ClassTrax
 //
 //  Developer: Mr. Mike
 //  Updated: March 11 2026
-//  Build: ClassCue Dev Build 24
+//  Build: ClassTrax Dev Build 24
 //
 
 import Foundation
@@ -53,7 +53,7 @@ final class NotificationManager {
         profiles: [ScheduleProfile] = []
     ) {
 
-        removeClassCueNotifications {
+        removeClassTraxNotifications {
             let regularAlarms: [AlarmItem]
 
             if let activeOverrideDate {
@@ -73,13 +73,13 @@ final class NotificationManager {
         }
     }
 
-    private func removeClassCueNotifications(completion: @escaping () -> Void) {
+    private func removeClassTraxNotifications(completion: @escaping () -> Void) {
 
         center.getPendingNotificationRequests { requests in
 
             let ids = requests
                 .map { $0.identifier }
-                .filter { $0.hasPrefix("classcue.") }
+                .filter { $0.hasPrefix("classtrax.") }
 
             self.center.removePendingNotificationRequests(withIdentifiers: ids)
 
@@ -155,7 +155,7 @@ final class NotificationManager {
             named: UNNotificationSoundName(SystemSounds.warning)
         )
 
-        content.categoryIdentifier = "CLASSCUE_BELL"
+        content.categoryIdentifier = "CLASSTRAX_BELL"
         content.interruptionLevel = .timeSensitive
         content.relevanceScore = 1.0
 
@@ -165,7 +165,7 @@ final class NotificationManager {
         )
 
         let request = UNNotificationRequest(
-            identifier: "classcue.warning.\(minutesBefore).\(alarm.id)",
+            identifier: "classtrax.warning.\(minutesBefore).\(alarm.id)",
             content: content,
             trigger: trigger
         )
@@ -187,14 +187,14 @@ final class NotificationManager {
         content.subtitle = warningSubtitle(for: alarm, minutesBefore: minutesBefore)
         content.body = warningBody(for: alarm, minutesBefore: minutesBefore)
         content.sound = UNNotificationSound(named: UNNotificationSoundName(SystemSounds.warning))
-        content.categoryIdentifier = "CLASSCUE_BELL"
+        content.categoryIdentifier = "CLASSTRAX_BELL"
         content.interruptionLevel = .timeSensitive
         content.relevanceScore = 1.0
 
         let components = Calendar.current.dateComponents([.year, .month, .day, .hour, .minute], from: warningDate)
         let trigger = UNCalendarNotificationTrigger(dateMatching: components, repeats: false)
         let request = UNNotificationRequest(
-            identifier: "classcue.override.warning.\(minutesBefore).\(alarm.id)",
+            identifier: "classtrax.override.warning.\(minutesBefore).\(alarm.id)",
             content: content,
             trigger: trigger
         )
@@ -213,14 +213,14 @@ final class NotificationManager {
 
         let content = UNMutableNotificationContent()
 
-        content.title = "🔔 ClassCue"
+        content.title = "🔔 Class Trax"
         content.subtitle = "\(alarm.className) Starting"
 
         content.body = formattedTimeRange(alarm)
 
         content.sound = selectedNotificationSound()
 
-        content.categoryIdentifier = "CLASSCUE_BELL"
+        content.categoryIdentifier = "CLASSTRAX_BELL"
         content.interruptionLevel = .timeSensitive
         content.relevanceScore = 1.0
 
@@ -230,7 +230,7 @@ final class NotificationManager {
         )
 
         let request = UNNotificationRequest(
-            identifier: "classcue.start.\(alarm.id)",
+            identifier: "classtrax.start.\(alarm.id)",
             content: content,
             trigger: trigger
         )
@@ -244,18 +244,18 @@ final class NotificationManager {
         guard !shouldSuppressForQuietHours(startDate) else { return }
 
         let content = UNMutableNotificationContent()
-        content.title = "🔔 ClassCue"
+        content.title = "🔔 Class Trax"
         content.subtitle = "\(alarm.className) Starting"
         content.body = formattedTimeRange(alarm)
         content.sound = selectedNotificationSound()
-        content.categoryIdentifier = "CLASSCUE_BELL"
+        content.categoryIdentifier = "CLASSTRAX_BELL"
         content.interruptionLevel = .timeSensitive
         content.relevanceScore = 1.0
 
         let components = Calendar.current.dateComponents([.year, .month, .day, .hour, .minute], from: startDate)
         let trigger = UNCalendarNotificationTrigger(dateMatching: components, repeats: false)
         let request = UNNotificationRequest(
-            identifier: "classcue.override.start.\(alarm.id)",
+            identifier: "classtrax.override.start.\(alarm.id)",
             content: content,
             trigger: trigger
         )
@@ -274,14 +274,14 @@ final class NotificationManager {
 
         let content = UNMutableNotificationContent()
 
-        content.title = "🔔 ClassCue"
+        content.title = "🔔 Class Trax"
         content.subtitle = "\(alarm.className) Ending"
 
         content.body = "Next block starting"
 
         content.sound = selectedNotificationSound()
 
-        content.categoryIdentifier = "CLASSCUE_BELL"
+        content.categoryIdentifier = "CLASSTRAX_BELL"
         content.interruptionLevel = .timeSensitive
         content.relevanceScore = 0.9
 
@@ -291,7 +291,7 @@ final class NotificationManager {
         )
 
         let request = UNNotificationRequest(
-            identifier: "classcue.end.\(alarm.id)",
+            identifier: "classtrax.end.\(alarm.id)",
             content: content,
             trigger: trigger
         )
@@ -305,18 +305,18 @@ final class NotificationManager {
         guard !shouldSuppressForQuietHours(endDate) else { return }
 
         let content = UNMutableNotificationContent()
-        content.title = "🔔 ClassCue"
+        content.title = "🔔 Class Trax"
         content.subtitle = "\(alarm.className) Ending"
         content.body = "Next block starting"
         content.sound = selectedNotificationSound()
-        content.categoryIdentifier = "CLASSCUE_BELL"
+        content.categoryIdentifier = "CLASSTRAX_BELL"
         content.interruptionLevel = .timeSensitive
         content.relevanceScore = 0.9
 
         let components = Calendar.current.dateComponents([.year, .month, .day, .hour, .minute], from: endDate)
         let trigger = UNCalendarNotificationTrigger(dateMatching: components, repeats: false)
         let request = UNNotificationRequest(
-            identifier: "classcue.override.end.\(alarm.id)",
+            identifier: "classtrax.override.end.\(alarm.id)",
             content: content,
             trigger: trigger
         )

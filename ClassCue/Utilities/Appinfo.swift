@@ -1,24 +1,24 @@
 //
 //  AppInfo.swift
-//  ClassCue
+//  ClassTrax
 //
 //  Created by Mr. Mike on 3/7/26 at 6:25 PM
-//  Version: ClassCue Dev Build 22
+//  Version: ClassTrax Dev Build 22
 //
 
 import Foundation
 
 enum AppInfo {
     
-    static let appName = "Class Cue"
-    static let displayName = "Class Cue"
+    static let appName = "Class Trax"
+    static let displayName = "Class Trax"
     static let developerName = "Mr. Mike"
     
     static let marketingVersion = "0.9"
     static let buildNumber = "22"
     static let versionLabel = "Version \(marketingVersion) (\(buildNumber))"
     
-    static let supportEmail = "support@classcue.app"
+    static let supportEmail = "support@classtrax.app"
     static let appTagline = "Teacher schedule and timer system"
     
     static let launchChecklist: [String] = [

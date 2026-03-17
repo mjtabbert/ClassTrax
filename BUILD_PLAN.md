@@ -1,13 +1,13 @@
-# ClassCue Build Plan
+# ClassTrax Build Plan
 
-This document is the working roadmap for turning ClassCue into a teacher daily command center.
+This document is the working roadmap for turning ClassTrax into a teacher daily command center.
 
 It is intentionally high signal and not overly detailed.
 When you are ready for the next phase, copy the prompt for that phase and give it to Codex.
 
 ## Product Direction
 
-ClassCue should become:
+ClassTrax should become:
 
 - the teacher's daily schedule runner
 - the classroom timer and bell system
@@ -47,11 +47,11 @@ Make the app home screen feel like a real teacher command center, not just a tim
 
 Screens likely touched:
 
-- `ClassCue/Views/TodayView.swift`
-- `ClassCue/Views/RootTabView.swift`
-- `ClassCue/Views/NextUpSummaryCard.swift`
-- `ClassCue/Views/ActiveTimerCard.swift`
-- possibly a new dashboard component file under `ClassCue/Views/` or `ClassCue/Components/`
+- `ClassTrax/Views/TodayView.swift`
+- `ClassTrax/Views/RootTabView.swift`
+- `ClassTrax/Views/NextUpSummaryCard.swift`
+- `ClassTrax/Views/ActiveTimerCard.swift`
+- possibly a new dashboard component file under `ClassTrax/Views/` or `ClassTrax/Components/`
 
 Main outcomes:
 
@@ -63,7 +63,7 @@ Main outcomes:
 
 Prompt to start this phase:
 
-`Build the Teacher Dashboard phase for ClassCue. Keep Today as the main home screen, but evolve it into a teacher command center with current block, next block, upcoming items, and a clean area for today’s top tasks. Keep the existing timer strengths and do not regress landscape teacher mode.`
+`Build the Teacher Dashboard phase for ClassTrax. Keep Today as the main home screen, but evolve it into a teacher command center with current block, next block, upcoming items, and a clean area for today’s top tasks. Keep the existing timer strengths and do not regress landscape teacher mode.`
 
 ## Phase 2: Commitments Layer
 
@@ -72,10 +72,10 @@ Support non-class obligations in the same daily flow.
 
 Screens / files likely touched:
 
-- `ClassCue/Models/AlarmItem.swift` or a new model for commitments
-- `ClassCue/Views/TodayView.swift`
-- `ClassCue/Views/ScheduleView.swift`
-- `ClassCue/Views/TimelineRow.swift`
+- `ClassTrax/Models/AlarmItem.swift` or a new model for commitments
+- `ClassTrax/Views/TodayView.swift`
+- `ClassTrax/Views/ScheduleView.swift`
+- `ClassTrax/Views/TimelineRow.swift`
 - possibly new views for editing commitments
 
 Main outcomes:
@@ -87,7 +87,7 @@ Main outcomes:
 
 Prompt to start this phase:
 
-`Build the Commitments Layer for ClassCue. Add support for meetings, duties, PLC, conferences, and other non-class events in the same day flow. They should appear in Today and Schedule, look visually distinct from class blocks, and be editable from the schedule-building experience.`
+`Build the Commitments Layer for ClassTrax. Add support for meetings, duties, PLC, conferences, and other non-class events in the same day flow. They should appear in Today and Schedule, look visually distinct from class blocks, and be editable from the schedule-building experience.`
 
 ## Phase 3: Day Override Engine
 
@@ -96,11 +96,11 @@ Make altered school days fast and obvious.
 
 Screens / files likely touched:
 
-- `ClassCue/Models/DayOverride.swift`
-- `ClassCue/Views/DayOverridesView.swift`
-- `ClassCue/Views/TodayView.swift`
-- `ClassCue/Views/ScheduleView.swift`
-- `ClassCue/Views/SettingsView.swift`
+- `ClassTrax/Models/DayOverride.swift`
+- `ClassTrax/Views/DayOverridesView.swift`
+- `ClassTrax/Views/TodayView.swift`
+- `ClassTrax/Views/ScheduleView.swift`
+- `ClassTrax/Views/SettingsView.swift`
 - schedule calculation helpers / services
 
 Main outcomes:
@@ -112,7 +112,7 @@ Main outcomes:
 
 Prompt to start this phase:
 
-`Build the Day Override Engine for ClassCue. I need altered day schedules like early release, late start, testing day, assembly day, and minimum day to be easy to activate and visually obvious. The active override should affect Today, Schedule, notifications, and the live classroom experience.`
+`Build the Day Override Engine for ClassTrax. I need altered day schedules like early release, late start, testing day, assembly day, and minimum day to be easy to activate and visually obvious. The active override should affect Today, Schedule, notifications, and the live classroom experience.`
 
 ## Phase 4: School / Personal Separation
 
@@ -121,10 +121,10 @@ Help teachers keep school life from bleeding into personal life.
 
 Screens / files likely touched:
 
-- `ClassCue/Views/SettingsView.swift`
-- `ClassCue/Views/TodayView.swift`
-- `ClassCue/Views/NotesView.swift`
-- `ClassCue/Views/TodoListView.swift`
+- `ClassTrax/Views/SettingsView.swift`
+- `ClassTrax/Views/TodayView.swift`
+- `ClassTrax/Views/NotesView.swift`
+- `ClassTrax/Views/TodoListView.swift`
 - notification and reminder behavior
 
 Main outcomes:
@@ -136,7 +136,7 @@ Main outcomes:
 
 Prompt to start this phase:
 
-`Build the School / Personal Separation phase for ClassCue. I want school tasks, notes, reminders, and notifications to feel intentionally separated from personal life, including after-hours quieting and a dismissal-style wrap-up for unfinished school work.`
+`Build the School / Personal Separation phase for ClassTrax. I want school tasks, notes, reminders, and notifications to feel intentionally separated from personal life, including after-hours quieting and a dismissal-style wrap-up for unfinished school work.`
 
 ## Phase 5: Teacher Task Upgrade
 
@@ -145,10 +145,10 @@ Replace a generic todo list with a teacher workflow system.
 
 Screens / files likely touched:
 
-- `ClassCue/Models/TodoItem.swift`
-- `ClassCue/Views/TodoListView.swift`
-- `ClassCue/Views/AddTodoView.swift`
-- `ClassCue/Views/TodayView.swift`
+- `ClassTrax/Models/TodoItem.swift`
+- `ClassTrax/Views/TodoListView.swift`
+- `ClassTrax/Views/AddTodoView.swift`
+- `ClassTrax/Views/TodayView.swift`
 
 Main outcomes:
 
@@ -159,7 +159,7 @@ Main outcomes:
 
 Prompt to start this phase:
 
-`Build the Teacher Task Upgrade for ClassCue. Evolve the current todo system into a teacher-specific task workflow with school-relevant categories, better organization for today and this week, and optional links to class blocks or commitments.`
+`Build the Teacher Task Upgrade for ClassTrax. Evolve the current todo system into a teacher-specific task workflow with school-relevant categories, better organization for today and this week, and optional links to class blocks or commitments.`
 
 ## Phase 6: Fast Capture
 
@@ -169,9 +169,9 @@ Let teachers capture things instantly during a busy day.
 Screens / files likely touched:
 
 - new quick-capture view(s)
-- `ClassCue/Views/TodayView.swift`
-- `ClassCue/Views/TodoListView.swift`
-- `ClassCue/Views/NotesView.swift`
+- `ClassTrax/Views/TodayView.swift`
+- `ClassTrax/Views/TodoListView.swift`
+- `ClassTrax/Views/NotesView.swift`
 - widgets / intents later if desired
 
 Main outcomes:
@@ -183,7 +183,7 @@ Main outcomes:
 
 Prompt to start this phase:
 
-`Build the Fast Capture phase for ClassCue. I want extremely fast capture for tasks, reminders, and notes during the school day, including a simple quick-add flow and options like save for later or remind me after school.`
+`Build the Fast Capture phase for ClassTrax. I want extremely fast capture for tasks, reminders, and notes during the school day, including a simple quick-add flow and options like save for later or remind me after school.`
 
 ## Phase 7: Class / Student Context
 
@@ -193,9 +193,9 @@ Add lightweight instructional context without becoming a full SIS or gradebook.
 Screens / files likely touched:
 
 - new models and views for class-linked notes
-- `ClassCue/Views/TodayView.swift`
-- `ClassCue/Views/ScheduleView.swift`
-- `ClassCue/Views/NotesView.swift`
+- `ClassTrax/Views/TodayView.swift`
+- `ClassTrax/Views/ScheduleView.swift`
+- `ClassTrax/Views/NotesView.swift`
 
 Main outcomes:
 
@@ -206,19 +206,19 @@ Main outcomes:
 
 Prompt to start this phase:
 
-`Build the Class / Student Context phase for ClassCue. I want lightweight class-linked notes and reminders that help with instruction and follow-up, but I do not want to turn the app into a full gradebook or SIS.`
+`Build the Class / Student Context phase for ClassTrax. I want lightweight class-linked notes and reminders that help with instruction and follow-up, but I do not want to turn the app into a full gradebook or SIS.`
 
 ## Phase 8: Calendar / Reminder Integration
 
 Goal:
-Connect ClassCue to the rest of teacher workflow without losing focus.
+Connect ClassTrax to the rest of teacher workflow without losing focus.
 
 Screens / files likely touched:
 
 - integration service files
 - permissions flow
-- `ClassCue/Views/SettingsView.swift`
-- `ClassCue/Views/TodayView.swift`
+- `ClassTrax/Views/SettingsView.swift`
+- `ClassTrax/Views/TodayView.swift`
 
 Main outcomes:
 
@@ -228,7 +228,7 @@ Main outcomes:
 
 Prompt to start this phase:
 
-`Build the Calendar / Reminder Integration phase for ClassCue. Add optional school-focused calendar and reminder integration, but keep it clearly separated from personal life and do not make the app dependent on those integrations.`
+`Build the Calendar / Reminder Integration phase for ClassTrax. Add optional school-focused calendar and reminder integration, but keep it clearly separated from personal life and do not make the app dependent on those integrations.`
 
 ## Product Rules
 
@@ -238,7 +238,7 @@ Use these to make decisions during future phases:
 - prefer reduced mental load over flashy complexity
 - protect school / personal separation
 - keep Today as the operational center
-- do not turn ClassCue into a full gradebook, LMS, or SIS
+- do not turn ClassTrax into a full gradebook, LMS, or SIS
 
 ## Notes for Future Sessions
 

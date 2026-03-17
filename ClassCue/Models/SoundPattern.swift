@@ -1,10 +1,10 @@
 //
 //  SoundPattern.swift
-//  ClassCue
+//  ClassTrax
 //
 //  Developer: Mr. Mike
 //  Last Updated: March 11, 2026
-//  Build: ClassCue Dev Build 24
+//  Build: ClassTrax Dev Build 24
 //
 
 import Foundation
@@ -22,7 +22,7 @@ enum SoundPattern: String, CaseIterable, Codable {
     case none = "None"
 
     enum SourceGroup: String, CaseIterable {
-        case classCue = "ClassCue Sounds"
+        case classCue = "Class Trax Sounds"
         case iPhone = "iPhone System Sounds"
         case silent = "Silent"
     }

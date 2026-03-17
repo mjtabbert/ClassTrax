@@ -133,7 +133,7 @@ struct NotesView: View {
                     Button("Export") {
                         exportText = classCueNotesExportText(
                             notes: currentNotesText,
-                            title: notesMode == .personal ? "Class Cue Personal Notes Export" : "Class Cue Notes Export"
+                            title: notesMode == .personal ? "Class Trax Personal Notes Export" : "Class Trax Notes Export"
                         )
                         showingShareSheet = true
                     }
@@ -411,7 +411,7 @@ struct NotesView: View {
     }
 
     private var followUpNotes: [FollowUpNoteItem] {
-        ClassCuePersistence.loadFollowUpNotes(from: modelContext)
+        ClassTraxPersistence.loadFollowUpNotes(from: modelContext)
     }
 
     private var studentNoteGroups: [(student: String, context: String?, notes: [FollowUpNoteItem])] {
@@ -469,7 +469,7 @@ struct NotesView: View {
     }
 
     private func persistFollowUpNotes(_ notes: [FollowUpNoteItem]) {
-        ClassCuePersistence.saveFollowUpNotes(notes, into: modelContext)
+        ClassTraxPersistence.saveFollowUpNotes(notes, into: modelContext)
         savedFollowUpNotes = (try? JSONEncoder().encode(notes)) ?? Data()
     }
 
@@ -495,7 +495,7 @@ struct NotesView: View {
     }
 }
 
-func classCueNotesExportText(notes: String, title: String = "Class Cue Notes Export") -> String {
+func classCueNotesExportText(notes: String, title: String = "Class Trax Notes Export") -> String {
     let dateOnlyFormatter = DateFormatter()
     dateOnlyFormatter.dateStyle = .long
     dateOnlyFormatter.timeStyle = .none

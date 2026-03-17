@@ -1,6 +1,6 @@
 //
 //  BellCountdownEngine.swift
-//  ClassCue
+//  ClassTrax
 //
 
 import AVFoundation

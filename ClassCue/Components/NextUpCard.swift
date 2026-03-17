@@ -1,9 +1,9 @@
 //
 //  NextUpCard.swift
-//  ClassCue
+//  ClassTrax
 //
 //  Created by Mr. Mike on 3/7/26 at 5:25 PM
-//  Version: ClassCue Dev Build 19
+//  Version: ClassTrax Dev Build 19
 //
 
 import SwiftUI

@@ -7,6 +7,9 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+		27C273E12F64914E00078D37 /* CarPlay.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 27C273E02F64914E00078D37 /* CarPlay.framework */; };
+		27C273E32F64916800078D37 /* WatchKit.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 27C273E22F64916800078D37 /* WatchKit.framework */; platformFilters = (watchos, ); };
+		27C273E42F64916F00078D37 /* CarPlay.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 27C273E02F64914E00078D37 /* CarPlay.framework */; platformFilter = ios; };
 		27EC66D22F61EAE600D0870D /* ActivityKit.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 27EC66D12F61EAE600D0870D /* ActivityKit.framework */; };
 		27EC66D92F61EB3D00D0870D /* WidgetKit.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 27EC66D82F61EB3D00D0870D /* WidgetKit.framework */; };
 		27EC66DB2F61EB3D00D0870D /* SwiftUI.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 27EC66DA2F61EB3D00D0870D /* SwiftUI.framework */; };
@@ -40,6 +43,8 @@
 
 /* Begin PBXFileReference section */
 		27335DB52F5B700800889F92 /* ClassCue.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = ClassCue.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		27C273E02F64914E00078D37 /* CarPlay.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = CarPlay.framework; path = System/Library/Frameworks/CarPlay.framework; sourceTree = SDKROOT; };
+		27C273E22F64916800078D37 /* WatchKit.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = WatchKit.framework; path = Platforms/WatchOS.platform/Developer/SDKs/WatchOS26.2.sdk/System/Library/Frameworks/WatchKit.framework; sourceTree = DEVELOPER_DIR; };
 		27EC66D12F61EAE600D0870D /* ActivityKit.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = ActivityKit.framework; path = System/Library/Frameworks/ActivityKit.framework; sourceTree = SDKROOT; };
 		27EC66D72F61EB3D00D0870D /* Class CueExtension.appex */ = {isa = PBXFileReference; explicitFileType = "wrapper.app-extension"; includeInIndex = 0; path = "Class CueExtension.appex"; sourceTree = BUILT_PRODUCTS_DIR; };
 		27EC66D82F61EB3D00D0870D /* WidgetKit.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = WidgetKit.framework; path = System/Library/Frameworks/WidgetKit.framework; sourceTree = SDKROOT; };
@@ -54,11 +59,11 @@
 			);
 			target = 27335DB42F5B700800889F92 /* ClassCue */;
 		};
-		27EC66F02F61EB3F00D0870D /* Exceptions for "Class Cue" folder in "Class CueExtension" target */ = {
+		27EC66F02F61EB3F00D0870D /* Exceptions for "Class Trax" folder in "Class CueExtension" target */ = {
 			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
 			membershipExceptions = (
 				AppIntent.swift,
-				Class_CueControl.swift,
+				Class_TraxControl.swift,
 				Info.plist,
 			);
 			target = 27EC66D62F61EB3D00D0870D /* Class CueExtension */;
@@ -68,7 +73,7 @@
 			membershipExceptions = (
 				App/NotificationDelegate.swift,
 				Assets.xcassets,
-				ClassCueApp.swift,
+				ClassTraxApp.swift,
 				Components/NextUpCard.swift,
 				ContentView.swift,
 				Engines/BellCountdownEngine.swift,
@@ -80,7 +85,7 @@
 				Models/HapticPattern.swift,
 				Models/ScheduleProfile.swift,
 				Models/TodoItem.swift,
-				Services/ClassCuePersistence.swift,
+				Services/ClassTraxPersistence.swift,
 				Services/ScheduleHelpers.swift,
 				Services/ScheduleList.swift,
 				Utilities/Appinfo.swift,
@@ -125,12 +130,12 @@
 			path = ClassCue;
 			sourceTree = "<group>";
 		};
-		27EC66DC2F61EB3D00D0870D /* Class Cue */ = {
+		27EC66DC2F61EB3D00D0870D /* Class Trax */ = {
 			isa = PBXFileSystemSynchronizedRootGroup;
 			exceptions = (
-				27EC66F02F61EB3F00D0870D /* Exceptions for "Class Cue" folder in "Class CueExtension" target */,
+				27EC66F02F61EB3F00D0870D /* Exceptions for "Class Trax" folder in "Class CueExtension" target */,
 			);
-			path = "Class Cue";
+			path = "Class Trax";
 			sourceTree = "<group>";
 		};
 /* End PBXFileSystemSynchronizedRootGroup section */
@@ -142,6 +147,7 @@
 			files = (
 				27EC66D22F61EAE600D0870D /* ActivityKit.framework in Frameworks */,
 				27EC66F62F61ECBB00D0870D /* WidgetKit.framework in Frameworks */,
+				27C273E12F64914E00078D37 /* CarPlay.framework in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -149,6 +155,8 @@
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				27C273E32F64916800078D37 /* WatchKit.framework in Frameworks */,
+				27C273E42F64916F00078D37 /* CarPlay.framework in Frameworks */,
 				27EC66DB2F61EB3D00D0870D /* SwiftUI.framework in Frameworks */,
 				27EC66D92F61EB3D00D0870D /* WidgetKit.framework in Frameworks */,
 			);
@@ -161,7 +169,7 @@
 			isa = PBXGroup;
 			children = (
 				27335DB72F5B700800889F92 /* ClassCue */,
-				27EC66DC2F61EB3D00D0870D /* Class Cue */,
+				27EC66DC2F61EB3D00D0870D /* Class Trax */,
 				27EC66D02F61EAE500D0870D /* Frameworks */,
 				27335DB62F5B700800889F92 /* Products */,
 			);
@@ -179,6 +187,8 @@
 		27EC66D02F61EAE500D0870D /* Frameworks */ = {
 			isa = PBXGroup;
 			children = (
+				27C273E22F64916800078D37 /* WatchKit.framework */,
+				27C273E02F64914E00078D37 /* CarPlay.framework */,
 				27EC66D12F61EAE600D0870D /* ActivityKit.framework */,
 				27EC66D82F61EB3D00D0870D /* WidgetKit.framework */,
 				27EC66DA2F61EB3D00D0870D /* SwiftUI.framework */,
@@ -227,7 +237,7 @@
 			);
 			fileSystemSynchronizedGroups = (
 				27335DB72F5B700800889F92 /* ClassCue */,
-				27EC66DC2F61EB3D00D0870D /* Class Cue */,
+				27EC66DC2F61EB3D00D0870D /* Class Trax */,
 			);
 			name = "Class CueExtension";
 			packageProductDependencies = (
@@ -323,7 +333,7 @@
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
 				ASSETCATALOG_COMPILER_INCLUDE_ALL_APPICON_ASSETS = NO;
-				CODE_SIGN_ENTITLEMENTS = ClassCue/ClassCue.entitlements;
+				CODE_SIGN_ENTITLEMENTS = ClassCue/ClassTrax.entitlements;
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
 				DEVELOPMENT_TEAM = XJWF586LVS;
@@ -331,7 +341,7 @@
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = ClassCue/Info.plist;
-				INFOPLIST_KEY_CFBundleDisplayName = "Class Cue";
+				INFOPLIST_KEY_CFBundleDisplayName = "Class Trax";
 				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.utilities";
 				INFOPLIST_KEY_NSSupportsLiveActivities = YES;
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
@@ -346,7 +356,7 @@
 					"@executable_path/Frameworks",
 				);
 				MARKETING_VERSION = 0.9;
-				PRODUCT_BUNDLE_IDENTIFIER = com.mrmike.classcue;
+				PRODUCT_BUNDLE_IDENTIFIER = com.mrmike.classtrax;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				STRING_CATALOG_GENERATE_SYMBOLS = YES;
 				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator";
@@ -367,14 +377,14 @@
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
 				ASSETCATALOG_COMPILER_INCLUDE_ALL_APPICON_ASSETS = NO;
-				CODE_SIGN_ENTITLEMENTS = ClassCue/ClassCueRelease.entitlements;
+				CODE_SIGN_ENTITLEMENTS = ClassCue/ClassTraxRelease.entitlements;
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
 				DEVELOPMENT_TEAM = XJWF586LVS;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = ClassCue/Info.plist;
-				INFOPLIST_KEY_CFBundleDisplayName = "Class Cue";
+				INFOPLIST_KEY_CFBundleDisplayName = "Class Trax";
 				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.utilities";
 				INFOPLIST_KEY_NSSupportsLiveActivities = YES;
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
@@ -389,7 +399,7 @@
 					"@executable_path/Frameworks",
 				);
 				MARKETING_VERSION = 0.9;
-				PRODUCT_BUNDLE_IDENTIFIER = com.mrmike.classcue;
+				PRODUCT_BUNDLE_IDENTIFIER = com.mrmike.classtrax;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				STRING_CATALOG_GENERATE_SYMBOLS = YES;
 				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator";
@@ -530,13 +540,13 @@
 			buildSettings = {
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
 				ASSETCATALOG_COMPILER_WIDGET_BACKGROUND_COLOR_NAME = WidgetBackground;
-				CODE_SIGN_ENTITLEMENTS = "Class Cue/ClassCueExtension.entitlements";
+				CODE_SIGN_ENTITLEMENTS = "Class Trax/ClassTraxExtension.entitlements";
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
 				DEVELOPMENT_TEAM = XJWF586LVS;
 				GENERATE_INFOPLIST_FILE = YES;
-				INFOPLIST_FILE = "Class Cue/Info.plist";
-				INFOPLIST_KEY_CFBundleDisplayName = "Class Cue";
+				INFOPLIST_FILE = "Class Trax/Info.plist";
+				INFOPLIST_KEY_CFBundleDisplayName = "Class Trax";
 				INFOPLIST_KEY_NSHumanReadableCopyright = "";
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
@@ -544,7 +554,7 @@
 					"@executable_path/../../Frameworks",
 				);
 				MARKETING_VERSION = 0.9;
-				PRODUCT_BUNDLE_IDENTIFIER = "com.mrmike.classcue.Class-Cue";
+				PRODUCT_BUNDLE_IDENTIFIER = "com.mrmike.classtrax.Class-Trax";
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SKIP_INSTALL = YES;
 				STRING_CATALOG_GENERATE_SYMBOLS = YES;
@@ -563,13 +573,13 @@
 			buildSettings = {
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
 				ASSETCATALOG_COMPILER_WIDGET_BACKGROUND_COLOR_NAME = WidgetBackground;
-				CODE_SIGN_ENTITLEMENTS = "Class Cue/ClassCueExtension.entitlements";
+				CODE_SIGN_ENTITLEMENTS = "Class Trax/ClassTraxExtension.entitlements";
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
 				DEVELOPMENT_TEAM = XJWF586LVS;
 				GENERATE_INFOPLIST_FILE = YES;
-				INFOPLIST_FILE = "Class Cue/Info.plist";
-				INFOPLIST_KEY_CFBundleDisplayName = "Class Cue";
+				INFOPLIST_FILE = "Class Trax/Info.plist";
+				INFOPLIST_KEY_CFBundleDisplayName = "Class Trax";
 				INFOPLIST_KEY_NSHumanReadableCopyright = "";
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
@@ -577,7 +587,7 @@
 					"@executable_path/../../Frameworks",
 				);
 				MARKETING_VERSION = 0.9;
-				PRODUCT_BUNDLE_IDENTIFIER = "com.mrmike.classcue.Class-Cue";
+				PRODUCT_BUNDLE_IDENTIFIER = "com.mrmike.classtrax.Class-Trax";
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SKIP_INSTALL = YES;
 				STRING_CATALOG_GENERATE_SYMBOLS = YES;

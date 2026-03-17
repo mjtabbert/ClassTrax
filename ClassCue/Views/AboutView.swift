@@ -1,9 +1,9 @@
 //
 //  AboutView.swift
-//  ClassCue
+//  ClassTrax
 //
 //  Created by Mr. Mike on 3/7/26 at 6:25 PM
-//  Version: ClassCue Dev Build 22
+//  Version: ClassTrax Dev Build 22
 //
 
 import SwiftUI
@@ -46,10 +46,10 @@ struct AboutView: View {
                     .clipShape(RoundedRectangle(cornerRadius: 18))
                     
                     VStack(alignment: .leading, spacing: 12) {
-                        Text("What Class Cue Does")
+                        Text("What Class Trax Does")
                             .font(.headline)
                         
-                        Text("Class Cue helps teachers manage daily schedules, countdowns, transitions, tasks, notes, profiles, and special day overrides in one place.")
+                        Text("Class Trax helps teachers manage daily schedules, countdowns, transitions, tasks, notes, profiles, and special day overrides in one place.")
                             .foregroundColor(.secondary)
                     }
                     .frame(maxWidth: .infinity, alignment: .leading)
@@ -84,7 +84,7 @@ struct AboutView: View {
                 }
                 .padding()
             }
-            .navigationTitle("About Class Cue")
+            .navigationTitle("About Class Trax")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .navigationBarLeading) {

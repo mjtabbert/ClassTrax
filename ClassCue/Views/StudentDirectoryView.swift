@@ -1,6 +1,6 @@
 //
 //  StudentDirectoryView.swift
-//  ClassCue
+//  ClassTrax
 //
 //  Created by Codex on 3/13/26.
 //
@@ -549,7 +549,7 @@ struct StudentDirectoryView: View {
         Reading Group A,ELA,5th Grade,Chunk directions and provide sentence starters,Preview key vocabulary before discussion,,,,,
         """
 
-        let url = FileManager.default.temporaryDirectory.appendingPathComponent("classcue-student-directory-template.csv")
+        let url = FileManager.default.temporaryDirectory.appendingPathComponent("classtrax-student-directory-template.csv")
         try? template.write(to: url, atomically: true, encoding: .utf8)
         return url
     }
@@ -602,12 +602,12 @@ struct StudentDirectoryView: View {
     }
 
     private func exportAllProfiles() {
-        export(profiles, filename: "classcue-students-all.csv")
+        export(profiles, filename: "classtrax-students-all.csv")
     }
 
     private func exportSelectedProfiles() {
         let selected = profiles.filter { selection.contains($0.id) }
-        export(selected, filename: "classcue-students-selected.csv")
+        export(selected, filename: "classtrax-students-selected.csv")
     }
 
     private enum ExportMode {
@@ -625,13 +625,13 @@ struct StudentDirectoryView: View {
                 $0.className.trimmingCharacters(in: .whitespacesAndNewlines)
                     .localizedCaseInsensitiveCompare(value) == .orderedSame
             }
-            export(filtered, filename: "classcue-class-\(safeValue).csv")
+            export(filtered, filename: "classtrax-class-\(safeValue).csv")
         case .gradeLevel:
             filtered = profiles.filter {
                 $0.gradeLevel.trimmingCharacters(in: .whitespacesAndNewlines)
                     .localizedCaseInsensitiveCompare(value) == .orderedSame
             }
-            export(filtered, filename: "classcue-grade-\(safeValue).csv")
+            export(filtered, filename: "classtrax-grade-\(safeValue).csv")
         }
     }
 

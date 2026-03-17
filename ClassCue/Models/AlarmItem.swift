@@ -1,10 +1,10 @@
 //
 //  AlarmItem.swift
-//  ClassCue
+//  ClassTrax
 //
 //  Developer: Mr. Mike
 //  Last Updated: March 11, 2026
-//  Build: ClassCue Dev Build 24
+//  Build: ClassTrax Dev Build 24
 //
 
 import Foundation

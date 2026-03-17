@@ -1,17 +1,17 @@
 //
-//  ClassCueApp.swift
-//  ClassCue
+//  ClassTraxApp.swift
+//  ClassTrax
 //
 //  Developer: Mr. Mike
 //  Last Updated: March 11, 2026
-//  Build: ClassCue Dev Build 24
+//  Build: ClassTrax Dev Build 24
 //
 
 import SwiftUI
 import UserNotifications
 
 @main
-struct ClassCueApp: App {
+struct ClassTraxApp: App {
     init() {
         let center = UNUserNotificationCenter.current()
         center.delegate = NotificationDelegate.shared

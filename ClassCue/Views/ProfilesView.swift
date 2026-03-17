@@ -1,9 +1,9 @@
 //
 //  ProfilesView.swift
-//  ClassCue
+//  ClassTrax
 //
 //  Created by Mr. Mike on 3/7/26 at 4:50 PM
-//  Version: ClassCue Dev Build 17
+//  Version: ClassTrax Dev Build 17
 //
 
 import SwiftUI

@@ -1,9 +1,9 @@
 //
 //  TimelineRow.swift
-//  ClassCue
+//  ClassTrax
 //
 //  Created by Mr. Mike on 3/7/26 at 5:40 PM
-//  Version: ClassCue Dev Build 20
+//  Version: ClassTrax Dev Build 20
 //
 
 import SwiftUI

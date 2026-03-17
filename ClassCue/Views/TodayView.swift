@@ -1,10 +1,10 @@
 //
 //  TodayView.swift
-//  ClassCue
+//  ClassTrax
 //
 //  Developer: Mr. Mike
 //  Last Updated: March 11, 2026
-//  Build: ClassCue Dev Build 25
+//  Build: ClassTrax Dev Build 25
 //
 
 import SwiftUI
@@ -1599,7 +1599,7 @@ struct TodayView: View {
                     .font(.subheadline)
                     .foregroundColor(.secondary)
 
-                Text("ClassCue is running today from the override schedule.")
+                Text("Class Trax is running today from the override schedule.")
                     .font(.caption)
                     .foregroundColor(.secondary)
             }
@@ -2113,9 +2113,9 @@ struct TodayView: View {
         )
     }
 
-    private func widgetSnapshot(activeItem: AlarmItem?, nextItem: AlarmItem?, now: Date) -> ClassCueWidgetSnapshot {
-        func summary(for item: AlarmItem) -> ClassCueWidgetSnapshot.BlockSummary {
-            ClassCueWidgetSnapshot.BlockSummary(
+    private func widgetSnapshot(activeItem: AlarmItem?, nextItem: AlarmItem?, now: Date) -> ClassTraxWidgetSnapshot {
+        func summary(for item: AlarmItem) -> ClassTraxWidgetSnapshot.BlockSummary {
+            ClassTraxWidgetSnapshot.BlockSummary(
                 className: item.className,
                 room: item.location.trimmingCharacters(in: .whitespacesAndNewlines),
                 gradeLevel: item.gradeLevel.trimmingCharacters(in: .whitespacesAndNewlines),
@@ -2126,17 +2126,17 @@ struct TodayView: View {
             )
         }
 
-        return ClassCueWidgetSnapshot(
+        return ClassTraxWidgetSnapshot(
             updatedAt: now,
             current: activeItem.map(summary),
             next: nextItem.map(summary)
         )
     }
 
-    private func syncWidgetSnapshot(_ snapshot: ClassCueWidgetSnapshot) {
+    private func syncWidgetSnapshot(_ snapshot: ClassTraxWidgetSnapshot) {
 #if canImport(WidgetKit)
         WidgetSnapshotStore.save(snapshot)
-        WidgetCenter.shared.reloadTimelines(ofKind: "ClassCueHomeWidget")
+        WidgetCenter.shared.reloadTimelines(ofKind: "ClassTraxHomeWidget")
 #else
         WidgetSnapshotStore.save(snapshot)
 #endif
@@ -2492,7 +2492,7 @@ private struct TodayClassAttendanceView: View {
             .joined(separator: ",")
         }
         let csv = ([header] + rows).joined(separator: "\n")
-        let filename = "classcue-attendance-\(dateKey)-\(item.className.replacingOccurrences(of: " ", with: "-")).csv"
+        let filename = "classtrax-attendance-\(dateKey)-\(item.className.replacingOccurrences(of: " ", with: "-")).csv"
         let url = FileManager.default.temporaryDirectory.appendingPathComponent(filename)
         try? csv.write(to: url, atomically: true, encoding: .utf8)
         exportURL = url
@@ -2580,11 +2580,11 @@ private struct TodayClassSubPlanView: View {
     }
 
     private var followUpNotes: [FollowUpNoteItem] {
-        ClassCuePersistence.loadFollowUpNotes(from: modelContext)
+        ClassTraxPersistence.loadFollowUpNotes(from: modelContext)
     }
 
     private var subPlanProfile: SubPlanProfile {
-        ClassCuePersistence.loadSubPlanProfile(from: modelContext)
+        ClassTraxPersistence.loadSubPlanProfile(from: modelContext)
     }
 
     private var relevantClassNotes: [FollowUpNoteItem] {
@@ -2835,7 +2835,7 @@ private struct TodayClassSubPlanView: View {
     }
 
     private func exportPlan() {
-        let filename = "classcue-sub-plan-\(dateKey)-\(item.className.replacingOccurrences(of: " ", with: "-")).txt"
+        let filename = "classtrax-sub-plan-\(dateKey)-\(item.className.replacingOccurrences(of: " ", with: "-")).txt"
         let url = FileManager.default.temporaryDirectory.appendingPathComponent(filename)
         try? exportText().write(to: url, atomically: true, encoding: .utf8)
         exportURL = url
@@ -2915,7 +2915,7 @@ private struct TodayClassSubPlanView: View {
         }()
 
         return """
-        ClassCue Sub Plan
+        ClassTrax Sub Plan
         \(date.formatted(date: .complete, time: .omitted))
 
         Active Schedule
@@ -3120,11 +3120,11 @@ private struct TodayDailySubPlanView: View {
     }
 
     private var followUpNotes: [FollowUpNoteItem] {
-        ClassCuePersistence.loadFollowUpNotes(from: modelContext)
+        ClassTraxPersistence.loadFollowUpNotes(from: modelContext)
     }
 
     private var subPlanProfile: SubPlanProfile {
-        ClassCuePersistence.loadSubPlanProfile(from: modelContext)
+        ClassTraxPersistence.loadSubPlanProfile(from: modelContext)
     }
 
     var body: some View {
@@ -3350,7 +3350,7 @@ private struct TodayDailySubPlanView: View {
     }
 
     private func exportPlan() {
-        let filename = "classcue-daily-sub-plan-\(dateKey).txt"
+        let filename = "classtrax-daily-sub-plan-\(dateKey).txt"
         let url = FileManager.default.temporaryDirectory.appendingPathComponent(filename)
         try? exportText().write(to: url, atomically: true, encoding: .utf8)
         exportURL = url
@@ -3443,7 +3443,7 @@ private struct TodayDailySubPlanView: View {
         }.joined(separator: "\n\n--------------------\n\n")
 
         return """
-        ClassCue Daily Sub Plan
+        ClassTrax Daily Sub Plan
         \(date.formatted(date: .complete, time: .omitted))
 
         Active Schedule

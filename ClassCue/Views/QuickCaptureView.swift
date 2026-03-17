@@ -1,6 +1,6 @@
 //
 //  QuickCaptureView.swift
-//  ClassCue
+//  ClassTrax
 //
 //  Developer: Mr. Mike
 //  Last Updated: March 12, 2026
@@ -359,11 +359,11 @@ struct QuickCaptureView: View {
     }
 
     private func decodeFollowUpNotes() -> [FollowUpNoteItem] {
-        ClassCuePersistence.loadFollowUpNotes(from: modelContext)
+        ClassTraxPersistence.loadFollowUpNotes(from: modelContext)
     }
 
     private func saveFollowUpNotes(_ notes: [FollowUpNoteItem]) {
-        ClassCuePersistence.saveFollowUpNotes(notes, into: modelContext)
+        ClassTraxPersistence.saveFollowUpNotes(notes, into: modelContext)
         savedFollowUpNotes = (try? JSONEncoder().encode(notes)) ?? Data()
     }
 

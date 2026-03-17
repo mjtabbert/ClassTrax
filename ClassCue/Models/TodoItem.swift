@@ -1,9 +1,9 @@
 //
 //  TodoItem.swift
-//  ClassCue
+//  ClassTrax
 //
 //  Created by Mr. Mike on 3/7/26 at 3:05 PM
-//  Version: ClassCue Dev Build 11.1
+//  Version: ClassTrax Dev Build 11.1
 //
 
 import SwiftUI

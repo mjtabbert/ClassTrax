@@ -1,10 +1,10 @@
 //
 //  SettingsView.swift
-//  ClassCue
+//  ClassTrax
 //
 //  Developer: Mr. Mike
 //  Last Updated: March 11, 2026
-//  Build: ClassCue Dev Build 23
+//  Build: ClassTrax Dev Build 23
 //
 
 import SwiftUI
@@ -19,6 +19,7 @@ struct SettingsView: View {
     @AppStorage("pref_sound") private var selectedSoundRawValue: String = SoundPattern.classicAlarm.rawValue
     @AppStorage("ignore_until_v1") private var ignoreUntil: Double = 0
     @AppStorage("timer_v6_data") private var savedAlarms: Data = Data()
+    @AppStorage("commitments_v1_data") private var savedCommitments: Data = Data()
     @AppStorage("profiles_v1_data") private var savedProfiles: Data = Data()
     @AppStorage("day_overrides_v1_data") private var savedOverrides: Data = Data()
     @AppStorage("todo_v6_data") private var savedTodos: Data = Data()
@@ -49,6 +50,7 @@ struct SettingsView: View {
     @State private var overrides: [DayOverride] = []
     @State private var studentProfiles: [StudentSupportProfile] = []
     @State private var classDefinitions: [ClassDefinitionItem] = []
+    @State private var commitments: [CommitmentItem] = []
     @State private var exportURL: URL?
     @State private var showingShareSheet = false
 
@@ -83,11 +85,25 @@ struct SettingsView: View {
                 saveOverrides(newValue)
             }
             .onChange(of: studentProfiles) { _, newValue in
+                ClassTraxPersistence.saveFirstSlice(
+                    alarms: alarms,
+                    studentProfiles: newValue,
+                    classDefinitions: classDefinitions,
+                    commitments: commitments,
+                    into: modelContext
+                )
                 savedStudentProfiles = (try? JSONEncoder().encode(newValue.sorted {
                     $0.name.localizedCaseInsensitiveCompare($1.name) == .orderedAscending
                 })) ?? Data()
             }
             .onChange(of: classDefinitions) { _, newValue in
+                ClassTraxPersistence.saveFirstSlice(
+                    alarms: alarms,
+                    studentProfiles: studentProfiles,
+                    classDefinitions: newValue,
+                    commitments: commitments,
+                    into: modelContext
+                )
                 savedClassDefinitions = (try? JSONEncoder().encode(newValue.sorted {
                     $0.displayName.localizedCaseInsensitiveCompare($1.displayName) == .orderedAscending
                 })) ?? Data()
@@ -192,34 +208,34 @@ struct SettingsView: View {
     private var cloudSyncStatusSection: some View {
         Section("Cloud Sync Status") {
             LabeledContent("Persistence Mode") {
-                Text(ClassCuePersistence.activeContainerMode.rawValue)
+                Text(ClassTraxPersistence.activeContainerMode.rawValue)
                     .foregroundColor(
-                        ClassCuePersistence.activeContainerMode == .cloudKit ? .green : .orange
+                        ClassTraxPersistence.activeContainerMode == .cloudKit ? .green : .orange
                     )
             }
 
             LabeledContent("CloudKit Container") {
-                Text(ClassCuePersistence.cloudKitContainerIdentifier)
+                Text(ClassTraxPersistence.cloudKitContainerIdentifier)
                     .font(.footnote)
                     .multilineTextAlignment(.trailing)
                     .foregroundColor(.secondary)
             }
 
             LabeledContent("Last Container Event") {
-                Text(ClassCuePersistence.lastContainerStatusMessage)
+                Text(ClassTraxPersistence.lastContainerStatusMessage)
                     .font(.footnote)
                     .multilineTextAlignment(.trailing)
                     .foregroundColor(.secondary)
             }
 
             LabeledContent("Schema Init Status") {
-                Text(ClassCuePersistence.lastSchemaInitializationMessage)
+                Text(ClassTraxPersistence.lastSchemaInitializationMessage)
                     .font(.footnote)
                     .multilineTextAlignment(.trailing)
                     .foregroundColor(.secondary)
             }
 
-            if ClassCuePersistence.activeContainerMode == .cloudKit {
+            if ClassTraxPersistence.activeContainerMode == .cloudKit {
                 Text("SwiftData initialized with the CloudKit-backed store. If data still does not appear on another device, the remaining issue is sync propagation or schema deployment rather than local fallback.")
                     .font(.footnote)
                     .foregroundColor(.secondary)
@@ -241,7 +257,7 @@ struct SettingsView: View {
                     .foregroundColor(liveActivitiesEnabled ? .green : .red)
             }
 
-            LabeledContent("ClassCue Activity Running") {
+            LabeledContent("Class Trax Activity Running") {
                 Text(activeLiveActivityCount > 0 ? "Yes" : "No")
                     .foregroundColor(activeLiveActivityCount > 0 ? .green : .secondary)
             }
@@ -254,7 +270,7 @@ struct SettingsView: View {
             }
 
             if activeLiveActivityCount > 0 {
-                Text("ClassCue currently has \(activeLiveActivityCount) active Live Activit\(activeLiveActivityCount == 1 ? "y" : "ies").")
+                Text("Class Trax currently has \(activeLiveActivityCount) active Live Activit\(activeLiveActivityCount == 1 ? "y" : "ies").")
                     .font(.footnote)
                     .foregroundColor(.secondary)
             } else {
@@ -267,7 +283,7 @@ struct SettingsView: View {
                 .font(.footnote)
                 .foregroundColor(.secondary)
 #else
-            Text("Live Activities are unavailable on this platform. ClassCue sync, schedule editing, students, tasks, notes, and sub plans remain available.")
+            Text("Live Activities are unavailable on this platform. Class Trax sync, schedule editing, students, tasks, notes, and sub plans remain available.")
                 .font(.footnote)
                 .foregroundColor(.secondary)
 #endif
@@ -303,7 +319,7 @@ struct SettingsView: View {
                     displayedComponents: .hourAndMinute
                 )
 
-                Text("This applies every day. ClassCue quiets routine school alerts after this time and resumes them again the next day before your first scheduled alert.")
+                Text("This applies every day. ClassTrax quiets routine school alerts after this time and resumes them again the next day before your first scheduled alert.")
                     .font(.footnote)
                     .foregroundColor(.secondary)
             } else {
@@ -329,7 +345,7 @@ struct SettingsView: View {
                 Label("Export Open Tasks to Reminders", systemImage: "checklist.checked")
             }
 
-            Text("This is the first integration layer: ClassCue can package today’s schedule as a calendar file and open tasks as a reminders checklist, so you can push data into other systems without making the app dependent on them.")
+            Text("This is the first integration layer: ClassTrax can package today’s schedule as a calendar file and open tasks as a reminders checklist, so you can push data into other systems without making the app dependent on them.")
                 .font(.footnote)
                 .foregroundColor(.secondary)
         }
@@ -397,7 +413,7 @@ struct SettingsView: View {
 
     private var aboutSection: some View {
         Section("About") {
-            NavigationLink("About Class Cue") {
+            NavigationLink("About Class Trax") {
                 AboutView()
             }
         }
@@ -427,13 +443,19 @@ struct SettingsView: View {
             alarms = []
         }
 
+        if let decodedCommitments = try? JSONDecoder().decode([CommitmentItem].self, from: savedCommitments) {
+            commitments = decodedCommitments
+        } else {
+            commitments = []
+        }
+
         if let decodedTodos = try? JSONDecoder().decode([TodoItem].self, from: savedTodos) {
             todos = decodedTodos
         } else {
             todos = []
         }
 
-        profiles = ClassCuePersistence.loadThirdSlice(from: modelContext).profiles
+        profiles = ClassTraxPersistence.loadThirdSlice(from: modelContext).profiles
 
         if let decodedProfiles = try? JSONDecoder().decode([StudentSupportProfile].self, from: savedStudentProfiles) {
             studentProfiles = decodedProfiles.sorted {
@@ -451,7 +473,7 @@ struct SettingsView: View {
             classDefinitions = []
         }
 
-        overrides = ClassCuePersistence.loadThirdSlice(from: modelContext).overrides
+        overrides = ClassTraxPersistence.loadThirdSlice(from: modelContext).overrides
     }
 
     private func saveAlarms(_ alarms: [AlarmItem]) {
@@ -461,8 +483,8 @@ struct SettingsView: View {
     }
 
     private func saveProfiles(_ profiles: [ScheduleProfile]) {
-        let snapshot = ClassCuePersistence.loadThirdSlice(from: modelContext)
-        ClassCuePersistence.saveThirdSlice(
+        let snapshot = ClassTraxPersistence.loadThirdSlice(from: modelContext)
+        ClassTraxPersistence.saveThirdSlice(
             attendanceRecords: snapshot.attendanceRecords,
             profiles: profiles,
             overrides: overrides,
@@ -474,8 +496,8 @@ struct SettingsView: View {
     }
 
     private func saveOverrides(_ overrides: [DayOverride]) {
-        let snapshot = ClassCuePersistence.loadThirdSlice(from: modelContext)
-        ClassCuePersistence.saveThirdSlice(
+        let snapshot = ClassTraxPersistence.loadThirdSlice(from: modelContext)
+        ClassTraxPersistence.saveThirdSlice(
             attendanceRecords: snapshot.attendanceRecords,
             profiles: profiles,
             overrides: overrides,
@@ -557,7 +579,7 @@ struct SettingsView: View {
 
     private var activeLiveActivityCount: Int {
 #if canImport(ActivityKit) && !targetEnvironment(macCatalyst)
-        Activity<ClassCueActivityAttributes>.activities.count
+        Activity<ClassTraxActivityAttributes>.activities.count
 #else
         0
 #endif
@@ -575,19 +597,19 @@ struct SettingsView: View {
     }
 
     private func exportTodayScheduleToCalendar() {
-        let title = "ClassCue \(Date().formatted(date: .abbreviated, time: .omitted))"
+        let title = "Class Trax \(Date().formatted(date: .abbreviated, time: .omitted))"
         let text = calendarICS(
             title: title,
             date: Date(),
             alarms: todayScheduleForExport,
             overrideLabel: activeOverrideForToday().map { _ in "Active Day Override" }
         )
-        shareTextFile(named: "classcue-today-schedule.ics", contents: text)
+        shareTextFile(named: "classtrax-today-schedule.ics", contents: text)
     }
 
     private func exportOpenTasksToReminders() {
         let text = remindersChecklist(date: Date(), todos: todos)
-        shareTextFile(named: "classcue-open-tasks.txt", contents: text)
+        shareTextFile(named: "classtrax-open-tasks.txt", contents: text)
     }
 
     private func shareTextFile(named filename: String, contents: String) {
@@ -614,7 +636,7 @@ struct SettingsView: View {
 
             return """
             BEGIN:VEVENT
-            UID:\(alarm.id.uuidString)@classcue
+            UID:\(alarm.id.uuidString)@classtrax
             DTSTAMP:\(icsTimestamp(from: Date()))
             DTSTART:\(icsTimestamp(from: start))
             DTEND:\(icsTimestamp(from: end))
@@ -628,7 +650,7 @@ struct SettingsView: View {
         return """
         BEGIN:VCALENDAR
         VERSION:2.0
-        PRODID:-//ClassCue//Teacher Workspace//EN
+        PRODID:-//ClassTrax//Teacher Workspace//EN
         CALSCALE:GREGORIAN
         X-WR-CALNAME:\(escapedICS(title))
         \(events)
@@ -638,7 +660,7 @@ struct SettingsView: View {
 
     private func remindersChecklist(date: Date, todos: [TodoItem]) -> String {
         let openTodos = todos.filter { !$0.isCompleted }
-        let header = "ClassCue Tasks\n\(date.formatted(date: .complete, time: .omitted))"
+        let header = "Class Trax Tasks\n\(date.formatted(date: .complete, time: .omitted))"
 
         guard !openTodos.isEmpty else {
             return "\(header)\n\nNo open tasks."
@@ -783,7 +805,7 @@ struct SubPlanProfileSettingsView: View {
         }
         .onAppear {
             guard !hasLoaded else { return }
-            profile = ClassCuePersistence.loadSubPlanProfile(from: modelContext)
+            profile = ClassTraxPersistence.loadSubPlanProfile(from: modelContext)
             hasLoaded = true
         }
     }
@@ -791,7 +813,7 @@ struct SubPlanProfileSettingsView: View {
     private func saveProfile() {
         let cleaned = cleanedProfile(profile)
         profile = cleaned
-        ClassCuePersistence.saveSubPlanProfile(cleaned, into: modelContext)
+        ClassTraxPersistence.saveSubPlanProfile(cleaned, into: modelContext)
         saveStatusMessage = "Saved \(Date.now.formatted(date: .omitted, time: .shortened))"
     }
 

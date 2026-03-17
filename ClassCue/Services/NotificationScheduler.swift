@@ -152,20 +152,19 @@ final class NotificationScheduler {
     }
 
     private func startIdentifier(for block: ScheduleBlock) -> String {
-        "classcue.start.\(block.id.uuidString)"
+        "classtrax.start.\(block.id.uuidString)"
     }
 
     private func endIdentifier(for block: ScheduleBlock) -> String {
-        "classcue.end.\(block.id.uuidString)"
+        "classtrax.end.\(block.id.uuidString)"
     }
 
     private func warningIdentifier(for block: ScheduleBlock) -> String {
-        "classcue.warning.\(block.id.uuidString)"
+        "classtrax.warning.\(block.id.uuidString)"
     }
 }//
 //  NotificationScheduler.swift
-//  ClassCue
+//  ClassTrax
 //
 //  Created by Mike Tabbert on 3/10/26.
 //
-

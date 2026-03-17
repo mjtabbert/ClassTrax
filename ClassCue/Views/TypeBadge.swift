@@ -1,6 +1,6 @@
 //
 //  TypeBadge.swift
-//  ClassCue
+//  ClassTrax
 //
 //  Developer: Mr. Mike
 //  Updated: March 11, 2026

@@ -1,6 +1,6 @@
 //
 //  DebugView.swift
-//  ClassCue
+//  ClassTrax
 //
 //  Created by Mike Tabbert on 3/10/26.
 //
@@ -8,11 +8,11 @@
 
 //
 //  DebugView.swift
-//  ClassCue
+//  ClassTrax
 //
 //  Developer: Mr. Mike
 //  Last Updated: March 10, 2026
-//  Build: ClassCue Dev Build 23
+//  Build: ClassTrax Dev Build 23
 //
 
 import SwiftUI

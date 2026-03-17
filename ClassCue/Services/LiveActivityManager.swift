@@ -1,10 +1,10 @@
 //
 //  LiveActivityManager.swift
-//  ClassCue
+//  ClassTrax
 //
 //  Developer: Mr. Mike
 //  Last Updated: March 11, 2026
-//  Build: ClassCue Dev Build 23
+//  Build: ClassTrax Dev Build 23
 //
 
 import Foundation
@@ -13,15 +13,15 @@ import ActivityKit
 
 class LiveActivityManager {
 
-    static var currentActivity: Activity<ClassCueActivityAttributes>?
+    static var currentActivity: Activity<ClassTraxActivityAttributes>?
     @MainActor static var lastStatusMessage: String = "Idle"
 
-    private static var resolvedActivity: Activity<ClassCueActivityAttributes>? {
+    private static var resolvedActivity: Activity<ClassTraxActivityAttributes>? {
         if let currentActivity {
             return currentActivity
         }
 
-        let existing = Activity<ClassCueActivityAttributes>.activities.first
+        let existing = Activity<ClassTraxActivityAttributes>.activities.first
         currentActivity = existing
         return existing
     }
@@ -44,11 +44,11 @@ class LiveActivityManager {
             return
         }
 
-        let attributes = ClassCueActivityAttributes(
+        let attributes = ClassTraxActivityAttributes(
             className: className
         )
 
-        let state = ClassCueActivityAttributes.ContentState(
+        let state = ClassTraxActivityAttributes.ContentState(
             className: className,
             room: room,
             endTime: endTime,
@@ -109,7 +109,7 @@ class LiveActivityManager {
         Task {
             guard let activity = resolvedActivity else { return }
 
-            let updatedState = ClassCueActivityAttributes.ContentState(
+            let updatedState = ClassTraxActivityAttributes.ContentState(
                 className: className,
                 room: room,
                 endTime: endTime,
@@ -169,7 +169,7 @@ class LiveActivityManager {
     static func stop() {
 
         Task {
-            for activity in Activity<ClassCueActivityAttributes>.activities {
+            for activity in Activity<ClassTraxActivityAttributes>.activities {
                 await activity.end(
                     nil,
                     dismissalPolicy: .immediate

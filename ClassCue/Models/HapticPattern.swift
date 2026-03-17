@@ -1,9 +1,9 @@
 //
 //  HapticPattern.swift
-//  ClassCue
+//  ClassTrax
 //
 //  Created by Mr. Mike on 3/6/26 at 3:30 PM
-//  Version: ClassCue Dev Build 2
+//  Version: ClassTrax Dev Build 2
 //
 
 import Foundation
@@ -19,7 +19,7 @@ enum HapticPattern: String, Codable, CaseIterable {
     case none = "None"
 
     enum SourceGroup: String, CaseIterable {
-        case classCue = "ClassCue Haptics"
+        case classCue = "Class Trax Haptics"
         case iPhone = "iPhone System Haptics"
         case silent = "Silent"
     }

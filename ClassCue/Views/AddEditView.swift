@@ -1,13 +1,14 @@
 //
 //  AddEditView.swift
-//  ClassCue
+//  ClassTrax
 //
 //  Developer: Mr. Mike
 //  Last Updated: March 10, 2026
-//  Build: ClassCue Dev Build 23
+//  Build: ClassTrax Dev Build 23
 //
 
 import SwiftUI
+import SwiftData
 
 struct AddEditView: View {
     @Binding var alarms: [AlarmItem]
@@ -17,6 +18,7 @@ struct AddEditView: View {
     let day: Int
     var existing: AlarmItem? = nil
 
+    @Environment(\.modelContext) private var modelContext
     @Environment(\.dismiss) private var dismiss
 
     @State private var name = ""
@@ -24,6 +26,7 @@ struct AddEditView: View {
     @State private var grade = ""
     @State private var type = AlarmItem.ScheduleType.other
     @State private var selectedClassDefinitionID: UUID?
+    @State private var availableClassDefinitions: [ClassDefinitionItem] = []
 
     @State private var start = Date()
     @State private var end = Date().addingTimeInterval(60 * 30)
@@ -82,7 +85,7 @@ struct AddEditView: View {
                 Section("Class Details") {
                     Picker("Saved Class", selection: $selectedClassDefinitionID) {
                         Text("None").tag(Optional<UUID>.none)
-                        ForEach(classDefinitions) { definition in
+                        ForEach(availableClassDefinitions) { definition in
                             Text(definition.displayName).tag(Optional(definition.id))
                         }
                     }
@@ -208,7 +211,13 @@ struct AddEditView: View {
                 }
             }
             .onAppear {
+                prepareAvailableClassDefinitions()
                 configureInitialValues()
+            }
+            .onChange(of: classDefinitions) { _, newValue in
+                if !newValue.isEmpty {
+                    availableClassDefinitions = sortedUniqueClassDefinitions(newValue)
+                }
             }
             .onChange(of: selectedClassDefinitionID) { _, newValue in
                 applySelectedClassDefinition(newValue)
@@ -246,7 +255,7 @@ struct AddEditView: View {
             selectedClassDefinitionID = existing.classDefinitionID ?? exactClassDefinitionMatch(
                 name: existing.className,
                 gradeLevel: existing.gradeLevel,
-                in: classDefinitions
+                in: availableClassDefinitions
             )?.id
             start = existing.startTime
             end = existing.endTime
@@ -364,7 +373,7 @@ struct AddEditView: View {
 
     private var selectedClassDefinition: ClassDefinitionItem? {
         guard let selectedClassDefinitionID else { return nil }
-        return classDefinitions.first { $0.id == selectedClassDefinitionID }
+        return availableClassDefinitions.first { $0.id == selectedClassDefinitionID }
     }
 
     private var candidateClassDefinitions: [ClassDefinitionItem] {
@@ -372,7 +381,7 @@ struct AddEditView: View {
         return classDefinitionCandidates(
             name: name.trimmingCharacters(in: .whitespacesAndNewlines),
             gradeLevel: grade,
-            in: classDefinitions
+            in: availableClassDefinitions
         )
     }
 
@@ -498,7 +507,7 @@ struct AddEditView: View {
     }
 
     private func applySelectedClassDefinition(_ id: UUID?) {
-        guard let id, let definition = classDefinitions.first(where: { $0.id == id }) else { return }
+        guard let id, let definition = availableClassDefinitions.first(where: { $0.id == id }) else { return }
         name = definition.name
         type = AlarmItem.ScheduleType(rawValue: definition.scheduleKind.rawValue) ?? .other
         grade = GradeLevelOption.normalized(definition.gradeLevel)
@@ -515,7 +524,7 @@ struct AddEditView: View {
         return exactClassDefinitionMatch(
             name: trimmedName,
             gradeLevel: trimmedGrade,
-            in: classDefinitions
+            in: availableClassDefinitions
         )?.id
     }
 
@@ -533,6 +542,28 @@ struct AddEditView: View {
         }
 
         return classNamesMatch(scheduleClassName: fallbackClassName, profileClassName: group.className)
+    }
+
+    private func prepareAvailableClassDefinitions() {
+        if !availableClassDefinitions.isEmpty { return }
+        if !classDefinitions.isEmpty {
+            availableClassDefinitions = sortedUniqueClassDefinitions(classDefinitions)
+            return
+        }
+
+        // Fallback to persistence if the live binding hasn't hydrated yet.
+        let snapshot = ClassTraxPersistence.loadFirstSlice(from: modelContext)
+        availableClassDefinitions = sortedUniqueClassDefinitions(snapshot.classDefinitions)
+    }
+
+    private func sortedUniqueClassDefinitions(_ items: [ClassDefinitionItem]) -> [ClassDefinitionItem] {
+        var seen = Set<UUID>()
+        let deduped = items.filter { item in
+            if seen.contains(item.id) { return false }
+            seen.insert(item.id)
+            return true
+        }
+        return deduped.sorted { $0.displayName.localizedCaseInsensitiveCompare($1.displayName) == .orderedAscending }
     }
 }
 

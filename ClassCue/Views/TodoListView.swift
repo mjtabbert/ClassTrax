@@ -1,9 +1,9 @@
 //
 //  TodoListView.swift
-//  ClassCue
+//  ClassTrax
 //
 //  Created by Mr. Mike on 3/7/26 at 3:20 PM
-//  Version: ClassCue Dev Build 11.2
+//  Version: ClassTrax Dev Build 11.2
 //
 
 import SwiftUI

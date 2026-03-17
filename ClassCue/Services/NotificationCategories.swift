@@ -1,6 +1,6 @@
 //
 //  NotificationCategories.swift
-//  ClassCue
+//  ClassTrax
 //
 //  Created by Mike Tabbert on 3/11/26.
 //
@@ -8,14 +8,14 @@
 
 //
 // NotificationCategories.swift
-// ClassCue
+// ClassTrax
 //
 
 import UserNotifications
 
 struct NotificationCategories {
 
-    static let classCue = "CLASSCUE_BELL"
+    static let classCue = "CLASSTRAX_BELL"
 
     static func register() {
 

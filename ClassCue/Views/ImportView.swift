@@ -1,6 +1,6 @@
 //
 //  ImportView.swift
-//  ClassCue
+//  ClassTrax
 //
 
 import SwiftUI
@@ -30,7 +30,7 @@ struct ImportView: View {
                     .font(.largeTitle)
                     .fontWeight(.bold)
 
-                Text("Import a CSV file or retrieve a fillable template that you can open in Google Sheets, edit, and bring back into ClassCue.")
+                Text("Import a CSV file or retrieve a fillable template that you can open in Google Sheets, edit, and bring back into Class Trax.")
                     .font(.subheadline)
                     .foregroundColor(.secondary)
 
@@ -44,7 +44,7 @@ struct ImportView: View {
 
                 actionCard(
                     title: "Paste CSV Text",
-                    subtitle: "Copy CSV rows from Google Sheets, Excel, or another source and paste them directly into ClassCue.",
+                    subtitle: "Copy CSV rows from Google Sheets, Excel, or another source and paste them directly into Class Trax.",
                     systemImage: "doc.on.clipboard"
                 ) {
                     showingPasteImporter = true
@@ -52,7 +52,7 @@ struct ImportView: View {
 
                 actionCard(
                     title: "Get Google Sheets Template",
-                    subtitle: "Exports a fillable ClassCue CSV template you can open in Google Sheets and complete.",
+                    subtitle: "Exports a fillable Class Trax CSV template you can open in Google Sheets and complete.",
                     systemImage: "doc.text.magnifyingglass"
                 ) {
                     showingTemplateShareSheet = true
@@ -446,7 +446,7 @@ struct ImportView: View {
     }
 
     private func makeTemplateFileURL() -> URL {
-        let url = FileManager.default.temporaryDirectory.appendingPathComponent("ClassCue Schedule Template.csv")
+        let url = FileManager.default.temporaryDirectory.appendingPathComponent("ClassTrax Schedule Template.csv")
         try? templateCSV.write(to: url, atomically: true, encoding: .utf8)
         return url
     }

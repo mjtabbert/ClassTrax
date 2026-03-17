@@ -1,4 +1,4 @@
-# ClassCue Build Plan V2
+# ClassTrax Build Plan V2
 
 This document updates the earlier build plan to reflect the product direction that has emerged in the app:
 
@@ -9,7 +9,7 @@ This document updates the earlier build plan to reflect the product direction th
 
 ## Product Direction
 
-ClassCue should become a unified teacher workspace with specialized lenses for the teachers who need it most:
+ClassTrax should become a unified teacher workspace with specialized lenses for the teachers who need it most:
 
 1. Elementary classroom teachers
 2. Secondary "nomad" teachers
@@ -54,7 +54,7 @@ These fit the current scope and represent the best next investments.
 
 ## Out Of Scope
 
-These do not fit the near-term scope or would turn ClassCue into the wrong product.
+These do not fit the near-term scope or would turn ClassTrax into the wrong product.
 
 - Full SIS replacement
 - Full LMS replacement
@@ -264,7 +264,7 @@ Includes:
 ### Phase 7. Integrations
 
 Goal:
-Connect ClassCue to school systems without making it dependent on them.
+Connect ClassTrax to school systems without making it dependent on them.
 
 Includes:
 
@@ -292,7 +292,7 @@ Use these rules to protect product quality:
 - reduce context switching
 - protect school/personal separation
 - keep Today as the operational center
-- do not turn ClassCue into a full gradebook, LMS, or SIS
+- do not turn ClassTrax into a full gradebook, LMS, or SIS
 - favor offline-capable/local-first workflows
 
 ## Best Next Step

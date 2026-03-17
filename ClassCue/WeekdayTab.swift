@@ -1,6 +1,6 @@
 //
 //  WeekdayTab.swift
-//  ClassCue
+//  ClassTrax
 //
 //  Created by Mike Tabbert on 3/11/26.
 //

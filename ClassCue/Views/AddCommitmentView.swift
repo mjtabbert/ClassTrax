@@ -1,6 +1,6 @@
 //
 //  AddCommitmentView.swift
-//  ClassCue
+//  ClassTrax
 //
 //  Developer: Mr. Mike
 //  Last Updated: March 12, 2026

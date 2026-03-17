@@ -1,9 +1,9 @@
 //
 //  ExportView.swift
-//  ClassCue
+//  ClassTrax
 //
 //  Created by Mr. Mike on 3/7/26 at 4:25 PM
-//  Version: ClassCue Dev Build 13.1
+//  Version: ClassTrax Dev Build 13.1
 //
 
 import SwiftUI
