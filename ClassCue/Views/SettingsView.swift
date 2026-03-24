@@ -104,56 +104,114 @@ struct SettingsView: View {
     @State private var showingShareSheet = false
     @State private var dashboardCardOrder = TodayView.TodayDashboardCard.defaultOrder
     @State private var hiddenDashboardCards = Set<TodayView.TodayDashboardCard>()
+    @State private var isLoadingInitialState = false
+    @State private var hasLoadedInitialState = false
 
     var body: some View {
-        settingsNavigationStack
+        stabilitySettingsContent
     }
 
-    private var settingsNavigationStack: some View {
-        NavigationStack {
-            settingsContent
-        }
-    }
+    private var stabilitySettingsContent: some View {
+        List {
+            Section {
+                VStack(alignment: .leading, spacing: 10) {
+                    Text("Settings")
+                        .font(.headline.weight(.bold))
 
-    private var settingsContent: some View {
-        settingsNotificationContent
-            .sheet(isPresented: $showingShareSheet) {
-                if let exportURL {
-                    ShareSheet(activityItems: [exportURL])
+                    Text("This screen is temporarily simplified while the full settings flow is stabilized.")
+                        .font(.footnote)
+                        .foregroundStyle(.secondary)
+                }
+                .padding(.vertical, 4)
+            }
+
+            Section("Daily Use") {
+                NavigationLink("Alerts") {
+                    settingsDestinationView(.alerts)
+                        .onChange(of: selectedSoundRawValue) { _, _ in refreshNotifications() }
+                        .onChange(of: warningFiveSoundRawValue) { _, _ in refreshNotifications() }
+                        .onChange(of: warningTwoSoundRawValue) { _, _ in refreshNotifications() }
+                        .onChange(of: warningOneSoundRawValue) { _, _ in refreshNotifications() }
+                }
+
+                NavigationLink("After Hours") {
+                    settingsDestinationView(.boundaries)
+                        .onChange(of: schoolQuietHoursEnabled) { _, _ in
+                            syncSchoolQuietStart()
+                            refreshNotifications()
+                        }
+                        .onChange(of: schoolQuietStart) { _, newValue in
+                            let components = Calendar.current.dateComponents([.hour, .minute], from: newValue)
+                            schoolQuietHour = components.hour ?? 16
+                            schoolQuietMinute = components.minute ?? 0
+                            refreshNotifications()
+                        }
+                }
+
+                NavigationLink("Today Layout") {
+                    settingsDestinationView(.todayLayout)
+                        .onChange(of: dashboardCardOrder) { _, _ in
+                            persistTodayLayoutSettings()
+                        }
+                        .onChange(of: hiddenDashboardCards) { _, _ in
+                            persistTodayLayoutSettings()
+                        }
+                }
+
+                NavigationLink("Classroom Setup") {
+                    settingsDestinationView(.classroomSetup)
+                }
+
+                NavigationLink("Sub Plans") {
+                    settingsDestinationView(.subPlans)
+                }
+
+                NavigationLink("Data Management") {
+                    settingsDestinationView(.data)
+                }
+
+                NavigationLink("Live Activities") {
+                    settingsDestinationView(.liveActivities)
+                }
+
+                NavigationLink("Cloud Sync") {
+                    settingsDestinationView(.cloudSync)
+                }
+
+                NavigationLink("Integrations") {
+                    settingsDestinationView(.integrations)
+                }
+
+                NavigationLink("Diagnostics") {
+                    settingsDestinationView(.diagnostics)
+                }
+
+                NavigationLink("About") {
+                    settingsDestinationView(.about)
                 }
             }
-            .onChange(of: dashboardCardOrder) { _, _ in
-                persistTodayLayoutSettings()
+        }
+        .listStyle(.insetGrouped)
+        .sheet(isPresented: $showingShareSheet) {
+            if let exportURL {
+                ShareSheet(activityItems: [exportURL])
             }
-            .onChange(of: hiddenDashboardCards) { _, _ in
-                persistTodayLayoutSettings()
+        }
+        .onAppear {
+            ignoreUntil = ScheduleSnoozeStore.synchronize()
+            loadTodayLayoutSettings()
+            configureHolidayMode()
+        }
+        .navigationTitle("Settings")
+        .toolbar {
+            ToolbarItem(placement: .topBarTrailing) {
+                Button("Done") {
+                    dismiss()
+                }
             }
-    }
-
-    private var settingsNotificationContent: some View {
-        settingsBaseContent
-            .onChange(of: schoolQuietHoursEnabled) { _, _ in
-                syncSchoolQuietStart()
-                refreshNotifications()
-            }
-            .onChange(of: schoolQuietStart) { _, newValue in
-                let components = Calendar.current.dateComponents([.hour, .minute], from: newValue)
-                schoolQuietHour = components.hour ?? 16
-                schoolQuietMinute = components.minute ?? 0
-                refreshNotifications()
-            }
-            .onChange(of: selectedSoundRawValue) { _, _ in
-                refreshNotifications()
-            }
-            .onChange(of: warningFiveSoundRawValue) { _, _ in
-                refreshNotifications()
-            }
-            .onChange(of: warningTwoSoundRawValue) { _, _ in
-                refreshNotifications()
-            }
-            .onChange(of: warningOneSoundRawValue) { _, _ in
-                refreshNotifications()
-            }
+        }
+        .scrollContentBackground(.hidden)
+        .background(settingsBackground)
     }
 
     private var settingsBaseContent: some View {
@@ -170,7 +228,6 @@ struct SettingsView: View {
             .background(settingsBackground)
             .onAppear {
                 ignoreUntil = ScheduleSnoozeStore.synchronize()
-                loadData()
                 loadTodayLayoutSettings()
                 configureHolidayMode()
             }
@@ -179,15 +236,19 @@ struct SettingsView: View {
     private var settingsPersistenceContent: some View {
         settingsList
             .onChange(of: alarms) { _, newValue in
+                guard !isLoadingInitialState else { return }
                 saveAlarms(newValue)
             }
             .onChange(of: profiles) { _, newValue in
+                guard !isLoadingInitialState else { return }
                 saveProfiles(newValue)
             }
             .onChange(of: overrides) { _, newValue in
+                guard !isLoadingInitialState else { return }
                 saveOverrides(newValue)
             }
             .onChange(of: studentProfiles) { _, newValue in
+                guard !isLoadingInitialState else { return }
                 ClassTraxPersistence.saveFirstSlice(
                     alarms: alarms,
                     studentProfiles: newValue,
@@ -200,6 +261,7 @@ struct SettingsView: View {
                 })) ?? Data()
             }
             .onChange(of: classDefinitions) { _, newValue in
+                guard !isLoadingInitialState else { return }
                 ClassTraxPersistence.saveFirstSlice(
                     alarms: alarms,
                     studentProfiles: studentProfiles,
@@ -219,6 +281,7 @@ struct SettingsView: View {
             dailyUseSection
             systemSection
         }
+        .listStyle(.insetGrouped)
     }
 
     private var controlCenterSection: some View {
@@ -234,12 +297,12 @@ struct SettingsView: View {
                 HStack(spacing: 12) {
                     settingsSummaryPill(
                         title: "Classes",
-                        value: "\(classDefinitions.count)",
+                        value: hasLoadedInitialState ? "\(classDefinitions.count)" : "Open",
                         accent: .blue
                     )
                     settingsSummaryPill(
                         title: "Students",
-                        value: "\(studentProfiles.count)",
+                        value: hasLoadedInitialState ? "\(studentProfiles.count)" : "Open",
                         accent: .green
                     )
                     settingsSummaryPill(
@@ -249,7 +312,14 @@ struct SettingsView: View {
                     )
                 }
             }
+            .padding(16)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .background(controlCenterCardBackground)
+            .overlay(controlCenterCardBorder)
             .padding(.vertical, 4)
+            .listRowInsets(EdgeInsets(top: 8, leading: 0, bottom: 8, trailing: 0))
+            .listRowBackground(Color.clear)
+            .listRowSeparator(.hidden)
         }
     }
 
@@ -258,7 +328,7 @@ struct SettingsView: View {
             settingsLink(.alerts, detail: "Bell sounds, haptics, and snooze")
             settingsLink(.boundaries, detail: "After-hours behavior and focus")
             settingsLink(.todayLayout, detail: "\(visibleTodayCardCount) cards visible")
-            settingsLink(.classroomSetup, detail: "\(classDefinitions.count) classes • \(studentProfiles.count) students")
+            settingsLink(.classroomSetup, detail: "Classes, students, profiles, and overrides")
             settingsLink(.subPlans, detail: "Profiles and substitute prep")
         }
     }
@@ -280,10 +350,7 @@ struct SettingsView: View {
             settingsDestinationView(destination)
         } label: {
             HStack(alignment: .top, spacing: 12) {
-                Image(systemName: destination.systemImage)
-                    .font(.headline)
-                    .foregroundStyle(Color.accentColor)
-                    .frame(width: 24)
+                settingsLinkIcon(destination)
 
                 VStack(alignment: .leading, spacing: 4) {
                     Text(destination.rawValue)
@@ -298,11 +365,23 @@ struct SettingsView: View {
 
                 Spacer(minLength: 8)
 
-                Image(systemName: "chevron.right")
-                    .font(.caption.weight(.bold))
-                    .foregroundStyle(.tertiary)
-                    .padding(.top, 4)
+                VStack(alignment: .trailing, spacing: 6) {
+                    Text(sectionStatusLabel(for: destination))
+                        .font(.caption2.weight(.bold))
+                        .foregroundStyle(sectionStatusColor(for: destination))
+                        .padding(.horizontal, 8)
+                        .padding(.vertical, 4)
+                        .background(
+                            Capsule(style: .continuous)
+                                .fill(sectionStatusColor(for: destination).opacity(0.12))
+                        )
+
+                    Image(systemName: "chevron.right")
+                        .font(.caption.weight(.bold))
+                        .foregroundStyle(.tertiary)
+                }
             }
+            .padding(.vertical, 4)
         }
     }
 
@@ -326,6 +405,91 @@ struct SettingsView: View {
             RoundedRectangle(cornerRadius: 12, style: .continuous)
                 .stroke(accent.opacity(0.14), lineWidth: 1)
         )
+    }
+
+    private func settingsLinkIcon(_ destination: SettingsDestination) -> some View {
+        RoundedRectangle(cornerRadius: 12, style: .continuous)
+            .fill(sectionStatusColor(for: destination).opacity(0.12))
+            .frame(width: 36, height: 36)
+            .overlay {
+                Image(systemName: destination.systemImage)
+                    .font(.headline)
+                    .foregroundStyle(sectionStatusColor(for: destination))
+            }
+    }
+
+    private var controlCenterCardBackground: some View {
+        RoundedRectangle(cornerRadius: 20, style: .continuous)
+            .fill(
+                LinearGradient(
+                    colors: [
+                        Color.blue.opacity(0.14),
+                        Color.orange.opacity(0.08),
+                        Color(.secondarySystemGroupedBackground)
+                    ],
+                    startPoint: .topLeading,
+                    endPoint: .bottomTrailing
+                )
+            )
+    }
+
+    private var controlCenterCardBorder: some View {
+        RoundedRectangle(cornerRadius: 20, style: .continuous)
+            .strokeBorder(Color.white.opacity(0.35), lineWidth: 1)
+    }
+
+    private func sectionStatusLabel(for destination: SettingsDestination) -> String {
+        switch destination {
+        case .alerts:
+            return ignoreUntil > Date().timeIntervalSince1970 ? "Snoozed" : "Ready"
+        case .boundaries:
+            return schoolQuietHoursEnabled ? "On" : "Off"
+        case .todayLayout:
+            return "\(visibleTodayCardCount)"
+        case .classroomSetup:
+            return "\(classDefinitions.count)"
+        case .subPlans:
+            return "Profile"
+        case .integrations:
+            return "Tools"
+        case .cloudSync:
+            return ClassTraxPersistence.activeContainerMode == .cloudKit ? "Cloud" : "Local"
+        case .liveActivities:
+            return liveActivitiesEnabledPreference ? "On" : "Off"
+        case .data:
+            return "CSV"
+        case .diagnostics:
+            return "Inspect"
+        case .about:
+            return "Info"
+        }
+    }
+
+    private func sectionStatusColor(for destination: SettingsDestination) -> Color {
+        switch destination {
+        case .alerts:
+            return ignoreUntil > Date().timeIntervalSince1970 ? .orange : .indigo
+        case .boundaries:
+            return schoolQuietHoursEnabled ? .blue : .gray
+        case .todayLayout:
+            return .teal
+        case .classroomSetup:
+            return .green
+        case .subPlans:
+            return .brown
+        case .integrations:
+            return .pink
+        case .cloudSync:
+            return ClassTraxPersistence.activeContainerMode == .cloudKit ? .green : .orange
+        case .liveActivities:
+            return liveActivitiesEnabledPreference ? .mint : .gray
+        case .data:
+            return .cyan
+        case .diagnostics:
+            return .red
+        case .about:
+            return .blue
+        }
     }
 
     @ViewBuilder
@@ -375,6 +539,9 @@ struct SettingsView: View {
         .navigationTitle(destination.rawValue)
         .scrollContentBackground(.hidden)
         .background(settingsBackground)
+        .task {
+            ensureDataLoadedIfNeeded()
+        }
         }
     }
 
@@ -421,6 +588,14 @@ struct SettingsView: View {
 
     private var visibleTodayCardCount: Int {
         dashboardCardOrder.filter { !hiddenDashboardCards.contains($0) }.count
+    }
+
+    private func ensureDataLoadedIfNeeded() {
+        guard !hasLoadedInitialState else { return }
+        isLoadingInitialState = true
+        loadData()
+        hasLoadedInitialState = true
+        isLoadingInitialState = false
     }
 
     private func loadTodayLayoutSettings() {
@@ -565,6 +740,20 @@ struct SettingsView: View {
 
             LabeledContent("Schema Init Status") {
                 Text(ClassTraxPersistence.lastSchemaInitializationMessage)
+                    .font(.footnote)
+                    .multilineTextAlignment(.trailing)
+                    .foregroundColor(.secondary)
+            }
+
+            LabeledContent("Loaded Snapshot") {
+                Text(syncSnapshotSummary)
+                    .font(.footnote)
+                    .multilineTextAlignment(.trailing)
+                    .foregroundColor(.secondary)
+            }
+
+            LabeledContent("Planning Data") {
+                Text(planningSnapshotSummary)
                     .font(.footnote)
                     .multilineTextAlignment(.trailing)
                     .foregroundColor(.secondary)
@@ -774,6 +963,14 @@ struct SettingsView: View {
         }
 
         return "ClassTrax currently has \(classDefinitions.count) saved classes and \(studentProfiles.count) students ready to reuse across schedules, rosters, and notes."
+    }
+
+    private var syncSnapshotSummary: String {
+        "\(alarms.count) blocks • \(todos.count) tasks • \(studentProfiles.count) students • \(classDefinitions.count) classes"
+    }
+
+    private var planningSnapshotSummary: String {
+        "\(commitments.count) commitments • \(profiles.count) profiles • \(overrides.count) overrides"
     }
 
     private func testBell() {

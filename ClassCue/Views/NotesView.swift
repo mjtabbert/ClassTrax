@@ -63,6 +63,8 @@ struct NotesView: View {
     let onRefresh: @MainActor () -> Void
     let openTodayTab: () -> Void
 
+    @Environment(\.horizontalSizeClass) private var horizontalSizeClass
+
     @AppStorage("notes_v1") private var notesText: String = ""
     @AppStorage("personal_notes_v1") private var personalNotesText: String = ""
     @AppStorage("follow_up_notes_v1_data") private var savedFollowUpNotes: Data = Data()
@@ -105,19 +107,42 @@ struct NotesView: View {
     var body: some View {
         NavigationStack {
             VStack(spacing: 0) {
-                Picker("View", selection: $notesMode) {
-                    ForEach(NotesMode.allCases, id: \.self) { mode in
-                        Text(mode.title).tag(mode)
+                VStack(alignment: .leading, spacing: 12) {
+                    HStack(alignment: .top, spacing: 12) {
+                        VStack(alignment: .leading, spacing: 4) {
+                            Text("Notes")
+                                .font(.title3.weight(.bold))
+
+                            Text(notesHeaderSummary)
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                        }
+
+                        Spacer(minLength: 0)
+
+                        notesModeBadge
                     }
+
+                    Picker("View", selection: $notesMode) {
+                        ForEach(NotesMode.allCases, id: \.self) { mode in
+                            Text(mode.title).tag(mode)
+                        }
+                    }
+                    .pickerStyle(.segmented)
                 }
-                .pickerStyle(.segmented)
                 .padding(.horizontal)
                 .padding(.top, 14)
                 .padding(.bottom, 12)
+                .background(notesHeaderBackground)
 
                 currentModeView
             }
+            .frame(maxWidth: 1040)
+            .frame(maxWidth: .infinity)
             .navigationTitle("Notes")
+            .navigationBarTitleDisplayMode(.inline)
+            .scrollContentBackground(.hidden)
+            .background(notesBackground)
             .toolbar {
                 ToolbarItemGroup(placement: .navigationBarLeading) {
                     if notesMode != .all && !currentModeNotes.isEmpty {
@@ -152,13 +177,16 @@ struct NotesView: View {
                             openTodayTab()
                         }
                     } label: {
-                        Image(systemName: "ellipsis.circle")
+                        toolbarIconButton(systemImage: "ellipsis", title: "Actions")
                     }
 
                     Button {
                         presentAddNote()
                     } label: {
-                        Image(systemName: "plus")
+                        toolbarCapsuleLabel(
+                            title: "Add",
+                            systemImage: "plus"
+                        )
                     }
                 }
             }
@@ -210,12 +238,104 @@ struct NotesView: View {
             }
             .onAppear {
                 migrateLegacyTextNotesIfNeeded()
+                mergeLegacyTextNotesIfNeeded()
                 consumeTodayQuickNoteDraftIfNeeded()
             }
             .onChange(of: todayQuickNoteDraftToken) { _, _ in
                 consumeTodayQuickNoteDraftIfNeeded()
             }
+            .onChange(of: notesText) { _, _ in
+                mergeLegacyTextNotesIfNeeded()
+            }
+            .onChange(of: personalNotesText) { _, _ in
+                mergeLegacyTextNotesIfNeeded()
+            }
         }
+    }
+
+    private var notesHeaderSummary: String {
+        switch notesMode {
+        case .all:
+            return "Review school, personal, class, and student notes together."
+        case .general:
+            return "Capture school-day reminders, meetings, and follow-up items."
+        case .personal:
+            return "Keep personal notes available without mixing them into school context."
+        case .classNotes:
+            return "Group follow-up by class so the right context stays attached."
+        case .studentNotes:
+            return "Track student-specific notes and next steps in one place."
+        }
+    }
+
+    private var notesModeBadge: some View {
+        Text(notesMode.title.uppercased())
+            .font(.caption2.weight(.black))
+            .foregroundStyle(Color.accentColor)
+            .padding(.horizontal, 8)
+            .padding(.vertical, 5)
+            .background(
+                Capsule(style: .continuous)
+                    .fill(Color.accentColor.opacity(0.12))
+            )
+    }
+
+    private var notesHeaderBackground: some View {
+        LinearGradient(
+            colors: [
+                Color.teal.opacity(0.08),
+                Color(.secondarySystemGroupedBackground).opacity(0.96)
+            ],
+            startPoint: .topLeading,
+            endPoint: .bottomTrailing
+        )
+    }
+
+    private var notesBackground: some View {
+        LinearGradient(
+            colors: [
+                Color(.systemBackground),
+                Color.teal.opacity(0.04),
+                Color.blue.opacity(0.03),
+                Color(.systemGroupedBackground)
+            ],
+            startPoint: .topLeading,
+            endPoint: .bottomTrailing
+        )
+        .ignoresSafeArea()
+    }
+
+    private func toolbarCapsuleLabel(title: String, systemImage: String) -> some View {
+        Label(title, systemImage: systemImage)
+            .font(.caption.weight(.bold))
+            .foregroundStyle(Color.accentColor)
+            .padding(.horizontal, 10)
+            .padding(.vertical, 7)
+            .background(
+                Capsule(style: .continuous)
+                    .fill(Color.accentColor.opacity(0.10))
+            )
+    }
+
+    @ViewBuilder
+    private func toolbarIconButton(systemImage: String, title: String) -> some View {
+        if prefersExpandedToolbar {
+            toolbarCapsuleLabel(title: title, systemImage: systemImage)
+        } else {
+            ZStack {
+                Circle()
+                    .fill(Color.accentColor.opacity(0.10))
+                    .frame(width: 30, height: 30)
+
+                Image(systemName: systemImage)
+                    .font(.subheadline.weight(.bold))
+                    .foregroundStyle(Color.accentColor)
+            }
+        }
+    }
+
+    private var prefersExpandedToolbar: Bool {
+        horizontalSizeClass != .compact
     }
 
     @ViewBuilder
@@ -606,6 +726,14 @@ struct NotesView: View {
                         selectedContextFilter = ""
                     }
                 }
+
+                if !classDefinitions.isEmpty {
+                    noteOverviewRow(
+                        title: "Saved Classes",
+                        value: "\(classDefinitions.count)",
+                        systemImage: "text.book.closed"
+                    )
+                }
             }
 
             if !groups.isEmpty {
@@ -731,6 +859,12 @@ struct NotesView: View {
                         selectedStudentFilter = ""
                     }
                 }
+
+                noteOverviewRow(
+                    title: "Rostered Students",
+                    value: "\(studentProfiles.count)",
+                    systemImage: "person.3"
+                )
             }
 
             if !groups.isEmpty {
@@ -976,6 +1110,57 @@ struct NotesView: View {
         }
 
         didMigrateLegacyTextNotes = true
+    }
+
+    private func mergeLegacyTextNotesIfNeeded() {
+        let trimmedSchoolNotes = notesText.trimmingCharacters(in: .whitespacesAndNewlines)
+        let trimmedPersonalNotes = personalNotesText.trimmingCharacters(in: .whitespacesAndNewlines)
+        var updated = followUpNotes
+        var didChange = false
+
+        didChange = mergeLegacyTextNote(
+            kind: .generalNote,
+            noteText: trimmedSchoolNotes,
+            into: &updated
+        ) || didChange
+
+        didChange = mergeLegacyTextNote(
+            kind: .personalNote,
+            noteText: trimmedPersonalNotes,
+            into: &updated
+        ) || didChange
+
+        if didChange {
+            persistFollowUpNotes(updated)
+        }
+    }
+
+    private func mergeLegacyTextNote(
+        kind: FollowUpNoteItem.Kind,
+        noteText: String,
+        into notes: inout [FollowUpNoteItem]
+    ) -> Bool {
+        if let index = notes.firstIndex(where: {
+            $0.kind == kind &&
+            $0.context.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty &&
+            $0.studentOrGroup.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+        }) {
+            guard !noteText.isEmpty, notes[index].note != noteText else { return false }
+            notes[index].note = noteText
+            return true
+        }
+
+        guard !noteText.isEmpty else { return false }
+        notes.insert(
+            FollowUpNoteItem(
+                kind: kind,
+                context: "",
+                studentOrGroup: "",
+                note: noteText
+            ),
+            at: 0
+        )
+        return true
     }
 
     private func studentProfile(named name: String) -> StudentSupportProfile? {

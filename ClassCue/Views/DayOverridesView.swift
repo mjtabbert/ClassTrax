@@ -19,6 +19,7 @@ struct DayOverridesView: View {
     @State private var selectedProfileID: UUID?
     @State private var selectedKind: DayOverride.OverrideKind = .custom
     @State private var overrideToDelete: DayOverride?
+    @State private var feedbackMessage = ""
 
     private var todayOverride: DayOverride? {
         overrides.first {
@@ -53,6 +54,21 @@ struct DayOverridesView: View {
                 Section("Add Day Override") {
                     DatePicker("Date", selection: $selectedDate, displayedComponents: .date)
 
+                    if !presetKinds.isEmpty {
+                        ScrollView(.horizontal, showsIndicators: false) {
+                            HStack(spacing: 8) {
+                                ForEach(presetKinds, id: \.self) { kind in
+                                    Button(kind.displayName) {
+                                        selectedKind = kind
+                                    }
+                                    .buttonStyle(.borderedProminent)
+                                    .tint(selectedKind == kind ? .accentColor : .secondary.opacity(0.3))
+                                }
+                            }
+                            .padding(.vertical, 4)
+                        }
+                    }
+
                     Picker("Override Type", selection: $selectedKind) {
                         ForEach(DayOverride.OverrideKind.allCases, id: \.self) { kind in
                             Text(kind.displayName).tag(kind)
@@ -70,6 +86,13 @@ struct DayOverridesView: View {
                         saveOverride()
                     }
                     .disabled(selectedProfileID == nil || profiles.isEmpty)
+                }
+
+                if !feedbackMessage.isEmpty {
+                    Section {
+                        Label(feedbackMessage, systemImage: "checkmark.circle.fill")
+                            .foregroundStyle(.green)
+                    }
                 }
                 
                 Section("Saved Overrides") {
@@ -142,6 +165,10 @@ struct DayOverridesView: View {
     private var sortedOverrides: [DayOverride] {
         overrides.sorted { $0.date < $1.date }
     }
+
+    private var presetKinds: [DayOverride.OverrideKind] {
+        DayOverride.OverrideKind.allCases.filter { $0 != .custom }
+    }
     
     private func saveOverride() {
         guard let selectedProfileID else { return }
@@ -162,6 +189,8 @@ struct DayOverridesView: View {
                 )
             )
         }
+
+        feedbackMessage = "\(selectedKind.displayName) saved for \(formattedDate(normalizedDate))."
     }
 
     private func loadOverride(_ override: DayOverride) {

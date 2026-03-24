@@ -15,25 +15,27 @@ struct NextUpSummaryCard: View {
     let now: Date
     var isCompact: Bool = false
 
+    private var accentColor: Color {
+        item.type.themeColor == .clear ? .blue : item.type.themeColor
+    }
+
     var body: some View {
 
         HStack(alignment: .top, spacing: 14) {
 
             ZStack {
                 RoundedRectangle(cornerRadius: 16, style: .continuous)
-                    .fill(item.type.themeColor.opacity(0.16))
+                    .fill(accentColor.opacity(0.16))
                     .frame(width: isCompact ? 42 : 50, height: isCompact ? 42 : 50)
 
                 Image(systemName: item.type.symbolName)
                     .font(.system(size: isCompact ? 16 : 18, weight: .bold))
-                    .foregroundStyle(item.type == .blank ? .secondary : item.type.themeColor)
+                    .foregroundStyle(item.type == .blank ? .secondary : accentColor)
             }
 
             VStack(alignment: .leading, spacing: 8) {
                 HStack(spacing: 8) {
-                    Text("NEXT UP")
-                        .font(.caption.weight(.black))
-                        .foregroundColor(item.type == .blank ? .blue : item.type.themeColor)
+                    capsuleLabel("Next Up", accent: accentColor)
 
                     TypeBadge(type: item.type)
                 }
@@ -48,17 +50,33 @@ struct NextUpSummaryCard: View {
                     .foregroundColor(.secondary)
                     .lineLimit(1)
 
-                if !item.location.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
-                    Text(item.location)
-                        .font(isCompact ? .caption : .footnote)
-                        .foregroundColor(.secondary)
-                        .lineLimit(1)
+                HStack(spacing: 8) {
+                    capsuleMetric(
+                        timeRangeText,
+                        systemImage: "clock",
+                        accent: accentColor,
+                        compact: isCompact
+                    )
+
+                    if !item.location.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                        capsuleMetric(
+                            item.location,
+                            systemImage: "mappin.and.ellipse",
+                            accent: accentColor,
+                            compact: isCompact
+                        )
+                    }
                 }
             }
 
             Spacer(minLength: 12)
 
             VStack(alignment: .trailing, spacing: 8) {
+                Text("Starts In")
+                    .font(.caption2.weight(.bold))
+                    .foregroundStyle(.secondary)
+                    .tracking(0.8)
+
                 Text(timeText)
                     .font((isCompact ? Font.headline : .title3).weight(.bold))
                     .monospacedDigit()
@@ -66,11 +84,11 @@ struct NextUpSummaryCard: View {
                     .lineLimit(1)
 
                 Capsule(style: .continuous)
-                    .fill(item.type.themeColor.opacity(0.22))
+                    .fill(accentColor.opacity(0.22))
                     .frame(width: isCompact ? 56 : 76, height: 6)
                     .overlay(alignment: .leading) {
                         Capsule(style: .continuous)
-                            .fill(item.type.themeColor == .clear ? Color.blue : item.type.themeColor)
+                            .fill(accentColor)
                             .frame(width: progressWidth)
                     }
             }
@@ -82,7 +100,7 @@ struct NextUpSummaryCard: View {
                 .fill(
                     LinearGradient(
                         colors: [
-                            item.type.themeColor.opacity(0.10),
+                            accentColor.opacity(0.12),
                             Color(.systemGray6)
                         ],
                         startPoint: .topLeading,
@@ -92,7 +110,7 @@ struct NextUpSummaryCard: View {
         )
         .overlay(
             RoundedRectangle(cornerRadius: 18)
-                .stroke(Color.white.opacity(0.12), lineWidth: 1)
+                .stroke(accentColor.opacity(0.12), lineWidth: 1)
         )
     }
 
@@ -148,5 +166,35 @@ struct NextUpSummaryCard: View {
             second: 0,
             of: now
         )
+    }
+
+    private func capsuleLabel(_ title: String, accent: Color) -> some View {
+        Text(title.uppercased())
+            .font(.caption2.weight(.black))
+            .foregroundStyle(accent)
+            .padding(.horizontal, 8)
+            .padding(.vertical, 4)
+            .background(
+                Capsule(style: .continuous)
+                    .fill(accent.opacity(0.12))
+            )
+    }
+
+    private func capsuleMetric(
+        _ title: String,
+        systemImage: String,
+        accent: Color,
+        compact: Bool
+    ) -> some View {
+        Label(title, systemImage: systemImage)
+            .font((compact ? Font.caption2 : .caption).weight(.semibold))
+            .foregroundStyle(.secondary)
+            .lineLimit(1)
+            .padding(.horizontal, 8)
+            .padding(.vertical, 5)
+            .background(
+                Capsule(style: .continuous)
+                    .fill(accent.opacity(0.08))
+            )
     }
 }

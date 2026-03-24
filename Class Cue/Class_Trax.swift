@@ -214,8 +214,6 @@ struct ClassTraxHomeEntryView: View {
     private var headerRow: some View {
         HStack {
             HStack(spacing: 6) {
-                Image(systemName: "graduationcap.fill")
-                    .font(.caption2.weight(.bold))
                 Text("CLASSTRAX")
                     .font(.caption2.weight(.bold))
                     .tracking(0.8)

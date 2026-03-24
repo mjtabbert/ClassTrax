@@ -10,6 +10,8 @@ import UniformTypeIdentifiers
 import UIKit
 
 struct StudentDirectoryView: View {
+    @Environment(\.horizontalSizeClass) private var horizontalSizeClass
+
     @Binding var profiles: [StudentSupportProfile]
     @Binding var classDefinitions: [ClassDefinitionItem]
 
@@ -44,11 +46,14 @@ struct StudentDirectoryView: View {
 
     var body: some View {
         directoryList
+            .frame(maxWidth: 1040)
+            .frame(maxWidth: .infinity)
             .navigationTitle("Class List")
             .environment(\.editMode, .constant(selection.isEmpty ? .inactive : .active))
             .searchable(text: $searchText, prompt: "Search students, class, grade, or contact")
             .scrollContentBackground(.hidden)
             .background(directoryBackground)
+            .listStyle(.insetGrouped)
             .onChange(of: groupingMode) { _, newValue in
                 if newValue != .className {
                     expandedClassSections.removeAll()
@@ -75,7 +80,7 @@ struct StudentDirectoryView: View {
                             showingExportOptions = true
                         }
                     } label: {
-                        Image(systemName: "square.and.arrow.down")
+                        toolbarMenuLabel(title: "Roster", systemImage: "square.and.arrow.down")
                     }
                 }
 
@@ -83,7 +88,7 @@ struct StudentDirectoryView: View {
                     Button {
                         showingAdd = true
                     } label: {
-                        Image(systemName: "plus")
+                        toolbarMenuLabel(title: "New Student", systemImage: "plus")
                     }
                 }
             }
@@ -175,6 +180,35 @@ struct StudentDirectoryView: View {
             } message: {
                 Text(errorMessage)
             }
+    }
+
+    @ViewBuilder
+    private func toolbarMenuLabel(title: String, systemImage: String) -> some View {
+        if prefersExpandedToolbar {
+            Label(title, systemImage: systemImage)
+                .font(.caption.weight(.bold))
+                .foregroundStyle(Color.accentColor)
+                .padding(.horizontal, 10)
+                .padding(.vertical, 7)
+                .background(
+                    Capsule(style: .continuous)
+                        .fill(Color.accentColor.opacity(0.10))
+                )
+        } else {
+            ZStack {
+                Circle()
+                    .fill(Color.accentColor.opacity(0.10))
+                    .frame(width: 32, height: 32)
+
+                Image(systemName: systemImage)
+                    .font(.subheadline.weight(.bold))
+                    .foregroundStyle(Color.accentColor)
+            }
+        }
+    }
+
+    private var prefersExpandedToolbar: Bool {
+        horizontalSizeClass != .compact
     }
 
     private var directoryList: some View {
@@ -273,6 +307,27 @@ struct StudentDirectoryView: View {
                             .font(.headline)
                     }
                 }
+            }
+
+            Section("Class Context") {
+                LabeledContent("Linked to Saved Class") {
+                    Text("\(linkedSavedClassCount)")
+                        .font(.headline)
+                }
+
+                LabeledContent("Multi-Class Students") {
+                    Text("\(multiClassStudentCount)")
+                        .font(.headline)
+                }
+
+                LabeledContent("Needs Class Review") {
+                    Text("\(needsClassReviewCount)")
+                        .font(.headline)
+                }
+
+                Text("Roster CSV belongs here. Saved class links determine whether student supports, notes, and class-specific context stay attached across the app.")
+                    .font(.footnote)
+                    .foregroundStyle(.secondary)
             }
 
             if !duplicateGroups.isEmpty {
@@ -441,6 +496,26 @@ struct StudentDirectoryView: View {
         }
 
         return "\(profiles.count) total student\(profiles.count == 1 ? "" : "s") across \(availableClasses.count) class\(availableClasses.count == 1 ? "" : "es")"
+    }
+
+    private var linkedSavedClassCount: Int {
+        profiles.filter {
+            $0.classDefinitionID != nil || !$0.classDefinitionIDs.isEmpty
+        }.count
+    }
+
+    private var multiClassStudentCount: Int {
+        profiles.filter {
+            Set($0.classDefinitionIDs).count > 1
+        }.count
+    }
+
+    private var needsClassReviewCount: Int {
+        profiles.filter { profile in
+            let hasSavedClassLink = profile.classDefinitionID != nil || !profile.classDefinitionIDs.isEmpty
+            let hasTypedClassName = !profile.className.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+            return !hasSavedClassLink && hasTypedClassName
+        }.count
     }
 
     private func actionRowLabel(title: String, detail: String, systemImage: String) -> some View {

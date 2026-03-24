@@ -22,27 +22,19 @@ enum AppTab: Hashable {
     case notes
 }
 
-enum SecondaryDestination: String, Identifiable {
-    case settings
-    case importCSV
-    case exportCSV
-
-    var id: String { rawValue }
-}
-
 // MARK: - Root Tab View
 
 struct RootTabView: View {
 
-    private static let cloudSyncRefreshInterval: Duration = .seconds(8)
+    private static let cloudSyncRefreshInterval: Duration = .seconds(15)
     private static let localMutationRefreshPauseSeconds: TimeInterval = 4
-    private static let runtimeSyncHeartbeatInterval: Duration = .seconds(5)
+    private static let runtimeSyncHeartbeatInterval: Duration = .seconds(10)
 
     @Environment(\.modelContext) private var modelContext
     @Environment(\.scenePhase) private var scenePhase
     @State private var selectedTab: AppTab = .today
     @State private var selectedScheduleDay: WeekdayTab = .today
-    @State private var secondaryDestination: SecondaryDestination?
+    @State private var showingSettings = false
 
     @AppStorage("timer_v6_data") private var savedAlarms: Data = Data()
     @AppStorage("todo_v6_data") private var savedTodos: Data = Data()
@@ -75,6 +67,8 @@ struct RootTabView: View {
     @State private var lastSyncedWidgetSnapshot: ClassTraxWidgetSnapshot?
     @State private var lastSyncedLiveActivitySnapshot: RootLiveActivitySnapshot?
     @State private var lastNotificationRefreshSignature: NotificationRefreshSignature?
+    @State private var lastCloudBackedRefreshAt = Date.distantPast
+    @State private var hasBootstrappedInitialData = false
 
     private var ignoreDate: Date? {
         ignoreUntil > 0 ? Date(timeIntervalSince1970: ignoreUntil) : nil
@@ -271,26 +265,31 @@ struct RootTabView: View {
 
     var body: some View {
         makeObservedTabView()
-            .sheet(item: $secondaryDestination) { destination in
+            .sheet(isPresented: $showingSettings) {
                 NavigationStack {
-                    switch destination {
-                    case .settings:
-                        SettingsView()
-                    case .importCSV:
-                        ImportView(alarms: $alarms)
-                    case .exportCSV:
-                        ExportView(alarms: $alarms)
-                    }
+                    SettingsView()
+                        .navigationBarTitleDisplayMode(.inline)
                 }
             }
     }
 
     private func handleOnAppear() {
         ignoreUntil = ScheduleSnoozeStore.synchronize()
-        loadSavedData()
         selectedScheduleDay = .today
-        refreshNotifications(immediate: true)
-        syncRuntimeState(now: Date())
+
+        guard !hasBootstrappedInitialData else {
+            syncRuntimeState(now: Date())
+            return
+        }
+
+        hasBootstrappedInitialData = true
+
+        Task { @MainActor in
+            await Task.yield()
+            loadSavedData()
+            refreshNotifications(immediate: true)
+            syncRuntimeState(now: Date())
+        }
     }
 
     private func handleSelectedTabChange(_ newTab: AppTab) {
@@ -471,7 +470,7 @@ struct RootTabView: View {
 
     @MainActor
     private func manuallyRefreshSyncedData() {
-        refreshFromCloudBackedStore()
+        refreshFromCloudBackedStore(force: true)
     }
 
     private var todayTab: some View {
@@ -502,7 +501,7 @@ struct RootTabView: View {
                 }, openNotesTab: {
                     selectedTab = .notes
                 }, openSettingsTab: {
-                    secondaryDestination = .settings
+                    showingSettings = true
                 })
             .toolbar(.hidden, for: .tabBar)
             .toolbar {
@@ -512,7 +511,7 @@ struct RootTabView: View {
             }
         }
         .tabItem {
-            Image(systemName: "house")
+            tabLabel(title: "Today", systemImage: "house")
         }
         .accessibilityLabel("Home")
         .tag(AppTab.today)
@@ -522,14 +521,20 @@ struct RootTabView: View {
         ScheduleView(
             selectedDay: $selectedScheduleDay,
             alarms: $alarms,
+            todos: $todos,
+            subPlans: $subPlans,
+            dailySubPlans: $dailySubPlans,
             studentProfiles: $studentProfiles,
             classDefinitions: $classDefinitions,
+            commitments: $commitments,
             activeOverrideName: activeDayOverride?.displayName,
             overrideSchedule: activeDayOverride?.alarms,
             onRefresh: {
                 manuallyRefreshSyncedData()
             },
-            openTodayTab: { selectedTab = .today }
+            openTodayTab: { selectedTab = .today },
+            openTodoTab: { selectedTab = .todo },
+            openNotesTab: { selectedTab = .notes }
         )
         .toolbar {
             ToolbarItem(placement: .topBarTrailing) {
@@ -537,7 +542,7 @@ struct RootTabView: View {
             }
         }
         .tabItem {
-            Image(systemName: "calendar")
+            tabLabel(title: "Schedule", systemImage: "calendar")
         }
         .accessibilityLabel("Schedule")
         .tag(AppTab.schedule)
@@ -556,7 +561,7 @@ struct RootTabView: View {
             }
         }
         .tabItem {
-            Image(systemName: "person.3")
+            tabLabel(title: "Students", systemImage: "person.3")
         }
         .accessibilityLabel("Classes and Students")
         .tag(AppTab.students)
@@ -583,7 +588,7 @@ struct RootTabView: View {
             }
         }
         .tabItem {
-            Image(systemName: "checklist")
+            tabLabel(title: "Tasks", systemImage: "checklist")
         }
         .accessibilityLabel("To Do")
         .tag(AppTab.todo)
@@ -607,33 +612,32 @@ struct RootTabView: View {
                 }
             }
         }
-            .tabItem {
-                Image(systemName: "note.text")
-            }
-            .accessibilityLabel("Notes")
-            .tag(AppTab.notes)
+        .tabItem {
+            tabLabel(title: "Notes", systemImage: "note.text")
+        }
+        .accessibilityLabel("Notes")
+        .tag(AppTab.notes)
     }
 
     private var overflowMenu: some View {
-        Menu {
-            Button("Settings", systemImage: "gearshape") {
-                secondaryDestination = .settings
-            }
-
-            Divider()
-
-            Button("Import CSV", systemImage: "square.and.arrow.down") {
-                secondaryDestination = .importCSV
-            }
-
-            Button("Export CSV", systemImage: "square.and.arrow.up") {
-                secondaryDestination = .exportCSV
-            }
-            .disabled(alarms.isEmpty)
+        Button {
+            showingSettings = true
         } label: {
-            Image(systemName: "ellipsis.circle")
+            ZStack {
+                Circle()
+                    .fill(Color.accentColor.opacity(0.10))
+                    .frame(width: 32, height: 32)
+
+                Image(systemName: "gearshape")
+                    .font(.subheadline.weight(.bold))
+                    .foregroundStyle(Color.accentColor)
+            }
         }
-        .accessibilityLabel("Actions")
+        .accessibilityLabel("Settings")
+    }
+
+    private func tabLabel(title: String, systemImage: String) -> some View {
+        Label(title, systemImage: systemImage)
     }
 
     // MARK: - Data Loading
@@ -676,7 +680,11 @@ struct RootTabView: View {
     }
 
     @MainActor
-    private func refreshFromCloudBackedStore() {
+    private func refreshFromCloudBackedStore(force: Bool = false) {
+        if !force, Date().timeIntervalSince(lastCloudBackedRefreshAt) < 10 {
+            return
+        }
+        lastCloudBackedRefreshAt = Date()
         refreshFromPersistence()
         refreshNotifications()
     }

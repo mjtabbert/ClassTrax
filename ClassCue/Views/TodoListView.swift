@@ -10,6 +10,8 @@ import SwiftUI
 
 struct TodoListView: View {
 
+    @Environment(\.horizontalSizeClass) private var horizontalSizeClass
+
     @Binding var todos: [TodoItem]
     @Binding var studentProfiles: [StudentSupportProfile]
     @Binding var classDefinitions: [ClassDefinitionItem]
@@ -117,6 +119,34 @@ struct TodoListView: View {
             List {
                 let linkedGroups = linkedContextGroups
 
+                Section("Triage") {
+                    Button {
+                        showAdd = true
+                    } label: {
+                        Label("New Task", systemImage: "plus.circle.fill")
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                    }
+                    .buttonStyle(.borderedProminent)
+
+                    triageSummaryRow(
+                        title: "Needs Attention",
+                        value: "\(attentionCount)",
+                        detail: "Open tasks with reminders, high priority, or due dates"
+                    )
+                    triageSummaryRow(
+                        title: "School vs Personal",
+                        value: "\(schoolTaskCount) / \(personalTaskCount)",
+                        detail: "Keep work boundaries visible while planning"
+                    )
+
+                    if activeFilterCount > 0 {
+                        Button("Clear Active Filters") {
+                            clearFilters()
+                        }
+                        .buttonStyle(.bordered)
+                    }
+                }
+
                 if !linkedGroups.isEmpty {
                     Section("By Class / Commitment") {
                         ForEach(linkedGroups, id: \.context) { group in
@@ -163,10 +193,15 @@ struct TodoListView: View {
                     }
                 }
             }
+            .frame(maxWidth: 1040)
+            .frame(maxWidth: .infinity)
             .refreshable {
                 onRefresh()
             }
             .navigationTitle("To Do")
+            .scrollContentBackground(.hidden)
+            .background(todoBackground)
+            .listStyle(.insetGrouped)
             .toolbar {
                 ToolbarItem(placement: .navigationBarLeading) {
                     if todos.contains(where: { $0.isCompleted }) {
@@ -192,7 +227,7 @@ struct TodoListView: View {
                                 openTodayTab()
                             }
                         } label: {
-                            Image(systemName: "ellipsis.circle")
+                            toolbarIconButton(systemImage: "ellipsis", title: "Actions")
                         }
 
                         Menu {
@@ -235,19 +270,30 @@ struct TodoListView: View {
                                 }
                             }
                         } label: {
-                            Image(systemName: activeFilterCount == 0 ? "line.3.horizontal.decrease.circle" : "line.3.horizontal.decrease.circle.fill")
+                            toolbarIconButton(
+                                systemImage: activeFilterCount == 0
+                                    ? "line.3.horizontal.decrease"
+                                    : "line.3.horizontal.decrease.circle.fill",
+                                title: activeFilterCount == 0 ? "Filters" : "Filters On"
+                            )
                         }
 
                         Button {
                             showingQuickCapture = true
                         } label: {
-                            Image(systemName: "bolt.badge.plus")
+                            toolbarCapsuleLabel(
+                                title: "Quick",
+                                systemImage: "bolt.badge.plus"
+                            )
                         }
 
                         Button {
                             showAdd = true
                         } label: {
-                            Image(systemName: "plus")
+                            toolbarCapsuleLabel(
+                                title: "New Task",
+                                systemImage: "plus"
+                            )
                         }
                     }
                 }
@@ -283,6 +329,70 @@ struct TodoListView: View {
                 }
             }
         }
+    }
+
+    private var todoBackground: some View {
+        LinearGradient(
+            colors: [
+                Color(.systemBackground),
+                Color.orange.opacity(0.05),
+                Color.yellow.opacity(0.03),
+                Color(.systemGroupedBackground)
+            ],
+            startPoint: .topLeading,
+            endPoint: .bottomTrailing
+        )
+        .ignoresSafeArea()
+    }
+
+    private func toolbarCapsuleLabel(title: String, systemImage: String) -> some View {
+        Label(title, systemImage: systemImage)
+            .font(.caption.weight(.bold))
+            .foregroundStyle(Color.accentColor)
+            .padding(.horizontal, 10)
+            .padding(.vertical, 7)
+            .background(
+                Capsule(style: .continuous)
+                    .fill(Color.accentColor.opacity(0.10))
+            )
+    }
+
+    @ViewBuilder
+    private func toolbarIconButton(systemImage: String, title: String) -> some View {
+        if prefersExpandedToolbar {
+            toolbarCapsuleLabel(title: title, systemImage: systemImage)
+        } else {
+            ZStack {
+                Circle()
+                    .fill(Color.accentColor.opacity(0.10))
+                    .frame(width: 30, height: 30)
+
+                Image(systemName: systemImage)
+                    .font(.subheadline.weight(.bold))
+                    .foregroundStyle(Color.accentColor)
+            }
+        }
+    }
+
+    private var prefersExpandedToolbar: Bool {
+        horizontalSizeClass != .compact
+    }
+
+    private func triageSummaryRow(title: String, value: String, detail: String) -> some View {
+        VStack(alignment: .leading, spacing: 4) {
+            HStack {
+                Text(title)
+                    .fontWeight(.semibold)
+                Spacer()
+                Text(value)
+                    .font(.headline)
+            }
+
+            Text(detail)
+                .font(.caption)
+                .foregroundStyle(.secondary)
+        }
+        .padding(.vertical, 4)
     }
 
     private func items(for bucket: TodoItem.Bucket) -> [TodoItem] {
@@ -520,6 +630,33 @@ struct TodoListView: View {
         if !studentFilter.isEmpty { count += 1 }
         if !linkedContextFilter.isEmpty { count += 1 }
         return count
+    }
+
+    private var attentionCount: Int {
+        todos.filter { item in
+            !item.isCompleted && (
+                item.priority == .high ||
+                item.reminder != .none ||
+                item.dueDate != nil
+            )
+        }.count
+    }
+
+    private var schoolTaskCount: Int {
+        todos.filter { !$0.isCompleted && $0.workspace == .school }.count
+    }
+
+    private var personalTaskCount: Int {
+        todos.filter { !$0.isCompleted && $0.workspace == .personal }.count
+    }
+
+    private func clearFilters() {
+        categoryFilter = .all
+        workspaceFilter = .all
+        showOnlyFollowUp = false
+        showOnlyStudentContext = false
+        studentFilter = ""
+        linkedContextFilter = ""
     }
 
     private var linkedContextGroups: [(context: String, count: Int, preview: String)] {

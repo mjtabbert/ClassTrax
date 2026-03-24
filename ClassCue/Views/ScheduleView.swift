@@ -12,15 +12,22 @@ import SwiftData
 
 struct ScheduleView: View {
     @Environment(\.modelContext) private var modelContext
+    @Environment(\.horizontalSizeClass) private var horizontalSizeClass
 
     @Binding var selectedDay: WeekdayTab
     @Binding var alarms: [AlarmItem]
+    @Binding var todos: [TodoItem]
+    @Binding var subPlans: [SubPlanItem]
+    @Binding var dailySubPlans: [DailySubPlanItem]
     @Binding var studentProfiles: [StudentSupportProfile]
     @Binding var classDefinitions: [ClassDefinitionItem]
+    @Binding var commitments: [CommitmentItem]
     var activeOverrideName: String? = nil
     var overrideSchedule: [AlarmItem]? = nil
     let onRefresh: @MainActor () -> Void
     let openTodayTab: () -> Void
+    let openTodoTab: () -> Void
+    let openNotesTab: () -> Void
 
     @AppStorage("profiles_v1_data") private var savedProfiles: Data = Data()
     @AppStorage("day_overrides_v1_data") private var savedOverrides: Data = Data()
@@ -73,22 +80,29 @@ struct ScheduleView: View {
 
             TimelineView(.periodic(from: .now, by: 30)) { context in
                 ScrollView {
+                    HStack(spacing: 0) {
+                        Spacer(minLength: 0)
 
-                    VStack(alignment: .leading, spacing: 16) {
+                        VStack(alignment: .leading, spacing: 16) {
 
-                        dayPicker
+                            dayPicker
 
-                        if let activeOverrideName, isViewingActiveOverride {
-                            overrideBanner(name: activeOverrideName)
+                            planningOverviewCard(now: context.date)
+
+                            if let activeOverrideName, isViewingActiveOverride {
+                                overrideBanner(name: activeOverrideName)
+                            }
+
+                            if filteredSchedule.isEmpty {
+                                emptyState
+                            } else if isSelectedDayToday {
+                                todayScheduleLayout(now: context.date)
+                            } else {
+                                standardScheduleLayout
+                            }
                         }
-
-                        if filteredSchedule.isEmpty {
-                            emptyState
-                        } else if isSelectedDayToday {
-                            todayScheduleLayout(now: context.date)
-                        } else {
-                            standardScheduleLayout
-                        }
+                        .frame(maxWidth: 1100, alignment: .leading)
+                        Spacer(minLength: 0)
                     }
                     .padding()
                 }
@@ -101,6 +115,22 @@ struct ScheduleView: View {
             .toolbar {
                 ToolbarItem(placement: .topBarTrailing) {
                     HStack(spacing: 12) {
+                        Menu {
+                            Button("Import Schedule CSV", systemImage: "square.and.arrow.down") {
+                                showingImportSheet = true
+                            }
+
+                            Button("Export Schedule CSV", systemImage: "square.and.arrow.up") {
+                                showingExportSheet = true
+                            }
+                            .disabled(alarms.isEmpty)
+                        } label: {
+                            toolbarCapsuleLabel(
+                                title: "CSV",
+                                systemImage: "arrow.up.arrow.down.square"
+                            )
+                        }
+
                         Menu {
                             Button("Students", systemImage: "person.3") {
                                 showingStudentDirectory = true
@@ -116,15 +146,6 @@ struct ScheduleView: View {
                             }
 
                             Divider()
-
-                            Button("Import CSV", systemImage: "square.and.arrow.down") {
-                                showingImportSheet = true
-                            }
-
-                            Button("Export CSV", systemImage: "square.and.arrow.up") {
-                                showingExportSheet = true
-                            }
-                            .disabled(alarms.isEmpty)
 
                             Button("Copy Day", systemImage: "doc.on.doc") {
                                 showingCopyDayDialog = true
@@ -152,13 +173,16 @@ struct ScheduleView: View {
                                 showingOverridesSheet = true
                             }
                         } label: {
-                            Image(systemName: "ellipsis.circle")
+                            toolbarIconButton(systemImage: "ellipsis", title: "Actions")
                         }
 
                         Button {
                             showingAddSheet = true
                         } label: {
-                            Label("Add Block", systemImage: "plus")
+                            toolbarCapsuleLabel(
+                                title: "New Block",
+                                systemImage: "plus"
+                            )
                         }
                         .disabled(isViewingActiveOverride)
                     }
@@ -280,6 +304,39 @@ struct ScheduleView: View {
         }
     }
 
+    private func toolbarCapsuleLabel(title: String, systemImage: String) -> some View {
+        Label(title, systemImage: systemImage)
+            .font(.caption.weight(.bold))
+            .foregroundStyle(Color.accentColor)
+            .padding(.horizontal, 10)
+            .padding(.vertical, 7)
+            .background(
+                Capsule(style: .continuous)
+                    .fill(Color.accentColor.opacity(0.10))
+            )
+    }
+
+    @ViewBuilder
+    private func toolbarIconButton(systemImage: String, title: String) -> some View {
+        if prefersExpandedToolbar {
+            toolbarCapsuleLabel(title: title, systemImage: systemImage)
+        } else {
+            ZStack {
+                Circle()
+                    .fill(Color.accentColor.opacity(0.10))
+                    .frame(width: 30, height: 30)
+
+                Image(systemName: systemImage)
+                    .font(.subheadline.weight(.bold))
+                    .foregroundStyle(Color.accentColor)
+            }
+        }
+    }
+
+    private var prefersExpandedToolbar: Bool {
+        horizontalSizeClass != .compact
+    }
+
     private var scheduleBackground: some View {
         LinearGradient(
             colors: [
@@ -337,6 +394,85 @@ struct ScheduleView: View {
                 scheduleRow(for: item)
             }
         }
+    }
+
+    private func planningOverviewCard(now: Date) -> some View {
+        VStack(alignment: .leading, spacing: 12) {
+            HStack(alignment: .top, spacing: 12) {
+                VStack(alignment: .leading, spacing: 4) {
+                    Text(selectedDay == .today ? "Planning for Today" : "Planning for \(selectedDay.title)")
+                        .font(.headline.weight(.bold))
+
+                    Text(planningSummaryText)
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
+
+                Spacer(minLength: 0)
+
+                Text(isViewingActiveOverride ? "Override" : "Base Plan")
+                    .font(.caption2.weight(.black))
+                    .foregroundStyle(isViewingActiveOverride ? .blue : .secondary)
+                    .padding(.horizontal, 8)
+                    .padding(.vertical, 5)
+                    .background(
+                        Capsule(style: .continuous)
+                            .fill((isViewingActiveOverride ? Color.blue : Color.secondary).opacity(0.12))
+                    )
+            }
+
+            HStack(spacing: 10) {
+                planningStatPill(title: "Blocks", value: "\(filteredSchedule.count)", accent: .blue)
+                planningStatPill(title: "Tasks", value: "\(linkedTaskCount)", accent: .orange)
+                planningStatPill(title: "Plans", value: "\(selectedDayPlanCount)", accent: .indigo)
+                planningStatPill(title: "Meetings", value: "\(selectedDayCommitmentCount)", accent: .green)
+            }
+
+            HStack(spacing: 10) {
+                Button {
+                    openTodayTab()
+                } label: {
+                    Label("Daily Sub Plan", systemImage: "doc.text")
+                        .frame(maxWidth: .infinity)
+                }
+                .buttonStyle(.borderedProminent)
+
+                Button {
+                    openTodoTab()
+                } label: {
+                    Label("Tasks", systemImage: "checklist")
+                        .frame(maxWidth: .infinity)
+                }
+                .buttonStyle(.bordered)
+
+                Button {
+                    openNotesTab()
+                } label: {
+                    Label("Notes", systemImage: "note.text")
+                        .frame(maxWidth: .infinity)
+                }
+                .buttonStyle(.bordered)
+            }
+        }
+        .padding(16)
+        .background(
+            RoundedRectangle(cornerRadius: 20, style: .continuous)
+                .fill(
+                    LinearGradient(
+                        colors: [
+                            Color.blue.opacity(0.12),
+                            Color.indigo.opacity(0.06),
+                            Color(.secondarySystemBackground)
+                        ],
+                        startPoint: .topLeading,
+                        endPoint: .bottomTrailing
+                    )
+                )
+        )
+        .overlay(
+            RoundedRectangle(cornerRadius: 20, style: .continuous)
+                .stroke(Color.blue.opacity(0.14), lineWidth: 1)
+        )
     }
 
     private func todayScheduleLayout(now: Date) -> some View {
@@ -464,6 +600,28 @@ struct ScheduleView: View {
         )
     }
 
+    private func planningStatPill(title: String, value: String, accent: Color) -> some View {
+        VStack(alignment: .leading, spacing: 2) {
+            Text(title)
+                .font(.caption2.weight(.semibold))
+                .foregroundStyle(.secondary)
+            Text(value)
+                .font(.subheadline.weight(.bold))
+                .foregroundStyle(.primary)
+        }
+        .padding(.horizontal, 10)
+        .padding(.vertical, 8)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(
+            RoundedRectangle(cornerRadius: 12, style: .continuous)
+                .fill(accent.opacity(0.10))
+        )
+        .overlay(
+            RoundedRectangle(cornerRadius: 12, style: .continuous)
+                .stroke(accent.opacity(0.14), lineWidth: 1)
+        )
+    }
+
     @ViewBuilder
     private func scheduleRow(for item: AlarmItem) -> some View {
         if isViewingActiveOverride {
@@ -503,6 +661,48 @@ struct ScheduleView: View {
 
     private var defaultDayProfileName: String {
         "\(selectedDay.title) Schedule"
+    }
+
+    private var selectedDayContexts: Set<String> {
+        Set(
+            filteredSchedule
+                .map(\.className)
+                .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
+                .filter { !$0.isEmpty }
+        )
+    }
+
+    private var linkedTaskCount: Int {
+        todos.filter { todo in
+            let context = todo.linkedContext.trimmingCharacters(in: .whitespacesAndNewlines)
+            return !todo.isCompleted && !context.isEmpty && selectedDayContexts.contains(context)
+        }.count
+    }
+
+    private var selectedDayPlanCount: Int {
+        if selectedDay == .today {
+            let dateKey = AttendanceRecord.dateKey(for: Date())
+            let hasDailyPlan = dailySubPlans.contains { $0.dateKey == dateKey }
+            let classPlans = subPlans.filter { $0.dateKey == dateKey }.count
+            return classPlans + (hasDailyPlan ? 1 : 0)
+        }
+
+        return filteredSchedule.isEmpty ? 0 : subPlans.filter { plan in
+            selectedDayContexts.contains(plan.className.trimmingCharacters(in: .whitespacesAndNewlines))
+        }.count
+    }
+
+    private var selectedDayCommitmentCount: Int {
+        commitments.filter { $0.dayOfWeek == selectedDay.rawValue }.count
+    }
+
+    private var planningSummaryText: String {
+        if filteredSchedule.isEmpty {
+            return "No schedule blocks yet. Add classes first, then use tasks, notes, and sub plans from the same day context."
+        }
+
+        let classCount = selectedDayContexts.count
+        return "\(classCount) class context\(classCount == 1 ? "" : "s"), \(linkedTaskCount) linked task\(linkedTaskCount == 1 ? "" : "s"), and \(selectedDayPlanCount) saved plan item\(selectedDayPlanCount == 1 ? "" : "s")."
     }
 
     private var defaultWeekProfileName: String {

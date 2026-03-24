@@ -5,14 +5,18 @@ import UserNotifications
 @main
 struct ClassTraxApp: App {
     init() {
-        ClassTraxPersistence.initializeCloudKitDevelopmentSchemaIfNeeded()
         WatchSessionSyncManager.shared.activate()
 
         let center = UNUserNotificationCenter.current()
         center.delegate = NotificationDelegate.shared
 
         NotificationCategories.register()
-        NotificationManager.shared.requestAuthorization()
+        Task {
+            ClassTraxPersistence.initializeCloudKitDevelopmentSchemaIfNeeded()
+        }
+        Task {
+            NotificationManager.shared.requestAuthorization()
+        }
     }
 
     var body: some Scene {

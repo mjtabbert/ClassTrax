@@ -213,31 +213,36 @@ struct ActiveTimerCard: View {
     @ViewBuilder
     private var headerRow: some View {
         HStack(spacing: 8) {
-            Text("NOW")
-                .font(.caption.weight(.bold))
-                .foregroundColor(.secondary)
+            statusPill(
+                "Now",
+                tint: ringPrimaryColor,
+                foregroundStyle: AnyShapeStyle(ringPrimaryColor)
+            )
 
-            TypeBadge(type: item.type)
+            if item.type != .blank {
+                Text(item.typeLabel.uppercased())
+                    .font(.caption2.weight(.black))
+                    .foregroundStyle(.secondary)
+                    .lineLimit(1)
+            }
 
             if isHeld {
-                Text("HOLD")
-                    .font(.caption2.weight(.black))
-                    .foregroundStyle(.white)
-                    .padding(.horizontal, 8)
-                    .padding(.vertical, 3)
-                    .background(.orange)
-                    .clipShape(Capsule())
+                statusPill(
+                    "Hold",
+                    tint: .orange,
+                    foregroundStyle: AnyShapeStyle(.white)
+                )
             }
 
             if bellSkipped {
-                Text("BELL SKIPPED")
-                    .font(.caption2.weight(.black))
-                    .foregroundStyle(.secondary)
-                    .padding(.horizontal, 8)
-                    .padding(.vertical, 3)
-                    .background(Color(.systemGray5))
-                    .clipShape(Capsule())
+                statusPill(
+                    "Bell Skipped",
+                    tint: Color(.systemGray5),
+                    foregroundStyle: AnyShapeStyle(.secondary)
+                )
             }
+
+            Spacer(minLength: 0)
         }
     }
 
@@ -246,36 +251,38 @@ struct ActiveTimerCard: View {
         let grade = item.gradeLevel.trimmingCharacters(in: .whitespacesAndNewlines)
         let room = item.location.trimmingCharacters(in: .whitespacesAndNewlines)
 
-        VStack(spacing: 6) {
+        VStack(alignment: .leading, spacing: 10) {
+            Text(item.className)
+                .font(titleFont.weight(.bold))
+                .lineLimit(1)
+                .minimumScaleFactor(0.68)
+                .frame(maxWidth: .infinity, alignment: .leading)
+
             HStack(spacing: 8) {
-                Text(item.className)
-                    .font(titleFont.weight(.bold))
-                    .lineLimit(1)
-                    .minimumScaleFactor(0.68)
+                metadataChip(
+                    timeRangeText,
+                    systemImage: "clock",
+                    font: detailFont
+                )
 
                 if !room.isEmpty {
-                    Text("• \(room)")
-                        .font(detailFont.weight(.semibold))
-                        .foregroundColor(.secondary)
-                        .lineLimit(1)
-                        .minimumScaleFactor(0.7)
+                    metadataChip(
+                        room,
+                        systemImage: "mappin.and.ellipse",
+                        font: detailFont
+                    )
+                }
+
+                if !grade.isEmpty {
+                    metadataChip(
+                        grade,
+                        systemImage: "graduationcap",
+                        font: detailFont
+                    )
                 }
             }
-
-            Text(timeRangeText)
-                .font(detailFont.weight(.semibold))
-                .foregroundColor(.secondary)
-                .lineLimit(1)
-                .minimumScaleFactor(0.8)
-
-            if !grade.isEmpty {
-                Text(grade)
-                    .font(detailFont)
-                    .foregroundColor(.secondary)
-                    .lineLimit(1)
-                    .minimumScaleFactor(0.8)
-            }
         }
+        .frame(maxWidth: .infinity, alignment: .leading)
     }
 
     private var timeRemaining: String {
@@ -444,6 +451,33 @@ struct ActiveTimerCard: View {
         .tint(tint)
         .disabled(disabled)
         .controlSize(compact ? .small : .regular)
+    }
+
+    private func statusPill(
+        _ title: String,
+        tint: Color,
+        foregroundStyle: AnyShapeStyle
+    ) -> some View {
+        Text(title.uppercased())
+            .font(.caption2.weight(.black))
+            .foregroundStyle(foregroundStyle)
+            .padding(.horizontal, 8)
+            .padding(.vertical, 4)
+            .background(tint, in: Capsule())
+    }
+
+    private func metadataChip(_ title: String, systemImage: String, font: Font) -> some View {
+        Label(title, systemImage: systemImage)
+            .font(font.weight(.semibold))
+            .foregroundStyle(.secondary)
+            .lineLimit(1)
+            .minimumScaleFactor(0.75)
+            .padding(.horizontal, 10)
+            .padding(.vertical, 6)
+            .background(
+                Capsule(style: .continuous)
+                    .fill(Color.white.opacity(0.55))
+            )
     }
 }
 
