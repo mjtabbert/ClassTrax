@@ -61,6 +61,8 @@
 /* End PBXCopyFilesBuildPhase section */
 
 /* Begin PBXFileReference section */
+		270550292F7CC4730050F222 /* UserNotifications.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = UserNotifications.framework; path = System/Library/Frameworks/UserNotifications.framework; sourceTree = SDKROOT; };
+		2705502B2F7CC4730050F222 /* UserNotificationsUI.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = UserNotificationsUI.framework; path = System/Library/Frameworks/UserNotificationsUI.framework; sourceTree = SDKROOT; };
 		272BFA2F2F6BA9BB00245665 /* Class Trax Watch App.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = "Class Trax Watch App.app"; sourceTree = BUILT_PRODUCTS_DIR; };
 		27335DB52F5B700800889F92 /* ClassCue.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = ClassCue.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		27C273E02F64914E00078D37 /* CarPlay.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = CarPlay.framework; path = System/Library/Frameworks/CarPlay.framework; sourceTree = SDKROOT; };
@@ -140,6 +142,11 @@
 /* End PBXFileSystemSynchronizedBuildFileExceptionSet section */
 
 /* Begin PBXFileSystemSynchronizedRootGroup section */
+		2705502D2F7CC4730050F222 /* Push */ = {
+			isa = PBXFileSystemSynchronizedRootGroup;
+			path = Push;
+			sourceTree = "<group>";
+		};
 		272BFA302F6BA9BB00245665 /* Class Trax Watch App */ = {
 			isa = PBXFileSystemSynchronizedRootGroup;
 			path = "Class Trax Watch App";
@@ -202,6 +209,7 @@
 				27335DB72F5B700800889F92 /* ClassCue */,
 				27EC66DC2F61EB3D00D0870D /* Class Cue */,
 				272BFA302F6BA9BB00245665 /* Class Trax Watch App */,
+				2705502D2F7CC4730050F222 /* Push */,
 				27EC66D02F61EAE500D0870D /* Frameworks */,
 				27335DB62F5B700800889F92 /* Products */,
 			);
@@ -225,6 +233,8 @@
 				27EC66D12F61EAE600D0870D /* ActivityKit.framework */,
 				27EC66D82F61EB3D00D0870D /* WidgetKit.framework */,
 				27EC66DA2F61EB3D00D0870D /* SwiftUI.framework */,
+				270550292F7CC4730050F222 /* UserNotifications.framework */,
+				2705502B2F7CC4730050F222 /* UserNotificationsUI.framework */,
 			);
 			name = Frameworks;
 			sourceTree = "<group>";
@@ -310,7 +320,7 @@
 			isa = PBXProject;
 			attributes = {
 				BuildIndependentTargetsInParallel = 1;
-				LastSwiftUpdateCheck = 2630;
+				LastSwiftUpdateCheck = 2640;
 				LastUpgradeCheck = 2630;
 				TargetAttributes = {
 					272BFA2E2F6BA9BB00245665 = {
