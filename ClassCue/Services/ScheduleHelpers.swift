@@ -159,3 +159,39 @@ func overrideAlarms(from profile: ScheduleProfile, for weekday: Int) -> [AlarmIt
         )
     }
 }
+
+func resolvedCommitments(for date: Date, from items: [CommitmentItem]) -> [CommitmentItem] {
+    let calendar = Calendar.current
+    let weekday = calendar.component(.weekday, from: date)
+
+    return items
+        .filter { item in
+            switch item.recurrence {
+            case .weekly:
+                return item.dayOfWeek == weekday
+            case .oneTime:
+                guard let specificDate = item.specificDate else { return false }
+                return calendar.isDate(specificDate, inSameDayAs: date)
+            }
+        }
+        .sorted { lhs, rhs in
+            let lhsStart = anchoredTimeOnDate(lhs.startTime, date: date, calendar: calendar)
+            let rhsStart = anchoredTimeOnDate(rhs.startTime, date: date, calendar: calendar)
+            if lhsStart != rhsStart {
+                return lhsStart < rhsStart
+            }
+
+            let lhsEnd = anchoredTimeOnDate(lhs.endTime, date: date, calendar: calendar)
+            let rhsEnd = anchoredTimeOnDate(rhs.endTime, date: date, calendar: calendar)
+            return lhsEnd < rhsEnd
+        }
+}
+
+private func anchoredTimeOnDate(_ time: Date, date: Date, calendar: Calendar) -> Date {
+    var components = calendar.dateComponents([.year, .month, .day], from: date)
+    let timeComponents = calendar.dateComponents([.hour, .minute, .second], from: time)
+    components.hour = timeComponents.hour
+    components.minute = timeComponents.minute
+    components.second = timeComponents.second
+    return calendar.date(from: components) ?? time
+}

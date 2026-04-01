@@ -812,6 +812,20 @@ struct NotesView: View {
                                         .font(.caption)
                                         .foregroundStyle(.secondary)
                                 }
+
+                                if let classSummary = classSummary(for: group.context) {
+                                    Text(classSummary)
+                                        .font(.caption2)
+                                        .foregroundStyle(.tertiary)
+                                        .lineLimit(1)
+                                }
+
+                                if let latestPreview = notePreviewText(group.notes.first?.note) {
+                                    Text(latestPreview)
+                                        .font(.caption2)
+                                        .foregroundStyle(.secondary)
+                                        .lineLimit(2)
+                                }
                             }
                         }
                     }
@@ -953,6 +967,22 @@ struct NotesView: View {
                                         .font(.caption)
                                         .foregroundStyle(.secondary)
                                 }
+
+                                if let matchedStudent = studentProfile(named: group.student) {
+                                    let summaryParts = [
+                                        matchedStudent.className.trimmingCharacters(in: .whitespacesAndNewlines),
+                                        matchedStudent.prompts.trimmingCharacters(in: .whitespacesAndNewlines),
+                                        matchedStudent.accommodations.trimmingCharacters(in: .whitespacesAndNewlines)
+                                    ]
+                                    .filter { !$0.isEmpty }
+
+                                    if let firstSummary = summaryParts.first {
+                                        Text(firstSummary)
+                                            .font(.caption2)
+                                            .foregroundStyle(.tertiary)
+                                            .lineLimit(2)
+                                    }
+                                }
                             }
                         }
                     }
@@ -1075,6 +1105,32 @@ struct NotesView: View {
                 .padding(.top, 4)
         }
         .padding(.vertical, 4)
+    }
+
+    private func classSummary(for context: String) -> String? {
+        let normalized = context.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !normalized.isEmpty else { return nil }
+
+        guard let matchedClass = classDefinitions.first(where: {
+            $0.name.trimmingCharacters(in: .whitespacesAndNewlines).localizedCaseInsensitiveCompare(normalized) == .orderedSame
+        }) else {
+            return nil
+        }
+
+        let parts = [
+            matchedClass.gradeLevel.trimmingCharacters(in: .whitespacesAndNewlines),
+            matchedClass.typeDisplayName.trimmingCharacters(in: .whitespacesAndNewlines),
+            matchedClass.defaultLocation.trimmingCharacters(in: .whitespacesAndNewlines)
+        ].filter { !$0.isEmpty }
+
+        return parts.isEmpty ? nil : parts.joined(separator: " • ")
+    }
+
+    private func notePreviewText(_ text: String?) -> String? {
+        guard let trimmed = text?.trimmingCharacters(in: .whitespacesAndNewlines), !trimmed.isEmpty else {
+            return nil
+        }
+        return trimmed
     }
 
     private func persistFollowUpNotes(_ notes: [FollowUpNoteItem]) {

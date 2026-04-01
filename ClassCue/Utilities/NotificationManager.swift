@@ -228,7 +228,79 @@ final class NotificationManager {
             let weekday = Calendar.current.component(.weekday, from: override.date)
             let alarms = overrideAlarms(from: profile, for: weekday)
             scheduleOverrideNotifications(for: alarms, on: override.date)
+            scheduleOverrideSummaryNotifications(for: override, profile: profile, alarms: alarms)
         }
+    }
+
+    private func scheduleOverrideSummaryNotifications(
+        for override: DayOverride,
+        profile: ScheduleProfile,
+        alarms: [AlarmItem]
+    ) {
+        scheduleOverrideSummaryNotification(
+            identifierSuffix: "preview",
+            title: "Class Trax Schedule Update",
+            subtitle: "\(override.kind.displayName) Tomorrow",
+            body: overrideSummaryBody(for: override, profile: profile, alarms: alarms),
+            on: override.date,
+            daysOffset: -1,
+            hour: 15,
+            minute: 30
+        )
+
+        scheduleOverrideSummaryNotification(
+            identifierSuffix: "today",
+            title: "Today's Schedule Override",
+            subtitle: override.displayLabel(profileName: profile.name),
+            body: overrideSummaryBody(for: override, profile: profile, alarms: alarms),
+            on: override.date,
+            daysOffset: 0,
+            hour: 6,
+            minute: 15
+        )
+    }
+
+    private func scheduleOverrideSummaryNotification(
+        identifierSuffix: String,
+        title: String,
+        subtitle: String,
+        body: String,
+        on overrideDate: Date,
+        daysOffset: Int,
+        hour: Int,
+        minute: Int
+    ) {
+        guard let triggerDateBase = Calendar.current.date(byAdding: .day, value: daysOffset, to: overrideDate),
+              let triggerDate = Calendar.current.date(
+                bySettingHour: hour,
+                minute: minute,
+                second: 0,
+                of: triggerDateBase
+              ) else {
+            return
+        }
+
+        guard triggerDate > Date() else { return }
+        guard !shouldSuppressForQuietHours(triggerDate) else { return }
+
+        let content = UNMutableNotificationContent()
+        content.title = title
+        content.subtitle = subtitle
+        content.body = body
+        content.sound = selectedNotificationSound()
+        content.categoryIdentifier = "CLASSTRAX_BELL"
+        content.interruptionLevel = .active
+        content.relevanceScore = 0.8
+
+        let components = Calendar.current.dateComponents([.year, .month, .day, .hour, .minute], from: triggerDate)
+        let trigger = UNCalendarNotificationTrigger(dateMatching: components, repeats: false)
+        let request = UNNotificationRequest(
+            identifier: "classtrax.override.summary.\(identifierSuffix).\(Calendar.current.startOfDay(for: overrideDate).timeIntervalSince1970)",
+            content: content,
+            trigger: trigger
+        )
+
+        center.add(request)
     }
 
     // MARK: Warning
@@ -472,6 +544,22 @@ final class NotificationManager {
             : " • \(alarm.location)"
 
         return "\(formattedTimeRange(alarm))\(roomText)"
+    }
+
+    private func overrideSummaryBody(for override: DayOverride, profile: ScheduleProfile, alarms: [AlarmItem]) -> String {
+        let firstClass = alarms.first?.className.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+        let firstStart = alarms.first.map { anchoredDate($0.startTime, on: override.date).formatted(date: .omitted, time: .shortened) } ?? ""
+        let blockCount = alarms.filter { $0.type != .transition && $0.type != .blank }.count
+
+        var parts: [String] = [profile.name]
+        if !firstClass.isEmpty && !firstStart.isEmpty {
+            parts.append("Starts with \(firstClass) at \(firstStart)")
+        }
+        if blockCount > 0 {
+            parts.append("\(blockCount) block\(blockCount == 1 ? "" : "s") planned")
+        }
+
+        return parts.joined(separator: " • ")
     }
 
     private func systemWeekday(from appDay: Int) -> Int {

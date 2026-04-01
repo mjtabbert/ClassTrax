@@ -111,7 +111,7 @@ func linkedClassNames(
     in definitions: [ClassDefinitionItem]
 ) -> [String] {
     let namesFromDefinitions = linkedClassDefinitions(for: profile, in: definitions)
-        .map(\.displayName)
+        .map(\.name)
         .compactMap(sanitizedClassLabel)
     if !namesFromDefinitions.isEmpty {
         return namesFromDefinitions
@@ -363,7 +363,10 @@ private func sanitizedClassLabel(_ rawValue: String) -> String? {
         .replacingOccurrences(of: "_", with: "")
         .replacingOccurrences(of: " ", with: "")
 
-    if normalized == "nsmanagedobject" || normalized == "managedobject" {
+    if normalized == "nsmanagedobject" ||
+        normalized == "managedobject" ||
+        normalized.contains("nsmanagedobject") ||
+        normalized.contains("managedobject") {
         return nil
     }
 

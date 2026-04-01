@@ -1134,9 +1134,11 @@ struct TodayView: View {
                 Text(activeItem.className)
                     .font((compact ? Font.caption : .subheadline).weight(.semibold))
 
-                Text("Student details stay private until you open the roster.")
-                    .font(compact ? .caption2 : .caption)
-                    .foregroundStyle(.secondary)
+                supportSummaryView(
+                    students: activeSupports,
+                    compact: compact,
+                    fallback: "Student details stay private until you open the roster."
+                )
             }
             .modifier(DashboardCardStyle(accent: activeItem.type.themeColor == .clear ? .blue : activeItem.type.themeColor, compact: compact))
         } else if let nextItem, !nextSupports.isEmpty {
@@ -1156,9 +1158,11 @@ struct TodayView: View {
                 Text(nextItem.className)
                     .font((compact ? Font.caption : .subheadline).weight(.semibold))
 
-                Text("Open the class to review roster details when you need them.")
-                    .font(compact ? .caption2 : .caption)
-                    .foregroundStyle(.secondary)
+                supportSummaryView(
+                    students: nextSupports,
+                    compact: compact,
+                    fallback: "Open the class to review roster details when you need them."
+                )
             }
             .modifier(DashboardCardStyle(accent: nextItem.type.themeColor == .clear ? .blue : nextItem.type.themeColor, compact: compact))
         } else if relevantTasks.compactMap({ task in
@@ -1185,6 +1189,40 @@ struct TodayView: View {
                     .foregroundStyle(.secondary)
             }
             .modifier(DashboardCardStyle(accent: .mint, compact: compact))
+        }
+    }
+
+    @ViewBuilder
+    private func supportSummaryView(
+        students: [StudentSupportProfile],
+        compact: Bool,
+        fallback: String
+    ) -> some View {
+        let accommodationsCount = students.filter {
+            !$0.accommodations.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+        }.count
+        let promptCount = students.filter {
+            !$0.prompts.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+        }.count
+        let firstPrompt = students
+            .map { $0.prompts.trimmingCharacters(in: .whitespacesAndNewlines) }
+            .first { !$0.isEmpty }
+
+        let summaryParts = [
+            students.isEmpty ? nil : "\(students.count) student\(students.count == 1 ? "" : "s")",
+            accommodationsCount == 0 ? nil : "\(accommodationsCount) with accommodations",
+            promptCount == 0 ? nil : "\(promptCount) with prompts"
+        ].compactMap { $0 }
+
+        Text(summaryParts.isEmpty ? fallback : summaryParts.joined(separator: " • "))
+            .font(compact ? .caption2 : .caption)
+            .foregroundStyle(.secondary)
+
+        if let firstPrompt {
+            Text(firstPrompt)
+                .font(compact ? .caption2 : .caption)
+                .foregroundStyle(.tertiary)
+                .lineLimit(2)
         }
     }
 
@@ -2186,23 +2224,7 @@ struct TodayView: View {
     }
 
     private func commitmentsForToday(now: Date) -> [CommitmentItem] {
-        let weekday = Calendar.current.component(.weekday, from: now)
-
-        return commitments
-            .filter {
-                switch $0.recurrence {
-                case .weekly:
-                    return $0.dayOfWeek == weekday
-                case .oneTime:
-                    guard let specificDate = $0.specificDate else { return false }
-                    return Calendar.current.isDate(specificDate, inSameDayAs: now)
-                }
-            }
-            .sorted { lhs, rhs in
-                let lhsStart = anchoredDate(for: lhs.startTime, now: now)
-                let rhsStart = anchoredDate(for: rhs.startTime, now: now)
-                return lhsStart < rhsStart
-            }
+        resolvedCommitments(for: now, from: commitments)
     }
 
     private func loadDashboardCardOrderIfNeeded() {
@@ -4842,14 +4864,7 @@ private struct TodayClassSubPlanView: View {
     }
 
     private var commitmentsForSelectedDate: [CommitmentItem] {
-        commitments
-            .filter { $0.dayOfWeek == selectedWeekday }
-            .sorted {
-                if $0.startTime != $1.startTime {
-                    return $0.startTime < $1.startTime
-                }
-                return $0.endTime < $1.endTime
-            }
+        resolvedCommitments(for: selectedDate, from: commitments)
     }
 
     private var displayedOverrideName: String? {
@@ -5680,14 +5695,7 @@ private struct TodayDailySubPlanView: View {
     }
 
     private var commitmentsForSelectedDate: [CommitmentItem] {
-        commitments
-            .filter { $0.dayOfWeek == selectedWeekday }
-            .sorted {
-                if $0.startTime != $1.startTime {
-                    return $0.startTime < $1.startTime
-                }
-                return $0.endTime < $1.endTime
-            }
+        resolvedCommitments(for: selectedDate, from: commitments)
     }
 
     private var displayedOverrideName: String? {

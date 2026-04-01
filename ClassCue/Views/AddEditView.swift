@@ -112,7 +112,7 @@ struct AddEditView: View {
                     Picker("Class Roster", selection: $selectedClassDefinitionID) {
                         Text("None").tag(Optional<UUID>.none)
                         ForEach(availableClassDefinitions) { definition in
-                            Text(definition.displayName).tag(Optional(definition.id))
+                            Text(savedClassLabel(for: definition)).tag(Optional(definition.id))
                         }
                     }
 
@@ -714,11 +714,16 @@ struct AddEditView: View {
 
     private func applySelectedClassDefinition(_ id: UUID?) {
         guard let id, let definition = availableClassDefinitions.first(where: { $0.id == id }) else { return }
-        type = AlarmItem.ScheduleType(rawValue: definition.scheduleKind.rawValue) ?? .other
+
         grade = GradeLevelOption.normalized(definition.gradeLevel)
         if room.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
             room = definition.defaultLocation
         }
+    }
+
+    private func savedClassLabel(for definition: ClassDefinitionItem) -> String {
+        let name = definition.name.trimmingCharacters(in: .whitespacesAndNewlines)
+        return name.isEmpty ? "Untitled Class" : name
     }
 
     private func resolvedClassDefinitionID(trimmedName: String, trimmedGrade: String) -> UUID? {

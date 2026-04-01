@@ -81,7 +81,24 @@ struct DayOverridesView: View {
                             Text(profile.name).tag(profile.id as UUID?)
                         }
                     }
-                    
+
+                    if let suggestedProfile {
+                        VStack(alignment: .leading, spacing: 8) {
+                            Label("Suggested Profile", systemImage: "wand.and.stars")
+                                .font(.subheadline.weight(.semibold))
+
+                            Text(suggestedProfileSummary)
+                                .font(.footnote)
+                                .foregroundStyle(.secondary)
+
+                            Button(selectedProfileID == suggestedProfile.id ? "Suggested Profile Selected" : "Use \(suggestedProfile.name)") {
+                                selectedProfileID = suggestedProfile.id
+                            }
+                            .buttonStyle(.bordered)
+                            .disabled(selectedProfileID == suggestedProfile.id)
+                        }
+                    }
+
                     Button("Save Override") {
                         saveOverride()
                     }
@@ -148,6 +165,12 @@ struct DayOverridesView: View {
                     }
                 }
             }
+            .onAppear {
+                applySuggestedProfileIfNeeded()
+            }
+            .onChange(of: selectedKind) { _, _ in
+                applySuggestedProfileIfNeeded()
+            }
             .alert("Delete Override?", isPresented: Binding(
                 get: { overrideToDelete != nil },
                 set: { _ in overrideToDelete = nil }
@@ -168,6 +191,24 @@ struct DayOverridesView: View {
 
     private var presetKinds: [DayOverride.OverrideKind] {
         DayOverride.OverrideKind.allCases.filter { $0 != .custom }
+    }
+
+    private var suggestedProfile: ScheduleProfile? {
+        let preferredKeywords = selectedKind.profileKeywords
+
+        if let keywordMatch = profiles.first(where: { profile in
+            let normalizedName = profile.name.lowercased()
+            return preferredKeywords.contains(where: { normalizedName.contains($0) })
+        }) {
+            return keywordMatch
+        }
+
+        return profiles.first
+    }
+
+    private var suggestedProfileSummary: String {
+        guard let suggestedProfile else { return "No profile suggestion available." }
+        return "\(selectedKind.displayName) works best with \(suggestedProfile.name)."
     }
     
     private func saveOverride() {
@@ -198,6 +239,12 @@ struct DayOverridesView: View {
         selectedKind = override.kind
         selectedProfileID = override.profileID
     }
+
+    private func applySuggestedProfileIfNeeded() {
+        guard let suggestedProfile else { return }
+        guard selectedProfileID == nil || !profiles.contains(where: { $0.id == selectedProfileID }) else { return }
+        selectedProfileID = suggestedProfile.id
+    }
     
     private func profileName(for id: UUID) -> String {
         profiles.first(where: { $0.id == id })?.name ?? "Unknown Profile"
@@ -205,6 +252,23 @@ struct DayOverridesView: View {
     
     private func formattedDate(_ date: Date) -> String {
         date.formatted(date: .abbreviated, time: .omitted)
+    }
+}
+
+private extension DayOverride.OverrideKind {
+    var profileKeywords: [String] {
+        switch self {
+        case .custom:
+            return []
+        case .earlyRelease, .minimumDay:
+            return ["early", "minimum", "short"]
+        case .lateStart:
+            return ["late", "delay"]
+        case .assemblyDay:
+            return ["assembly"]
+        case .testingDay:
+            return ["testing", "test"]
+        }
     }
 }
 

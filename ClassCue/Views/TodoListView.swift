@@ -163,6 +163,52 @@ struct TodoListView: View {
                     .buttonStyle(.borderedProminent)
                 }
 
+                if workspaceFilter != .personal && (!attentionItems.isEmpty || !linkedContextGroups.isEmpty || studentContextCount != 0) {
+                    Section("Triage") {
+                        if !attentionItems.isEmpty {
+                            Button {
+                                priorityFilter = .high
+                                showOnlyFollowUp = true
+                            } label: {
+                                triageSummaryRow(
+                                    title: "Needs Attention",
+                                    value: "\(attentionItems.count)",
+                                    detail: attentionItems.prefix(2).map(\.task).joined(separator: " • ")
+                                )
+                            }
+                            .buttonStyle(.plain)
+                        }
+
+                        if let topContext = linkedContextGroups.first {
+                            Button {
+                                linkedContextFilter = topContext.context
+                                workspaceFilter = .school
+                            } label: {
+                                triageSummaryRow(
+                                    title: topContext.context,
+                                    value: "\(topContext.count)",
+                                    detail: topContext.preview
+                                )
+                            }
+                            .buttonStyle(.plain)
+                        }
+
+                        if studentContextCount > 0 {
+                            Button {
+                                showOnlyStudentContext = true
+                                workspaceFilter = .school
+                            } label: {
+                                triageSummaryRow(
+                                    title: "Student-Linked Tasks",
+                                    value: "\(studentContextCount)",
+                                    detail: studentContextPreview
+                                )
+                            }
+                            .buttonStyle(.plain)
+                        }
+                    }
+                }
+
                 ForEach(TodoItem.Bucket.allCases, id: \.self) { bucket in
                     let bucketItems = items(for: bucket)
 
@@ -504,28 +550,34 @@ struct TodoListView: View {
                     }
                 }
 
-                HStack(spacing: 6) {
-                    Label(item.workspace.displayName, systemImage: item.workspace.systemImage)
-                        .font(.caption2.weight(.semibold))
-                        .foregroundColor(item.workspace.tint)
+                ViewThatFits(in: .horizontal) {
+                    HStack(spacing: 6) {
+                        metadataBadge(
+                            title: item.workspace.displayName,
+                            systemImage: item.workspace.systemImage,
+                            tint: item.workspace.tint
+                        )
 
-                    Text("•")
-                        .font(.caption2)
-                        .foregroundColor(.secondary)
+                        metadataBadge(
+                            title: item.category.displayName,
+                            systemImage: item.category.systemImage,
+                            tint: item.category.tint
+                        )
 
-                    Label(item.category.displayName, systemImage: item.category.systemImage)
-                        .font(.caption2.weight(.semibold))
-                        .foregroundColor(item.category.tint)
-
-                    Text("•")
-                        .font(.caption2)
-                        .foregroundColor(.secondary)
-
-                    if item.priority != .none {
-                        Text(item.priority.rawValue)
-                            .font(.caption2.weight(.bold))
-                            .foregroundColor(item.priority.color)
+                        if item.priority != .none {
+                            metadataBadge(
+                                title: "Priority: \(priorityText(for: item.priority))",
+                                systemImage: "flag.fill",
+                                tint: item.priority.color
+                            )
+                        }
                     }
+
+                    Text(todoMetadataSummary(for: item))
+                        .font(.caption2.weight(.semibold))
+                        .foregroundStyle(.secondary)
+                        .lineLimit(1)
+                        .truncationMode(.tail)
                 }
 
                 if item.reminder != .none {
@@ -538,28 +590,10 @@ struct TodoListView: View {
                     .font(.caption2)
                     .foregroundColor(.secondary)
 
-                if !item.effectiveClassLink.isEmpty {
-                    Text(item.effectiveClassLink)
-                        .font(.caption2)
-                        .foregroundColor(.secondary)
-                }
-
-                if !item.effectiveStudentGroupLink.isEmpty {
-                    Label(item.effectiveStudentGroupLink, systemImage: "person.3")
-                        .font(.caption2)
-                        .foregroundColor(.secondary)
-                }
-
-                if !item.effectiveStudentOrGroup.isEmpty {
-                    HStack(spacing: 6) {
-                        Label(item.effectiveStudentOrGroup, systemImage: "person.text.rectangle")
-                            .font(.caption2)
-                            .foregroundColor(.secondary)
-
-                        if let matchedStudent {
-                            gradePill(matchedStudent.gradeLevel)
-                        }
-                    }
+                if !item.effectiveClassLink.isEmpty ||
+                    !item.effectiveStudentGroupLink.isEmpty ||
+                    !item.effectiveStudentOrGroup.isEmpty {
+                    contextSummaryRow(for: item, matchedStudent: matchedStudent)
                 }
 
                 if let support = studentSupportsByName[item.effectiveStudentLink],
@@ -616,6 +650,48 @@ struct TodoListView: View {
         .padding(.vertical, 2)
         .padding(.leading, 8)
         .background(priorityAccent(for: item), alignment: .leading)
+    }
+
+    @ViewBuilder
+    private func contextSummaryRow(for item: TodoItem, matchedStudent: StudentSupportProfile?) -> some View {
+        VStack(alignment: .leading, spacing: 6) {
+            if !item.effectiveClassLink.isEmpty {
+                Label(item.effectiveClassLink, systemImage: "text.book.closed")
+                    .font(.caption2.weight(.semibold))
+                    .foregroundStyle(.secondary)
+            }
+
+            if !item.effectiveStudentGroupLink.isEmpty {
+                Label(item.effectiveStudentGroupLink, systemImage: "person.3")
+                    .font(.caption2)
+                    .foregroundStyle(.secondary)
+            }
+
+            if !item.effectiveStudentOrGroup.isEmpty {
+                HStack(spacing: 6) {
+                    Label(item.effectiveStudentOrGroup, systemImage: "person.text.rectangle")
+                        .font(.caption2)
+                        .foregroundStyle(.secondary)
+
+                    if let matchedStudent {
+                        gradePill(matchedStudent.gradeLevel)
+                    }
+                }
+            }
+
+            if let matchedStudent {
+                let supportSummary = [matchedStudent.className, matchedStudent.prompts]
+                    .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
+                    .first { !$0.isEmpty }
+
+                if let supportSummary {
+                    Text(supportSummary)
+                        .font(.caption2)
+                        .foregroundStyle(.tertiary)
+                        .lineLimit(1)
+                }
+            }
+        }
     }
 
     private func toggleCompletion(for item: TodoItem) {
@@ -684,6 +760,36 @@ struct TodoListView: View {
             )
     }
 
+    private func metadataBadge(title: String, systemImage: String, tint: Color) -> some View {
+        Label(title, systemImage: systemImage)
+            .font(.caption2.weight(.semibold))
+            .foregroundStyle(tint)
+            .lineLimit(1)
+    }
+
+    private func priorityText(for priority: TodoItem.Priority) -> String {
+        switch priority {
+        case .high:
+            return "High"
+        case .med:
+            return "Med"
+        case .low:
+            return "Low"
+        case .none:
+            return "None"
+        }
+    }
+
+    private func todoMetadataSummary(for item: TodoItem) -> String {
+        let parts = [
+            item.workspace.displayName,
+            item.category.displayName,
+            item.priority == .none ? nil : "Priority: \(priorityText(for: item.priority))"
+        ]
+
+        return parts.compactMap { $0 }.joined(separator: " • ")
+    }
+
     private var activeFilterCount: Int {
         var count = 0
         if categoryFilter != .all { count += 1 }
@@ -703,6 +809,26 @@ struct TodoListView: View {
                 item.dueDate != nil
             )
         }.count
+    }
+
+    private var attentionItems: [TodoItem] {
+        todos
+            .filter { item in
+                !item.isCompleted && item.workspace != .personal && (
+                    item.priority == .high ||
+                    item.reminder != .none ||
+                    item.dueDate != nil
+                )
+            }
+            .sorted { lhs, rhs in
+                if priorityRank(lhs.priority) != priorityRank(rhs.priority) {
+                    return priorityRank(lhs.priority) < priorityRank(rhs.priority)
+                }
+                if reminderRank(lhs.reminder) != reminderRank(rhs.reminder) {
+                    return reminderRank(lhs.reminder) < reminderRank(rhs.reminder)
+                }
+                return lhs.task.localizedCaseInsensitiveCompare(rhs.task) == .orderedAscending
+            }
     }
 
     private var schoolTaskCount: Int {
@@ -734,6 +860,7 @@ struct TodoListView: View {
     private var linkedContextGroups: [(context: String, count: Int, preview: String)] {
         Dictionary(grouping: todos.filter {
             !$0.isCompleted &&
+            $0.workspace != .personal &&
             !$0.effectiveClassLink.isEmpty
         }) { $0.effectiveClassLink }
         .map { key, items in
@@ -744,6 +871,32 @@ struct TodoListView: View {
         .sorted { lhs, rhs in
             lhs.context.localizedCaseInsensitiveCompare(rhs.context) == .orderedAscending
         }
+    }
+
+    private var studentContextCount: Int {
+        todos.filter {
+            !$0.isCompleted &&
+            $0.workspace != .personal &&
+            !$0.effectiveStudentOrGroup.isEmpty
+        }.count
+    }
+
+    private var studentContextPreview: String {
+        let names = todos
+            .filter {
+                !$0.isCompleted &&
+                $0.workspace != .personal &&
+                !$0.effectiveStudentOrGroup.isEmpty
+            }
+            .map(\.effectiveStudentOrGroup)
+
+        let uniqueNames: [String] = names.reduce(into: []) { partialResult, name in
+            if !partialResult.contains(name) {
+                partialResult.append(name)
+            }
+        }
+
+        return uniqueNames.prefix(2).joined(separator: " • ")
     }
 
     private func reminderRank(_ reminder: TodoItem.Reminder) -> Int {

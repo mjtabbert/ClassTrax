@@ -131,6 +131,25 @@ struct QuickCaptureView: View {
                     .lineLimit(3...6)
                 }
 
+                Section {
+                    HStack(alignment: .top, spacing: 12) {
+                        Image(systemName: workspace.systemImage)
+                            .font(.headline)
+                            .foregroundStyle(workspace.tint)
+                            .frame(width: 24)
+
+                        VStack(alignment: .leading, spacing: 4) {
+                            Text(captureStatusTitle)
+                                .font(.subheadline.weight(.semibold))
+
+                            Text(captureStatusSummary)
+                                .font(.footnote)
+                                .foregroundStyle(.secondary)
+                        }
+                    }
+                    .padding(.vertical, 4)
+                }
+
                 if target == .task {
                     Section("Teacher Context") {
                         Picker("Workspace", selection: $workspace) {
@@ -194,15 +213,15 @@ struct QuickCaptureView: View {
                     }
 
                     Section("Save To") {
-                        Button("Today") {
+                        Button(workspace == .school ? "Use During School" : "Do Today") {
                             saveTask(bucket: .today, reminder: reminder)
                         }
 
-                        Button("After School") {
+                        Button(workspace == .school ? "After School Reset" : "Tonight") {
                             saveTask(bucket: .today, reminder: .afterSchool)
                         }
 
-                        Button("Tomorrow") {
+                        Button("Tomorrow Morning") {
                             saveTask(bucket: .tomorrow, reminder: .tomorrowMorning)
                         }
 
@@ -265,6 +284,12 @@ struct QuickCaptureView: View {
             }
             .onChange(of: currentDraft) { _, _ in
                 persistDraft()
+            }
+            .onChange(of: workspace) { _, newWorkspace in
+                syncRoutingForWorkspace(newWorkspace)
+            }
+            .onChange(of: target) { _, _ in
+                syncRoutingForWorkspace(workspace)
             }
             .onChange(of: scenePhase) { _, newPhase in
                 if newPhase != .active {
@@ -350,6 +375,47 @@ struct QuickCaptureView: View {
         return now >= start
     }
 
+    private var captureStatusTitle: String {
+        switch (target, workspace) {
+        case (.task, .school):
+            return "School task capture"
+        case (.task, .personal):
+            return "Personal task capture"
+        case (.note, .school):
+            return "School note capture"
+        case (.note, .personal):
+            return "Personal note capture"
+        }
+    }
+
+    private var captureStatusSummary: String {
+        var parts: [String] = []
+
+        if let preferredContext, !preferredContext.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty, linkedContext.isEmpty {
+            parts.append("Current focus: \(preferredContext)")
+        } else if !linkedContext.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+            parts.append(linkedContext.trimmingCharacters(in: .whitespacesAndNewlines))
+        }
+
+        if !studentOrGroup.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+            parts.append(studentOrGroup.trimmingCharacters(in: .whitespacesAndNewlines))
+        }
+
+        if target == .note {
+            parts.append(noteDestination.title)
+        } else if reminder != .none {
+            parts.append(reminder.displayName)
+        }
+
+        if parts.isEmpty {
+            return workspace == .school
+                ? "Keep this tied to your school-day workflow."
+                : "Keep this out of the school stream."
+        }
+
+        return parts.joined(separator: " • ")
+    }
+
     private func decodeFollowUpNotes() -> [FollowUpNoteItem] {
         ClassTraxPersistence.loadFollowUpNotes(from: modelContext)
     }
@@ -432,5 +498,18 @@ struct QuickCaptureView: View {
 
     private func clearDraft() {
         savedDraftData = Data()
+    }
+
+    private func syncRoutingForWorkspace(_ workspace: TodoItem.Workspace) {
+        guard target == .note else { return }
+
+        switch workspace {
+        case .school:
+            if noteDestination == .personal {
+                noteDestination = .general
+            }
+        case .personal:
+            noteDestination = .personal
+        }
     }
 }
