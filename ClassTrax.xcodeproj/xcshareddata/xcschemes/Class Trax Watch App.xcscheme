@@ -16,8 +16,8 @@
             <BuildableReference
                BuildableIdentifier = "primary"
                BlueprintIdentifier = "272BFA2E2F6BA9BB00245665"
-               BuildableName = "Class Trax Watch App.app"
-               BlueprintName = "Class Trax Watch App"
+               BuildableName = "ClassTrax Watch App.app"
+               BlueprintName = "ClassTrax Watch App"
                ReferencedContainer = "container:ClassTrax.xcodeproj">
             </BuildableReference>
          </BuildActionEntry>
@@ -30,8 +30,8 @@
             <BuildableReference
                BuildableIdentifier = "primary"
                BlueprintIdentifier = "27335DB42F5B700800889F92"
-               BuildableName = "ClassCue.app"
-               BlueprintName = "ClassCue"
+               BuildableName = "ClassTrax.app"
+               BlueprintName = "ClassTrax"
                ReferencedContainer = "container:ClassTrax.xcodeproj">
             </BuildableReference>
          </BuildActionEntry>
@@ -60,8 +60,8 @@
          <BuildableReference
             BuildableIdentifier = "primary"
             BlueprintIdentifier = "272BFA2E2F6BA9BB00245665"
-            BuildableName = "Class Trax Watch App.app"
-            BlueprintName = "Class Trax Watch App"
+            BuildableName = "ClassTrax Watch App.app"
+            BlueprintName = "ClassTrax Watch App"
             ReferencedContainer = "container:ClassTrax.xcodeproj">
          </BuildableReference>
       </BuildableProductRunnable>
@@ -77,8 +77,8 @@
          <BuildableReference
             BuildableIdentifier = "primary"
             BlueprintIdentifier = "272BFA2E2F6BA9BB00245665"
-            BuildableName = "Class Trax Watch App.app"
-            BlueprintName = "Class Trax Watch App"
+            BuildableName = "ClassTrax Watch App.app"
+            BlueprintName = "ClassTrax Watch App"
             ReferencedContainer = "container:ClassTrax.xcodeproj">
          </BuildableReference>
       </BuildableProductRunnable>

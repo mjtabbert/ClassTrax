@@ -72,6 +72,8 @@ struct SettingsView: View {
     @AppStorage("todo_v6_data") private var savedTodos: Data = Data()
     @AppStorage("student_support_profiles_v1_data") private var savedStudentProfiles: Data = Data()
     @AppStorage("class_definitions_v1_data") private var savedClassDefinitions: Data = Data()
+    @AppStorage("cloud_sync_last_local_mutation_at") private var lastLocalMutationTimestamp: Double = 0
+    @AppStorage("cloud_sync_last_refresh_at") private var lastCloudRefreshTimestamp: Double = 0
     @AppStorage("school_quiet_hours_enabled") private var schoolQuietHoursEnabled = false
     @AppStorage("school_quiet_hour") private var schoolQuietHour = 16
     @AppStorage("school_quiet_minute") private var schoolQuietMinute = 0
@@ -747,6 +749,20 @@ struct SettingsView: View {
                     .foregroundColor(.secondary)
             }
 
+            LabeledContent("Last Cloud Refresh") {
+                Text(lastCloudRefreshSummary)
+                    .font(.footnote)
+                    .multilineTextAlignment(.trailing)
+                    .foregroundColor(.secondary)
+            }
+
+            LabeledContent("Last Local Change") {
+                Text(lastLocalMutationSummary)
+                    .font(.footnote)
+                    .multilineTextAlignment(.trailing)
+                    .foregroundColor(.secondary)
+            }
+
             if ClassTraxPersistence.activeContainerMode == .cloudKit {
                 Text("SwiftData initialized with the CloudKit-backed store. If data still does not appear on another device, the remaining issue is sync propagation or schema deployment rather than local fallback.")
                     .font(.footnote)
@@ -969,6 +985,19 @@ struct SettingsView: View {
         "\(commitments.count) commitments • \(profiles.count) profiles • \(overrides.count) overrides"
     }
 
+    private var lastCloudRefreshSummary: String {
+        formattedSyncTimestamp(lastCloudRefreshTimestamp, empty: "No CloudKit refresh recorded yet")
+    }
+
+    private var lastLocalMutationSummary: String {
+        formattedSyncTimestamp(lastLocalMutationTimestamp, empty: "No local changes recorded yet")
+    }
+
+    private func formattedSyncTimestamp(_ timestamp: Double, empty: String) -> String {
+        guard timestamp > 0 else { return empty }
+        return Date(timeIntervalSince1970: timestamp).formatted(date: .abbreviated, time: .shortened)
+    }
+
     private func testBell() {
         let haptic = HapticPattern(rawValue: selectedHapticRawValue) ?? .doubleThump
         let sound = BellSound.fromStoredPreference(selectedSoundRawValue)
@@ -999,24 +1028,31 @@ struct SettingsView: View {
 
     private func loadData() {
         let firstSlice = ClassTraxPersistence.loadFirstSlice(from: modelContext)
+        let secondSlice = ClassTraxPersistence.loadSecondSlice(from: modelContext)
         let thirdSlice = ClassTraxPersistence.loadThirdSlice(from: modelContext)
 
-        if let decodedAlarms = try? JSONDecoder().decode([AlarmItem].self, from: savedAlarms) {
-            alarms = decodedAlarms
+        if ClassTraxPersistence.activeContainerMode == .cloudKit {
+            alarms = firstSlice.alarms
+            commitments = firstSlice.commitments
+            todos = secondSlice.todos
         } else {
-            alarms = []
-        }
+            if let decodedAlarms = try? JSONDecoder().decode([AlarmItem].self, from: savedAlarms) {
+                alarms = decodedAlarms
+            } else {
+                alarms = []
+            }
 
-        if let decodedCommitments = try? JSONDecoder().decode([CommitmentItem].self, from: savedCommitments) {
-            commitments = decodedCommitments
-        } else {
-            commitments = []
-        }
+            if let decodedCommitments = try? JSONDecoder().decode([CommitmentItem].self, from: savedCommitments) {
+                commitments = decodedCommitments
+            } else {
+                commitments = []
+            }
 
-        if let decodedTodos = try? JSONDecoder().decode([TodoItem].self, from: savedTodos) {
-            todos = decodedTodos
-        } else {
-            todos = []
+            if let decodedTodos = try? JSONDecoder().decode([TodoItem].self, from: savedTodos) {
+                todos = decodedTodos
+            } else {
+                todos = []
+            }
         }
 
         profiles = thirdSlice.profiles

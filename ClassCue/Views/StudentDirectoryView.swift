@@ -50,6 +50,8 @@ struct StudentDirectoryView: View {
     @State private var showingPasteImporter = false
     @State private var showErrorAlert = false
     @State private var errorMessage = ""
+    @State private var showImportSuccessAlert = false
+    @State private var importSuccessMessage = ""
     @FocusState private var isPasteEditorFocused: Bool
     @State private var selection = Set<UUID>()
     @State private var showingExportOptions = false
@@ -101,26 +103,24 @@ struct StudentDirectoryView: View {
                             showingSavedClasses = true
                         }
 
-                        if showsRosterDataTools {
-                            Divider()
+                        Divider()
 
-                            Button("Import Roster CSV") {
-                                showingFileImporter = true
-                            }
+                        Button("Import Roster CSV") {
+                            showingFileImporter = true
+                        }
 
-                            Button("Paste Roster CSV") {
-                                showingPasteImporter = true
-                            }
+                        Button("Paste Roster CSV") {
+                            showingPasteImporter = true
+                        }
 
-                            Button("Share Roster Template") {
-                                showingTemplateShareSheet = true
-                            }
+                        Button("Share Roster Template") {
+                            showingTemplateShareSheet = true
+                        }
 
-                            Divider()
+                        Divider()
 
-                            Button("Export Roster CSV") {
-                                showingExportOptions = true
-                            }
+                        Button("Export Roster CSV") {
+                            showingExportOptions = true
                         }
                     } label: {
                         toolbarActionButton()
@@ -261,6 +261,11 @@ struct StudentDirectoryView: View {
                 Button("OK", role: .cancel) { }
             } message: {
                 Text(errorMessage)
+            }
+            .alert("Import Complete", isPresented: $showImportSuccessAlert) {
+                Button("OK", role: .cancel) { }
+            } message: {
+                Text(importSuccessMessage)
             }
     }
 
@@ -799,14 +804,14 @@ struct StudentDirectoryView: View {
         }
         .navigationTitle("Paste Student CSV")
         .navigationBarTitleDisplayMode(.inline)
-        .toolbar {
-            ToolbarItem(placement: .topBarLeading) {
-                if isPasteEditorFocused {
-                    Button("Done") {
-                        isPasteEditorFocused = false
+            .toolbar {
+                ToolbarItem(placement: .topBarLeading) {
+                    if isPasteEditorFocused {
+                        Button("Done") {
+                            handlePasteImportDone()
+                        }
                     }
                 }
-            }
 
             ToolbarItem(placement: .topBarTrailing) {
                 Button("Clear") {
@@ -815,15 +820,15 @@ struct StudentDirectoryView: View {
                 .disabled(pastedCSVText.isEmpty)
             }
 
-            ToolbarItemGroup(placement: .keyboard) {
-                Spacer()
+                ToolbarItemGroup(placement: .keyboard) {
+                    Spacer()
 
-                Button("Done") {
-                    isPasteEditorFocused = false
+                    Button("Done") {
+                        handlePasteImportDone()
+                    }
                 }
             }
         }
-    }
 
     private func handleImportResult(_ result: Result<[URL], Error>) {
         switch result {
@@ -873,53 +878,78 @@ struct StudentDirectoryView: View {
         }
     }
 
+    private func handlePasteImportDone() {
+        let trimmed = pastedCSVText.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else {
+            isPasteEditorFocused = false
+            return
+        }
+
+        importPastedCSV()
+    }
+
     private func parseCSV(_ csv: String) throws -> [StudentSupportProfile] {
         let rows = csv
             .components(separatedBy: .newlines)
             .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
             .filter { !$0.isEmpty }
 
+        let parsedRows = rows.map(parseCSVColumns)
+        let headerLookup = parsedRows.first.flatMap { isHeaderRow($0) ? columnIndexLookup(for: $0) : nil }
         var imported: [StudentSupportProfile] = []
 
-        for (index, row) in rows.enumerated() {
-            let parts = row
-                .components(separatedBy: ",")
-                .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
+        for (index, parts) in parsedRows.enumerated() {
+            let trimmedParts = parts.map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
 
-            if index == 0, isHeaderRow(parts) {
+            if index == 0, isHeaderRow(trimmedParts) {
                 continue
             }
 
-            guard parts.count >= 1 else {
+            guard !trimmedParts.isEmpty else {
                 throw StudentImportError.invalidColumnCount(rowNumber: index + 1)
             }
 
-            guard !parts[0].isEmpty else {
+            let name = csvValue(in: trimmedParts, headerLookup: headerLookup, keys: ["name", "student", "studentname"], fallbackIndex: 0)
+            let className = sanitizedImportedClassName(
+                csvValue(in: trimmedParts, headerLookup: headerLookup, keys: ["classname", "class", "savedclass"], fallbackIndex: 1)
+            )
+            let gradeLevel = GradeLevelOption.normalized(
+                csvValue(in: trimmedParts, headerLookup: headerLookup, keys: ["gradelevel", "grade"], fallbackIndex: 2)
+            )
+            let accommodations = csvValue(in: trimmedParts, headerLookup: headerLookup, keys: ["accommodations", "supports"], fallbackIndex: 3)
+            let prompts = csvValue(in: trimmedParts, headerLookup: headerLookup, keys: ["prompts", "reminders", "notes"], fallbackIndex: 4)
+            let graduationYear = csvValue(in: trimmedParts, headerLookup: headerLookup, keys: ["graduationyear", "classof"], fallbackIndex: 5)
+            let parentNames = csvValue(in: trimmedParts, headerLookup: headerLookup, keys: ["parentnames", "parents"], fallbackIndex: 6)
+            let parentPhoneNumbers = csvValue(in: trimmedParts, headerLookup: headerLookup, keys: ["parentphonenumbers", "parentphone", "phonenumber"], fallbackIndex: 7)
+            let parentEmails = csvValue(in: trimmedParts, headerLookup: headerLookup, keys: ["parentemails", "parentemail"], fallbackIndex: 8)
+            let studentEmail = csvValue(in: trimmedParts, headerLookup: headerLookup, keys: ["studentemail", "email"], fallbackIndex: 9)
+
+            guard !name.isEmpty else {
                 throw StudentImportError.missingName(rowNumber: index + 1)
             }
 
             imported.append(
                 StudentSupportProfile(
-                    name: parts[0],
-                    className: sanitizedImportedClassName(parts.count >= 2 ? parts[1] : ""),
-                    gradeLevel: parts.count >= 3 ? GradeLevelOption.normalized(parts[2]) : "",
+                    name: name,
+                    className: className,
+                    gradeLevel: gradeLevel,
                     classDefinitionID: exactClassDefinitionMatch(
-                        name: sanitizedImportedClassName(parts.count >= 2 ? parts[1] : ""),
-                        gradeLevel: parts.count >= 3 ? GradeLevelOption.normalized(parts[2]) : "",
+                        name: className,
+                        gradeLevel: gradeLevel,
                         in: classDefinitions
                     )?.id,
                     classDefinitionIDs: exactClassDefinitionMatch(
-                        name: sanitizedImportedClassName(parts.count >= 2 ? parts[1] : ""),
-                        gradeLevel: parts.count >= 3 ? GradeLevelOption.normalized(parts[2]) : "",
+                        name: className,
+                        gradeLevel: gradeLevel,
                         in: classDefinitions
                     ).map { [$0.id] } ?? [],
-                    graduationYear: parts.count >= 6 ? parts[5] : "",
-                    parentNames: parts.count >= 7 ? parts[6] : "",
-                    parentPhoneNumbers: parts.count >= 8 ? parts[7] : "",
-                    parentEmails: parts.count >= 9 ? parts[8] : "",
-                    studentEmail: parts.count >= 10 ? parts[9] : "",
-                    accommodations: parts.count >= 4 ? parts[3] : "",
-                    prompts: parts.count >= 5 ? parts[4] : ""
+                    graduationYear: graduationYear,
+                    parentNames: parentNames,
+                    parentPhoneNumbers: parentPhoneNumbers,
+                    parentEmails: parentEmails,
+                    studentEmail: studentEmail,
+                    accommodations: accommodations,
+                    prompts: prompts
                 )
             )
         }
@@ -958,11 +988,70 @@ struct StudentDirectoryView: View {
                 prompts: $0.prompts
             )
         })
+
+        searchText = ""
+        groupingMode = .none
+        selection.removeAll()
+        expandedClassSections.removeAll()
+        importSuccessMessage = "Imported \(imported.count) student\(imported.count == 1 ? "" : "s"). They are now listed under All."
+        showImportSuccessAlert = true
     }
 
     private func isHeaderRow(_ parts: [String]) -> Bool {
         guard let first = parts.first?.lowercased() else { return false }
         return first == "name" || first == "student"
+    }
+
+    private func parseCSVColumns(_ row: String) -> [String] {
+        var values: [String] = []
+        var current = ""
+        var isInsideQuotes = false
+
+        for character in row {
+            switch character {
+            case "\"":
+                isInsideQuotes.toggle()
+            case "," where !isInsideQuotes:
+                values.append(current.trimmingCharacters(in: .whitespacesAndNewlines))
+                current = ""
+            default:
+                current.append(character)
+            }
+        }
+
+        values.append(current.trimmingCharacters(in: .whitespacesAndNewlines))
+        return values.map { $0.replacingOccurrences(of: "\"\"", with: "\"") }
+    }
+
+    private func columnIndexLookup(for header: [String]) -> [String: Int] {
+        Dictionary(uniqueKeysWithValues: header.enumerated().map { index, value in
+            (
+                value
+                    .trimmingCharacters(in: .whitespacesAndNewlines)
+                    .lowercased()
+                    .replacingOccurrences(of: " ", with: "")
+                    .replacingOccurrences(of: "_", with: ""),
+                index
+            )
+        })
+    }
+
+    private func csvValue(
+        in parts: [String],
+        headerLookup: [String: Int]?,
+        keys: [String],
+        fallbackIndex: Int
+    ) -> String {
+        if let headerLookup {
+            for key in keys {
+                if let index = headerLookup[key], parts.indices.contains(index) {
+                    return parts[index].trimmingCharacters(in: .whitespacesAndNewlines)
+                }
+            }
+        }
+
+        guard parts.indices.contains(fallbackIndex) else { return "" }
+        return parts[fallbackIndex].trimmingCharacters(in: .whitespacesAndNewlines)
     }
 
     private func sanitizedImportedClassName(_ value: String) -> String {

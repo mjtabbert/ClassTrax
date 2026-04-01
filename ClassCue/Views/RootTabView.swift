@@ -52,6 +52,8 @@ struct RootTabView: View {
     @AppStorage("day_overrides_v1_data") private var savedOverrides: Data = Data()
     @AppStorage("ignore_until_v1") private var ignoreUntil: Double = 0
     @AppStorage("live_activities_enabled") private var liveActivitiesEnabled = true
+    @AppStorage("cloud_sync_last_local_mutation_at") private var storedLastLocalMutationAt: Double = 0
+    @AppStorage("cloud_sync_last_refresh_at") private var storedLastCloudRefreshAt: Double = 0
 
     @State private var alarms: [AlarmItem] = []
     @State private var todos: [TodoItem] = []
@@ -172,25 +174,33 @@ struct RootTabView: View {
                 }
                 .onChange(of: savedStudentProfiles) { _, _ in
                     guard !isRefreshingFromPersistence else { return }
-                    loadStudentProfiles()
-                    reconcileClassDefinitionLinks()
+                    handleLegacyStorageChange {
+                        loadStudentProfiles()
+                        reconcileClassDefinitionLinks()
+                    }
                 }
                 .onChange(of: savedClassDefinitions) { _, _ in
                     guard !isRefreshingFromPersistence else { return }
-                    loadClassDefinitions()
-                    reconcileClassDefinitionLinks()
-                    syncSharedSnapshot()
+                    handleLegacyStorageChange {
+                        loadClassDefinitions()
+                        reconcileClassDefinitionLinks()
+                        syncSharedSnapshot()
+                    }
                 }
                 .onChange(of: savedProfiles) { _, _ in
                     guard !isRefreshingFromPersistence else { return }
-                    loadProfiles()
-                    refreshNotifications()
+                    handleLegacyStorageChange {
+                        loadProfiles()
+                        refreshNotifications()
+                    }
                 }
                 .onChange(of: savedOverrides) { _, _ in
                     guard !isRefreshingFromPersistence else { return }
-                    loadOverrides()
-                    refreshNotifications()
-                    syncSharedSnapshot()
+                    handleLegacyStorageChange {
+                        loadOverrides()
+                        refreshNotifications()
+                        syncSharedSnapshot()
+                    }
                 }
         )
 
@@ -696,12 +706,22 @@ struct RootTabView: View {
             return
         }
         lastCloudBackedRefreshAt = Date()
+        storedLastCloudRefreshAt = lastCloudBackedRefreshAt.timeIntervalSince1970
         refreshFromPersistence()
         refreshNotifications()
     }
 
     private func recordLocalMutation() {
         lastLocalMutationAt = Date()
+        storedLastLocalMutationAt = lastLocalMutationAt.timeIntervalSince1970
+    }
+
+    private func handleLegacyStorageChange(_ applyLegacySnapshot: () -> Void) {
+        if ClassTraxPersistence.activeContainerMode == .cloudKit {
+            refreshFromPersistence()
+        } else {
+            applyLegacySnapshot()
+        }
     }
 
     private func runCloudSyncRefreshLoop() async {
@@ -832,8 +852,8 @@ struct RootTabView: View {
     }
 
     private func loadStudentProfiles() {
-        let snapshot = ClassTraxPersistence.loadFirstSlice(from: modelContext)
-        studentProfiles = snapshot.studentProfiles
+        let decodedProfiles = decodeLegacyStudentProfiles()
+        studentProfiles = decodedProfiles
             .map {
                 StudentSupportProfile(
                     id: $0.id,
@@ -856,8 +876,7 @@ struct RootTabView: View {
     }
 
     private func loadClassDefinitions() {
-        let snapshot = ClassTraxPersistence.loadFirstSlice(from: modelContext)
-        classDefinitions = snapshot.classDefinitions.sorted {
+        classDefinitions = decodeLegacyClassDefinitions().sorted {
             $0.displayName.localizedCaseInsensitiveCompare($1.displayName) == .orderedAscending
         }
     }
@@ -1065,21 +1084,11 @@ struct RootTabView: View {
 
     private func loadProfiles() {
         let decodedProfiles = decodeLegacyProfiles()
-        saveThirdPersistenceSlice(
-            attendanceRecords: attendanceRecords,
-            profiles: decodedProfiles,
-            overrides: overrides
-        )
         profiles = decodedProfiles
     }
 
     private func loadOverrides() {
         let decodedOverrides = decodeLegacyOverrides()
-        saveThirdPersistenceSlice(
-            attendanceRecords: attendanceRecords,
-            profiles: profiles,
-            overrides: decodedOverrides
-        )
         overrides = decodedOverrides
     }
 

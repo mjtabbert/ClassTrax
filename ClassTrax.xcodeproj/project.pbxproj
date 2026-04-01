@@ -7,14 +7,14 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
-		272BFA392F6BA9BD00245665 /* Class Trax Watch App.app in Embed Watch Content */ = {isa = PBXBuildFile; fileRef = 272BFA2F2F6BA9BB00245665 /* Class Trax Watch App.app */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
+		272BFA392F6BA9BD00245665 /* ClassTrax Watch App.app in Embed Watch Content */ = {isa = PBXBuildFile; fileRef = 272BFA2F2F6BA9BB00245665 /* ClassTrax Watch App.app */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
 		27C273E12F64914E00078D37 /* CarPlay.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 27C273E02F64914E00078D37 /* CarPlay.framework */; };
 		27C273E32F64916800078D37 /* WatchKit.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 27C273E22F64916800078D37 /* WatchKit.framework */; platformFilters = (watchos, ); };
 		27C273E42F64916F00078D37 /* CarPlay.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 27C273E02F64914E00078D37 /* CarPlay.framework */; platformFilter = ios; };
 		27EC66D22F61EAE600D0870D /* ActivityKit.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 27EC66D12F61EAE600D0870D /* ActivityKit.framework */; };
 		27EC66D92F61EB3D00D0870D /* WidgetKit.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 27EC66D82F61EB3D00D0870D /* WidgetKit.framework */; };
 		27EC66DB2F61EB3D00D0870D /* SwiftUI.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 27EC66DA2F61EB3D00D0870D /* SwiftUI.framework */; };
-		27EC66EC2F61EB3F00D0870D /* Class CueExtension.appex in Embed Foundation Extensions */ = {isa = PBXBuildFile; fileRef = 27EC66D72F61EB3D00D0870D /* Class CueExtension.appex */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
+		27EC66EC2F61EB3F00D0870D /* ClassTraxExtension.appex in Embed Foundation Extensions */ = {isa = PBXBuildFile; fileRef = 27EC66D72F61EB3D00D0870D /* ClassTraxExtension.appex */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
 		27EC66F62F61ECBB00D0870D /* WidgetKit.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 27EC66D82F61EB3D00D0870D /* WidgetKit.framework */; };
 /* End PBXBuildFile section */
 
@@ -31,7 +31,7 @@
 			containerPortal = 27335DAD2F5B700800889F92 /* Project object */;
 			proxyType = 1;
 			remoteGlobalIDString = 27EC66D62F61EB3D00D0870D;
-			remoteInfo = "Class CueExtension";
+			remoteInfo = ClassTraxExtension;
 		};
 /* End PBXContainerItemProxy section */
 
@@ -42,7 +42,7 @@
 			dstPath = "$(CONTENTS_FOLDER_PATH)/Watch";
 			dstSubfolderSpec = 16;
 			files = (
-				272BFA392F6BA9BD00245665 /* Class Trax Watch App.app in Embed Watch Content */,
+				272BFA392F6BA9BD00245665 /* ClassTrax Watch App.app in Embed Watch Content */,
 			);
 			name = "Embed Watch Content";
 			runOnlyForDeploymentPostprocessing = 0;
@@ -53,7 +53,7 @@
 			dstPath = "";
 			dstSubfolderSpec = 13;
 			files = (
-				27EC66EC2F61EB3F00D0870D /* Class CueExtension.appex in Embed Foundation Extensions */,
+				27EC66EC2F61EB3F00D0870D /* ClassTraxExtension.appex in Embed Foundation Extensions */,
 			);
 			name = "Embed Foundation Extensions";
 			runOnlyForDeploymentPostprocessing = 0;
@@ -63,34 +63,34 @@
 /* Begin PBXFileReference section */
 		270550292F7CC4730050F222 /* UserNotifications.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = UserNotifications.framework; path = System/Library/Frameworks/UserNotifications.framework; sourceTree = SDKROOT; };
 		2705502B2F7CC4730050F222 /* UserNotificationsUI.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = UserNotificationsUI.framework; path = System/Library/Frameworks/UserNotificationsUI.framework; sourceTree = SDKROOT; };
-		272BFA2F2F6BA9BB00245665 /* Class Trax Watch App.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = "Class Trax Watch App.app"; sourceTree = BUILT_PRODUCTS_DIR; };
-		27335DB52F5B700800889F92 /* ClassCue.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = ClassCue.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		272BFA2F2F6BA9BB00245665 /* ClassTrax Watch App.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = "ClassTrax Watch App.app"; sourceTree = BUILT_PRODUCTS_DIR; };
+		27335DB52F5B700800889F92 /* ClassTrax.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = ClassTrax.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		27C273E02F64914E00078D37 /* CarPlay.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = CarPlay.framework; path = System/Library/Frameworks/CarPlay.framework; sourceTree = SDKROOT; };
 		27C273E22F64916800078D37 /* WatchKit.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = WatchKit.framework; path = Platforms/WatchOS.platform/Developer/SDKs/WatchOS26.2.sdk/System/Library/Frameworks/WatchKit.framework; sourceTree = DEVELOPER_DIR; };
 		27EC66D12F61EAE600D0870D /* ActivityKit.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = ActivityKit.framework; path = System/Library/Frameworks/ActivityKit.framework; sourceTree = SDKROOT; };
-		27EC66D72F61EB3D00D0870D /* Class CueExtension.appex */ = {isa = PBXFileReference; explicitFileType = "wrapper.app-extension"; includeInIndex = 0; path = "Class CueExtension.appex"; sourceTree = BUILT_PRODUCTS_DIR; };
+		27EC66D72F61EB3D00D0870D /* ClassTraxExtension.appex */ = {isa = PBXFileReference; explicitFileType = "wrapper.app-extension"; includeInIndex = 0; path = ClassTraxExtension.appex; sourceTree = BUILT_PRODUCTS_DIR; };
 		27EC66D82F61EB3D00D0870D /* WidgetKit.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = WidgetKit.framework; path = System/Library/Frameworks/WidgetKit.framework; sourceTree = SDKROOT; };
 		27EC66DA2F61EB3D00D0870D /* SwiftUI.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = SwiftUI.framework; path = System/Library/Frameworks/SwiftUI.framework; sourceTree = SDKROOT; };
 /* End PBXFileReference section */
 
 /* Begin PBXFileSystemSynchronizedBuildFileExceptionSet section */
-		27335DC22F5B700B00889F92 /* Exceptions for "ClassCue" folder in "ClassCue" target */ = {
+		27335DC22F5B700B00889F92 /* Exceptions for "ClassCue" folder in "ClassTrax" app target */ = {
 			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
 			membershipExceptions = (
 				Info.plist,
 			);
-			target = 27335DB42F5B700800889F92 /* ClassCue */;
+			target = 27335DB42F5B700800889F92 /* ClassTrax */;
 		};
-		27EC66F02F61EB3F00D0870D /* Exceptions for "Class Cue" folder in "Class CueExtension" target */ = {
+		27EC66F02F61EB3F00D0870D /* Exceptions for "Class Cue" folder in "ClassTraxExtension" extension target */ = {
 			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
 			membershipExceptions = (
 				AppIntent.swift,
 				Class_TraxControl.swift,
 				Info.plist,
 			);
-			target = 27EC66D62F61EB3D00D0870D /* Class CueExtension */;
+			target = 27EC66D62F61EB3D00D0870D /* ClassTraxExtension */;
 		};
-		27EC67322F6204B100D0870D /* Exceptions for "ClassCue" folder in "Class CueExtension" target */ = {
+		27EC67322F6204B100D0870D /* Exceptions for "ClassCue" folder in "ClassTraxExtension" extension target */ = {
 			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
 			membershipExceptions = (
 				App/NotificationDelegate.swift,
@@ -137,7 +137,7 @@
 				Views/TodoListView.swift,
 				Views/TypeBadge.swift,
 			);
-			target = 27EC66D62F61EB3D00D0870D /* Class CueExtension */;
+			target = 27EC66D62F61EB3D00D0870D /* ClassTraxExtension */;
 		};
 /* End PBXFileSystemSynchronizedBuildFileExceptionSet section */
 
@@ -155,8 +155,8 @@
 		27335DB72F5B700800889F92 /* ClassCue */ = {
 			isa = PBXFileSystemSynchronizedRootGroup;
 			exceptions = (
-				27335DC22F5B700B00889F92 /* Exceptions for "ClassCue" folder in "ClassCue" target */,
-				27EC67322F6204B100D0870D /* Exceptions for "ClassCue" folder in "Class CueExtension" target */,
+				27335DC22F5B700B00889F92 /* Exceptions for "ClassCue" folder in "ClassTrax" app target */,
+				27EC67322F6204B100D0870D /* Exceptions for "ClassCue" folder in "ClassTraxExtension" extension target */,
 			);
 			path = ClassCue;
 			sourceTree = "<group>";
@@ -164,7 +164,7 @@
 		27EC66DC2F61EB3D00D0870D /* Class Cue */ = {
 			isa = PBXFileSystemSynchronizedRootGroup;
 			exceptions = (
-				27EC66F02F61EB3F00D0870D /* Exceptions for "Class Cue" folder in "Class CueExtension" target */,
+				27EC66F02F61EB3F00D0870D /* Exceptions for "Class Cue" folder in "ClassTraxExtension" extension target */,
 			);
 			path = "Class Cue";
 			sourceTree = "<group>";
@@ -218,9 +218,9 @@
 		27335DB62F5B700800889F92 /* Products */ = {
 			isa = PBXGroup;
 			children = (
-				27335DB52F5B700800889F92 /* ClassCue.app */,
-				27EC66D72F61EB3D00D0870D /* Class CueExtension.appex */,
-				272BFA2F2F6BA9BB00245665 /* Class Trax Watch App.app */,
+				27335DB52F5B700800889F92 /* ClassTrax.app */,
+				27EC66D72F61EB3D00D0870D /* ClassTraxExtension.appex */,
+				272BFA2F2F6BA9BB00245665 /* ClassTrax Watch App.app */,
 			);
 			name = Products;
 			sourceTree = "<group>";
@@ -242,9 +242,9 @@
 /* End PBXGroup section */
 
 /* Begin PBXNativeTarget section */
-		272BFA2E2F6BA9BB00245665 /* Class Trax Watch App */ = {
+		272BFA2E2F6BA9BB00245665 /* ClassTrax Watch App */ = {
 			isa = PBXNativeTarget;
-			buildConfigurationList = 272BFA3D2F6BA9BD00245665 /* Build configuration list for PBXNativeTarget "Class Trax Watch App" */;
+			buildConfigurationList = 272BFA3D2F6BA9BD00245665 /* Build configuration list for PBXNativeTarget "ClassTrax Watch App" */;
 			buildPhases = (
 				272BFA2B2F6BA9BB00245665 /* Sources */,
 				272BFA2C2F6BA9BB00245665 /* Frameworks */,
@@ -257,16 +257,16 @@
 			fileSystemSynchronizedGroups = (
 				272BFA302F6BA9BB00245665 /* Class Trax Watch App */,
 			);
-			name = "Class Trax Watch App";
+			name = "ClassTrax Watch App";
 			packageProductDependencies = (
 			);
 			productName = "Class Trax Watch App";
-			productReference = 272BFA2F2F6BA9BB00245665 /* Class Trax Watch App.app */;
+			productReference = 272BFA2F2F6BA9BB00245665 /* ClassTrax Watch App.app */;
 			productType = "com.apple.product-type.application";
 		};
-		27335DB42F5B700800889F92 /* ClassCue */ = {
+		27335DB42F5B700800889F92 /* ClassTrax */ = {
 			isa = PBXNativeTarget;
-			buildConfigurationList = 27335DC32F5B700B00889F92 /* Build configuration list for PBXNativeTarget "ClassCue" */;
+			buildConfigurationList = 27335DC32F5B700B00889F92 /* Build configuration list for PBXNativeTarget "ClassTrax" */;
 			buildPhases = (
 				27335DB12F5B700800889F92 /* Sources */,
 				27335DB22F5B700800889F92 /* Frameworks */,
@@ -283,16 +283,16 @@
 			fileSystemSynchronizedGroups = (
 				27335DB72F5B700800889F92 /* ClassCue */,
 			);
-			name = ClassCue;
+			name = ClassTrax;
 			packageProductDependencies = (
 			);
-			productName = ClassCue;
-			productReference = 27335DB52F5B700800889F92 /* ClassCue.app */;
+			productName = ClassTrax;
+			productReference = 27335DB52F5B700800889F92 /* ClassTrax.app */;
 			productType = "com.apple.product-type.application";
 		};
-		27EC66D62F61EB3D00D0870D /* Class CueExtension */ = {
+		27EC66D62F61EB3D00D0870D /* ClassTraxExtension */ = {
 			isa = PBXNativeTarget;
-			buildConfigurationList = 27EC66ED2F61EB3F00D0870D /* Build configuration list for PBXNativeTarget "Class CueExtension" */;
+			buildConfigurationList = 27EC66ED2F61EB3F00D0870D /* Build configuration list for PBXNativeTarget "ClassTraxExtension" */;
 			buildPhases = (
 				27EC66D32F61EB3D00D0870D /* Sources */,
 				27EC66D42F61EB3D00D0870D /* Frameworks */,
@@ -306,11 +306,11 @@
 				27335DB72F5B700800889F92 /* ClassCue */,
 				27EC66DC2F61EB3D00D0870D /* Class Cue */,
 			);
-			name = "Class CueExtension";
+			name = ClassTraxExtension;
 			packageProductDependencies = (
 			);
-			productName = "Class CueExtension";
-			productReference = 27EC66D72F61EB3D00D0870D /* Class CueExtension.appex */;
+			productName = ClassTraxExtension;
+			productReference = 27EC66D72F61EB3D00D0870D /* ClassTraxExtension.appex */;
 			productType = "com.apple.product-type.app-extension";
 		};
 /* End PBXNativeTarget section */
@@ -348,9 +348,9 @@
 			projectDirPath = "";
 			projectRoot = "";
 			targets = (
-				27335DB42F5B700800889F92 /* ClassCue */,
-				27EC66D62F61EB3D00D0870D /* Class CueExtension */,
-				272BFA2E2F6BA9BB00245665 /* Class Trax Watch App */,
+				27335DB42F5B700800889F92 /* ClassTrax */,
+				27EC66D62F61EB3D00D0870D /* ClassTraxExtension */,
+				272BFA2E2F6BA9BB00245665 /* ClassTrax Watch App */,
 			);
 		};
 /* End PBXProject section */
@@ -406,12 +406,12 @@
 /* Begin PBXTargetDependency section */
 		272BFA382F6BA9BD00245665 /* PBXTargetDependency */ = {
 			isa = PBXTargetDependency;
-			target = 272BFA2E2F6BA9BB00245665 /* Class Trax Watch App */;
+			target = 272BFA2E2F6BA9BB00245665 /* ClassTrax Watch App */;
 			targetProxy = 272BFA372F6BA9BD00245665 /* PBXContainerItemProxy */;
 		};
 		27EC66EB2F61EB3F00D0870D /* PBXTargetDependency */ = {
 			isa = PBXTargetDependency;
-			target = 27EC66D62F61EB3D00D0870D /* Class CueExtension */;
+			target = 27EC66D62F61EB3D00D0870D /* ClassTraxExtension */;
 			targetProxy = 27EC66EA2F61EB3F00D0870D /* PBXContainerItemProxy */;
 		};
 /* End PBXTargetDependency section */
@@ -770,7 +770,7 @@
 /* End XCBuildConfiguration section */
 
 /* Begin XCConfigurationList section */
-		272BFA3D2F6BA9BD00245665 /* Build configuration list for PBXNativeTarget "Class Trax Watch App" */ = {
+		272BFA3D2F6BA9BD00245665 /* Build configuration list for PBXNativeTarget "ClassTrax Watch App" */ = {
 			isa = XCConfigurationList;
 			buildConfigurations = (
 				272BFA3B2F6BA9BD00245665 /* Debug */,
@@ -788,7 +788,7 @@
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Release;
 		};
-		27335DC32F5B700B00889F92 /* Build configuration list for PBXNativeTarget "ClassCue" */ = {
+		27335DC32F5B700B00889F92 /* Build configuration list for PBXNativeTarget "ClassTrax" */ = {
 			isa = XCConfigurationList;
 			buildConfigurations = (
 				27335DC42F5B700B00889F92 /* Debug */,
@@ -797,7 +797,7 @@
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Release;
 		};
-		27EC66ED2F61EB3F00D0870D /* Build configuration list for PBXNativeTarget "Class CueExtension" */ = {
+		27EC66ED2F61EB3F00D0870D /* Build configuration list for PBXNativeTarget "ClassTraxExtension" */ = {
 			isa = XCConfigurationList;
 			buildConfigurations = (
 				27EC66EE2F61EB3F00D0870D /* Debug */,

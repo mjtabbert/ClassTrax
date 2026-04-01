@@ -817,6 +817,12 @@ enum ClassTraxPersistence {
         let hasImported = UserDefaults.standard.bool(forKey: firstSliceMigrationKey)
         if hasImported { return }
 
+        let hasLegacyData = !legacyAlarms.isEmpty || !legacyStudentProfiles.isEmpty || !legacyClassDefinitions.isEmpty || !legacyCommitments.isEmpty
+        if !hasLegacyData {
+            UserDefaults.standard.set(true, forKey: firstSliceMigrationKey)
+            return
+        }
+
         replaceAll(PersistedClassDefinitionItem.self, in: context, with: legacyClassDefinitions.map(PersistedClassDefinitionItem.init))
         replaceAll(PersistedStudentSupportProfile.self, in: context, with: legacyStudentProfiles.map(PersistedStudentSupportProfile.init))
         replaceAll(PersistedAlarmItem.self, in: context, with: legacyAlarms.map(PersistedAlarmItem.init))
@@ -875,6 +881,12 @@ enum ClassTraxPersistence {
     ) {
         let hasImported = UserDefaults.standard.bool(forKey: secondSliceMigrationKey)
         if hasImported { return }
+
+        let hasLegacyData = !legacyTodos.isEmpty || !legacyFollowUpNotes.isEmpty || !legacySubPlans.isEmpty || !legacyDailySubPlans.isEmpty
+        if !hasLegacyData {
+            UserDefaults.standard.set(true, forKey: secondSliceMigrationKey)
+            return
+        }
 
         replaceAll(PersistedTodoItem.self, in: context, with: legacyTodos.map(PersistedTodoItem.init))
         replaceAll(PersistedFollowUpNoteItem.self, in: context, with: legacyFollowUpNotes.map(PersistedFollowUpNoteItem.init))
@@ -948,6 +960,12 @@ enum ClassTraxPersistence {
     ) {
         let hasImported = UserDefaults.standard.bool(forKey: thirdSliceMigrationKey)
         if hasImported { return }
+
+        let hasLegacyData = !legacyAttendanceRecords.isEmpty || !legacyProfiles.isEmpty || !legacyOverrides.isEmpty
+        if !hasLegacyData {
+            UserDefaults.standard.set(true, forKey: thirdSliceMigrationKey)
+            return
+        }
 
         replaceAll(PersistedAttendanceRecord.self, in: context, with: legacyAttendanceRecords.map(PersistedAttendanceRecord.init))
         replaceAll(PersistedScheduleProfile.self, in: context, with: legacyProfiles.map(PersistedScheduleProfile.init))
