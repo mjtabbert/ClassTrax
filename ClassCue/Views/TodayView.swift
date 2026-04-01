@@ -317,7 +317,7 @@ struct TodayView: View {
                         item: item,
                         alarms: $alarms,
                         profiles: $studentSupportProfiles,
-                        classDefinitions: classDefinitions
+                        classDefinitions: $classDefinitions
                     )
                 }
             }
@@ -4267,7 +4267,7 @@ private struct TodayClassRosterView: View {
     let item: AlarmItem
     @Binding var alarms: [AlarmItem]
     @Binding var profiles: [StudentSupportProfile]
-    let classDefinitions: [ClassDefinitionItem]
+    @Binding var classDefinitions: [ClassDefinitionItem]
 
     @Environment(\.dismiss) private var dismiss
     @State private var showingAddExisting = false
@@ -4500,7 +4500,7 @@ private struct TodayClassRosterView: View {
         .sheet(isPresented: $showingAddNew) {
             EditStudentSupportView(
                 profiles: $profiles,
-                classDefinitions: classDefinitions,
+                classDefinitions: $classDefinitions,
                 existing: nil,
                 initialLinkedClassDefinitionIDs: item.classDefinitionID.map { [$0] } ?? [],
                 initialClassName: item.className,
@@ -4510,7 +4510,7 @@ private struct TodayClassRosterView: View {
         .sheet(item: $editingStudent) { student in
             EditStudentSupportView(
                 profiles: $profiles,
-                classDefinitions: classDefinitions,
+                classDefinitions: $classDefinitions,
                 existing: student
             )
         }

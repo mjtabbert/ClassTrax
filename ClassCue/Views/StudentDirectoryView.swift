@@ -136,7 +136,7 @@ struct StudentDirectoryView: View {
                 }
             }
             .sheet(isPresented: $showingAdd) {
-                EditStudentSupportView(profiles: $profiles, classDefinitions: classDefinitions, existing: nil)
+                EditStudentSupportView(profiles: $profiles, classDefinitions: $classDefinitions, existing: nil)
             }
             .sheet(isPresented: $showingSavedClasses) {
                 NavigationStack {
@@ -144,7 +144,7 @@ struct StudentDirectoryView: View {
                 }
             }
             .sheet(item: $editingProfile) { profile in
-                EditStudentSupportView(profiles: $profiles, classDefinitions: classDefinitions, existing: profile)
+                EditStudentSupportView(profiles: $profiles, classDefinitions: $classDefinitions, existing: profile)
             }
             .sheet(isPresented: $showingTemplateShareSheet) {
                 StudentDirectoryShareSheet(activityItems: [makeTemplateFileURL()])

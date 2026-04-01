@@ -160,6 +160,12 @@ struct EditClassDefinitionView: View {
                     linkedTo: linkedIDs + [definition.id],
                     definitions: updatedDefinitions
                 )
+            } else if isSelected && alreadyLinked {
+                studentProfiles[index] = updatingProfile(
+                    studentProfiles[index],
+                    linkedTo: linkedIDs,
+                    definitions: updatedDefinitions
+                )
             } else if !isSelected && alreadyLinked {
                 studentProfiles[index] = updatingProfile(
                     studentProfiles[index],

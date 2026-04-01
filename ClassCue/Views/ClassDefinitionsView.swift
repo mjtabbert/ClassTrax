@@ -95,6 +95,15 @@ struct ClassDefinitionsView: View {
     }
 
     private func deleteDefinition(_ definition: ClassDefinitionItem) {
+        profiles = profiles.map { profile in
+            let linkedIDs = linkedClassDefinitionIDs(for: profile)
+            guard linkedIDs.contains(definition.id) else { return profile }
+            return updatingProfile(
+                profile,
+                linkedTo: linkedIDs.filter { $0 != definition.id },
+                definitions: classDefinitions.filter { $0.id != definition.id }
+            )
+        }
         classDefinitions.removeAll { $0.id == definition.id }
     }
 
@@ -109,11 +118,12 @@ struct ClassDefinitionsView: View {
     }
 
     private func studentsLinked(to definition: ClassDefinitionItem) -> Int {
-        let normalizedName = definition.name.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !normalizedName.isEmpty else { return 0 }
         return profiles.filter {
-            $0.className.trimmingCharacters(in: .whitespacesAndNewlines)
-                .localizedCaseInsensitiveCompare(normalizedName) == .orderedSame
+            if profileMatches(classDefinitionID: definition.id, profile: $0) {
+                return true
+            }
+
+            return classNamesMatch(scheduleClassName: definition.name, profileClassName: $0.className)
         }.count
     }
 

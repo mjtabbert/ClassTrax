@@ -9,7 +9,7 @@ import SwiftUI
 
 struct EditStudentSupportView: View {
     @Binding var profiles: [StudentSupportProfile]
-    let classDefinitions: [ClassDefinitionItem]
+    @Binding var classDefinitions: [ClassDefinitionItem]
     let existing: StudentSupportProfile?
     let initialLinkedClassDefinitionIDs: [UUID]
     let initialClassName: String
@@ -31,14 +31,14 @@ struct EditStudentSupportView: View {
 
     init(
         profiles: Binding<[StudentSupportProfile]>,
-        classDefinitions: [ClassDefinitionItem],
+        classDefinitions: Binding<[ClassDefinitionItem]>,
         existing: StudentSupportProfile?,
         initialLinkedClassDefinitionIDs: [UUID] = [],
         initialClassName: String = "",
         initialGradeLevel: String = ""
     ) {
         _profiles = profiles
-        self.classDefinitions = classDefinitions
+        _classDefinitions = classDefinitions
         self.existing = existing
         self.initialLinkedClassDefinitionIDs = initialLinkedClassDefinitionIDs
         self.initialClassName = initialClassName
