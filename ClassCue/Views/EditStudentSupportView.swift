@@ -10,6 +10,8 @@ import SwiftUI
 struct EditStudentSupportView: View {
     @Binding var profiles: [StudentSupportProfile]
     @Binding var classDefinitions: [ClassDefinitionItem]
+    @Binding var teacherContacts: [ClassStaffContact]
+    @Binding var paraContacts: [ClassStaffContact]
     let existing: StudentSupportProfile?
     let initialLinkedClassDefinitionIDs: [UUID]
     let initialClassName: String
@@ -26,12 +28,19 @@ struct EditStudentSupportView: View {
     @State private var parentPhoneNumbers = ""
     @State private var parentEmails = ""
     @State private var studentEmail = ""
+    @State private var isSped = false
+    @State private var selectedSupportTeacherIDs = Set<UUID>()
+    @State private var selectedSupportParaIDs = Set<UUID>()
+    @State private var supportRooms = ""
+    @State private var supportScheduleNotes = ""
     @State private var accommodations = ""
     @State private var prompts = ""
 
     init(
         profiles: Binding<[StudentSupportProfile]>,
         classDefinitions: Binding<[ClassDefinitionItem]>,
+        teacherContacts: Binding<[ClassStaffContact]>,
+        paraContacts: Binding<[ClassStaffContact]>,
         existing: StudentSupportProfile?,
         initialLinkedClassDefinitionIDs: [UUID] = [],
         initialClassName: String = "",
@@ -39,6 +48,8 @@ struct EditStudentSupportView: View {
     ) {
         _profiles = profiles
         _classDefinitions = classDefinitions
+        _teacherContacts = teacherContacts
+        _paraContacts = paraContacts
         self.existing = existing
         self.initialLinkedClassDefinitionIDs = initialLinkedClassDefinitionIDs
         self.initialClassName = initialClassName
@@ -87,6 +98,7 @@ struct EditStudentSupportView: View {
                         }
                     }
                     TextField("Graduation Year", text: $graduationYear)
+                    Toggle("Additional Supports", isOn: $isSped)
                 }
 
                 Section("Contacts") {
@@ -98,6 +110,43 @@ struct EditStudentSupportView: View {
                     TextField("Student Email", text: $studentEmail)
                         .textInputAutocapitalization(.never)
                         .keyboardType(.emailAddress)
+                }
+
+                if isSped {
+                    Section("Supports") {
+                        if availableTeacherContacts.isEmpty && availableParaContacts.isEmpty {
+                            Text("Add teachers or paras in the Students support lists to assign classroom supports here.")
+                                .foregroundStyle(.secondary)
+                        }
+
+                        if !availableTeacherContacts.isEmpty {
+                            DisclosureGroup("Classroom Teachers") {
+                                ForEach(availableTeacherContacts) { contact in
+                                    supportAssignmentRow(
+                                        contact: contact,
+                                        selectedIDs: $selectedSupportTeacherIDs,
+                                        tint: .blue
+                                    )
+                                }
+                            }
+                        }
+
+                        if !availableParaContacts.isEmpty {
+                            DisclosureGroup("Paras") {
+                                ForEach(availableParaContacts) { contact in
+                                    supportAssignmentRow(
+                                        contact: contact,
+                                        selectedIDs: $selectedSupportParaIDs,
+                                        tint: .orange
+                                    )
+                                }
+                            }
+                        }
+
+                        TextField("Support Rooms", text: $supportRooms)
+                        TextField("Support Schedule Notes", text: $supportScheduleNotes, axis: .vertical)
+                            .lineLimit(2...6)
+                    }
                 }
 
                 Section("Accommodations") {
@@ -130,6 +179,7 @@ struct EditStudentSupportView: View {
             }
             .onChange(of: selectedClassDefinitionIDs) { _, _ in
                 applySelectedClassDefinitions()
+                reconcileSupportAssignments()
             }
         }
     }
@@ -147,6 +197,11 @@ struct EditStudentSupportView: View {
             parentPhoneNumbers: parentPhoneNumbers.trimmingCharacters(in: .whitespacesAndNewlines),
             parentEmails: parentEmails.trimmingCharacters(in: .whitespacesAndNewlines),
             studentEmail: studentEmail.trimmingCharacters(in: .whitespacesAndNewlines),
+            isSped: isSped,
+            supportTeacherIDs: Array(selectedSupportTeacherIDs).sorted { $0.uuidString < $1.uuidString },
+            supportParaIDs: Array(selectedSupportParaIDs).sorted { $0.uuidString < $1.uuidString },
+            supportRooms: supportRooms.trimmingCharacters(in: .whitespacesAndNewlines),
+            supportScheduleNotes: supportScheduleNotes.trimmingCharacters(in: .whitespacesAndNewlines),
             accommodations: accommodations.trimmingCharacters(in: .whitespacesAndNewlines),
             prompts: prompts.trimmingCharacters(in: .whitespacesAndNewlines)
         )
@@ -180,6 +235,11 @@ struct EditStudentSupportView: View {
             parentPhoneNumbers = existing.parentPhoneNumbers
             parentEmails = existing.parentEmails
             studentEmail = existing.studentEmail
+            isSped = existing.isSped
+            selectedSupportTeacherIDs = Set(existing.supportTeacherIDs)
+            selectedSupportParaIDs = Set(existing.supportParaIDs)
+            supportRooms = existing.supportRooms
+            supportScheduleNotes = existing.supportScheduleNotes
             accommodations = existing.accommodations
             prompts = existing.prompts
             return
@@ -188,6 +248,7 @@ struct EditStudentSupportView: View {
         className = initialClassName
         gradeLevel = GradeLevelOption.normalized(initialGradeLevel)
         selectedClassDefinitionIDs = Set(initialLinkedClassDefinitionIDs)
+        reconcileSupportAssignments()
     }
 
     private func applySelectedClassDefinitions() {
@@ -222,6 +283,44 @@ struct EditStudentSupportView: View {
             .sorted { $0.displayName.localizedCaseInsensitiveCompare($1.displayName) == .orderedAscending }
     }
 
+    private var profileDraft: StudentSupportProfile {
+        StudentSupportProfile(
+            id: existing?.id ?? UUID(),
+            name: name,
+            className: className,
+            gradeLevel: gradeLevel,
+            classDefinitionID: selectedClassDefinitionIDs.sorted { $0.uuidString < $1.uuidString }.first,
+            classDefinitionIDs: Array(selectedClassDefinitionIDs),
+            graduationYear: graduationYear,
+            parentNames: parentNames,
+            parentPhoneNumbers: parentPhoneNumbers,
+            parentEmails: parentEmails,
+            studentEmail: studentEmail,
+            isSped: isSped,
+            supportTeacherIDs: Array(selectedSupportTeacherIDs),
+            supportParaIDs: Array(selectedSupportParaIDs),
+            supportRooms: supportRooms,
+            supportScheduleNotes: supportScheduleNotes,
+            accommodations: accommodations,
+            prompts: prompts
+        )
+    }
+
+    private var availableTeacherContacts: [ClassStaffContact] {
+        allTeacherContacts(in: teacherContacts)
+    }
+
+    private var availableParaContacts: [ClassStaffContact] {
+        allParaContacts(in: paraContacts)
+    }
+
+    private func reconcileSupportAssignments() {
+        let validTeacherIDs = Set(availableTeacherContacts.map(\.id))
+        let validParaIDs = Set(availableParaContacts.map(\.id))
+        selectedSupportTeacherIDs = selectedSupportTeacherIDs.intersection(validTeacherIDs)
+        selectedSupportParaIDs = selectedSupportParaIDs.intersection(validParaIDs)
+    }
+
     @ViewBuilder
     private func linkedClassToggleRow(_ definition: ClassDefinitionItem) -> some View {
         let isSelected = selectedClassDefinitionIDs.contains(definition.id)
@@ -248,6 +347,51 @@ struct EditStudentSupportView: View {
 
                     if !detail.isEmpty {
                         Text(detail)
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    }
+                }
+
+                Spacer()
+            }
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+    }
+
+    @ViewBuilder
+    private func supportAssignmentRow(
+        contact: ClassStaffContact,
+        selectedIDs: Binding<Set<UUID>>,
+        tint: Color
+    ) -> some View {
+        let isSelected = selectedIDs.wrappedValue.contains(contact.id)
+
+        Button {
+            if isSelected {
+                selectedIDs.wrappedValue.remove(contact.id)
+            } else {
+                selectedIDs.wrappedValue.insert(contact.id)
+            }
+        } label: {
+            HStack(spacing: 10) {
+                Image(systemName: isSelected ? "checkmark.circle.fill" : "circle")
+                    .foregroundStyle(isSelected ? tint : .secondary)
+
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(contact.trimmedName.isEmpty ? "Unnamed" : contact.trimmedName)
+                        .foregroundStyle(.primary)
+
+                    let details = [
+                        contact.subject.trimmingCharacters(in: .whitespacesAndNewlines),
+                        contact.room.trimmingCharacters(in: .whitespacesAndNewlines),
+                        contact.emailAddress.trimmingCharacters(in: .whitespacesAndNewlines)
+                    ]
+                    .filter { !$0.isEmpty }
+                    .joined(separator: " • ")
+
+                    if !details.isEmpty {
+                        Text(details)
                             .font(.caption)
                             .foregroundStyle(.secondary)
                     }

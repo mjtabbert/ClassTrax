@@ -21,6 +21,8 @@ struct ScheduleView: View {
     @Binding var dailySubPlans: [DailySubPlanItem]
     @Binding var studentProfiles: [StudentSupportProfile]
     @Binding var classDefinitions: [ClassDefinitionItem]
+    @Binding var teacherContacts: [ClassStaffContact]
+    @Binding var paraContacts: [ClassStaffContact]
     @Binding var commitments: [CommitmentItem]
     var activeOverrideName: String? = nil
     var overrideSchedule: [AlarmItem]? = nil
@@ -90,12 +92,6 @@ struct ScheduleView: View {
             .toolbar {
                 ToolbarItem(placement: .topBarTrailing) {
                     HStack(spacing: 12) {
-                        Button {
-                            showingOverridesSheet = true
-                        } label: {
-                            toolbarIconButton(systemImage: "wand.and.stars", title: "Overrides")
-                        }
-
                         Menu {
                             Button("Copy Whole Day", systemImage: "doc.on.doc") {
                                 showingCopyWholeDaySheet = true
@@ -118,14 +114,20 @@ struct ScheduleView: View {
                         }
 
                         Menu {
-                            Button("Import Schedule CSV", systemImage: "square.and.arrow.down") {
-                                showingImportSheet = true
+                            Button("Day Overrides", systemImage: "calendar.badge.clock") {
+                                showingOverridesSheet = true
                             }
 
                             Button("Export Schedule CSV", systemImage: "square.and.arrow.up") {
                                 showingExportSheet = true
                             }
                             .disabled(alarms.isEmpty)
+
+                            Divider()
+
+                            Button("Import Schedule CSV", systemImage: "square.and.arrow.down") {
+                                showingImportSheet = true
+                            }
 
                             Divider()
 
@@ -203,7 +205,12 @@ struct ScheduleView: View {
             }
             .sheet(isPresented: $showingStudentDirectory) {
                 NavigationStack {
-                    StudentDirectoryView(profiles: $studentProfiles, classDefinitions: $classDefinitions)
+                    StudentDirectoryView(
+                        profiles: $studentProfiles,
+                        classDefinitions: $classDefinitions,
+                        teacherContacts: $teacherContacts,
+                        paraContacts: $paraContacts
+                    )
                 }
             }
             .sheet(isPresented: $showingCopyWholeDaySheet) {
@@ -571,7 +578,7 @@ struct ScheduleView: View {
                     .fill(Color.blue.opacity(0.14))
                     .frame(width: 34, height: 34)
 
-                Image(systemName: "wand.and.stars")
+                Image(systemName: "calendar.badge.clock")
                     .foregroundStyle(.blue)
             }
 

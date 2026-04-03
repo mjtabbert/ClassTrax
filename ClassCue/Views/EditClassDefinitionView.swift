@@ -34,7 +34,6 @@ struct EditClassDefinitionView: View {
 
                     TextField("Default Room / Location", text: $defaultLocation)
                 }
-
                 Section("Linked Students") {
                     if sortedStudentProfiles.isEmpty {
                         Text("No students saved yet. Add students in Class List, then link them here.")
@@ -175,4 +174,5 @@ struct EditClassDefinitionView: View {
             }
         }
     }
+
 }

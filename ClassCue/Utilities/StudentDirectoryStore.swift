@@ -303,6 +303,55 @@ func duplicateStudentProfileGroups(in profiles: [StudentSupportProfile]) -> [[St
         }
 }
 
+func allTeacherContacts(in contacts: [ClassStaffContact]) -> [ClassStaffContact] {
+    uniqueStaffContacts(contacts)
+}
+
+func allParaContacts(in contacts: [ClassStaffContact]) -> [ClassStaffContact] {
+    uniqueStaffContacts(contacts)
+}
+
+func supportSummary(
+    for profile: StudentSupportProfile,
+    teachers: [ClassStaffContact],
+    paras: [ClassStaffContact]
+) -> String {
+    var parts: [String] = []
+
+    if profile.isSped {
+        parts.append("Additional Supports")
+    }
+
+    let teacherNames = resolvedStaffContacts(
+        matching: profile.supportTeacherIDs,
+        in: allTeacherContacts(in: teachers)
+    )
+    .map(\.trimmedName)
+    .filter { !$0.isEmpty }
+
+    let paraNames = resolvedStaffContacts(
+        matching: profile.supportParaIDs,
+        in: allParaContacts(in: paras)
+    )
+    .map(\.trimmedName)
+    .filter { !$0.isEmpty }
+
+    if !teacherNames.isEmpty {
+        parts.append("Teachers: \(teacherNames.joined(separator: ", "))")
+    }
+
+    if !paraNames.isEmpty {
+        parts.append("Paras: \(paraNames.joined(separator: ", "))")
+    }
+
+    let rooms = profile.supportRooms.trimmingCharacters(in: .whitespacesAndNewlines)
+    if !rooms.isEmpty {
+        parts.append("Rooms: \(rooms)")
+    }
+
+    return parts.joined(separator: " • ")
+}
+
 func mergedStudentProfile(from profiles: [StudentSupportProfile]) -> StudentSupportProfile? {
     guard let first = profiles.first else { return nil }
 
@@ -329,6 +378,11 @@ func mergedStudentProfile(from profiles: [StudentSupportProfile]) -> StudentSupp
         parentPhoneNumbers: mergedValue(\.parentPhoneNumbers),
         parentEmails: mergedValue(\.parentEmails),
         studentEmail: mergedValue(\.studentEmail),
+        isSped: profiles.contains(where: \.isSped),
+        supportTeacherIDs: Array(Set(profiles.flatMap(\.supportTeacherIDs))),
+        supportParaIDs: Array(Set(profiles.flatMap(\.supportParaIDs))),
+        supportRooms: mergedValue(\.supportRooms),
+        supportScheduleNotes: mergedValue(\.supportScheduleNotes),
         accommodations: mergedValue(\.accommodations),
         prompts: mergedValue(\.prompts)
     )
@@ -360,9 +414,35 @@ func mergedStudentProfile(existing: StudentSupportProfile, incoming: StudentSupp
         parentPhoneNumbers: preferred(existing.parentPhoneNumbers, incoming.parentPhoneNumbers),
         parentEmails: preferred(existing.parentEmails, incoming.parentEmails),
         studentEmail: preferred(existing.studentEmail, incoming.studentEmail),
+        isSped: existing.isSped || incoming.isSped,
+        supportTeacherIDs: Array(Set(existing.supportTeacherIDs + incoming.supportTeacherIDs)),
+        supportParaIDs: Array(Set(existing.supportParaIDs + incoming.supportParaIDs)),
+        supportRooms: preferred(existing.supportRooms, incoming.supportRooms),
+        supportScheduleNotes: preferred(existing.supportScheduleNotes, incoming.supportScheduleNotes),
         accommodations: preferred(existing.accommodations, incoming.accommodations),
         prompts: preferred(existing.prompts, incoming.prompts)
     )
+}
+
+private func uniqueStaffContacts(_ contacts: [ClassStaffContact]) -> [ClassStaffContact] {
+    var seen = Set<UUID>()
+
+    return contacts
+        .filter { !($0.trimmedName.isEmpty && $0.emailAddress.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty) }
+        .filter { contact in
+            seen.insert(contact.id).inserted
+        }
+        .sorted { lhs, rhs in
+            lhs.trimmedName.localizedCaseInsensitiveCompare(rhs.trimmedName) == .orderedAscending
+        }
+}
+
+private func resolvedStaffContacts(
+    matching ids: [UUID],
+    in contacts: [ClassStaffContact]
+) -> [ClassStaffContact] {
+    let idSet = Set(ids)
+    return contacts.filter { idSet.contains($0.id) }
 }
 
 private func sanitizedClassLabel(_ rawValue: String) -> String? {

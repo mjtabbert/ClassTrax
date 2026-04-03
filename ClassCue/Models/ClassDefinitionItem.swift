@@ -1,6 +1,41 @@
 import Foundation
 import SwiftUI
 
+struct ClassStaffContact: Identifiable, Codable, Equatable, Hashable {
+    var id: UUID = UUID()
+    var name: String = ""
+    var room: String = ""
+    var cell: String = ""
+    var extensionNumber: String = ""
+    var emailAddress: String = ""
+    var subject: String = ""
+
+    var trimmedName: String {
+        name.trimmingCharacters(in: .whitespacesAndNewlines)
+    }
+}
+
+enum SupportStaffRole: String, Codable, CaseIterable, Identifiable {
+    case teacher
+    case para
+
+    var id: String { rawValue }
+
+    var title: String {
+        switch self {
+        case .teacher: return "Teacher"
+        case .para: return "Para"
+        }
+    }
+
+    var pluralTitle: String {
+        switch self {
+        case .teacher: return "Teachers"
+        case .para: return "Paras"
+        }
+    }
+}
+
 struct ClassDefinitionItem: Identifiable, Codable, Equatable, Hashable {
     enum ScheduleKind: String, Codable, CaseIterable {
         case math
@@ -39,19 +74,25 @@ struct ClassDefinitionItem: Identifiable, Codable, Equatable, Hashable {
     var scheduleKind: ScheduleKind
     var gradeLevel: String
     var defaultLocation: String
+    var teacherContacts: [ClassStaffContact]
+    var paraContacts: [ClassStaffContact]
 
     init(
         id: UUID = UUID(),
         name: String,
         scheduleType: ScheduleKind = .other,
         gradeLevel: String = "",
-        defaultLocation: String = ""
+        defaultLocation: String = "",
+        teacherContacts: [ClassStaffContact] = [],
+        paraContacts: [ClassStaffContact] = []
     ) {
         self.id = id
         self.name = name
         self.scheduleKind = scheduleType
         self.gradeLevel = gradeLevel
         self.defaultLocation = defaultLocation
+        self.teacherContacts = teacherContacts
+        self.paraContacts = paraContacts
     }
 
     var displayName: String {
@@ -84,19 +125,24 @@ struct ClassDefinitionItem: Identifiable, Codable, Equatable, Hashable {
     }
 
     var themeColor: Color {
-        switch scheduleKind {
-        case .math: return .red
-        case .ela: return .orange
-        case .science: return .yellow
-        case .socialStudies: return .green
-        case .assembly: return .pink
-        case .prep: return .blue
-        case .studyTime: return .teal
-        case .recess: return .indigo
-        case .lunch: return .purple
-        case .transition: return Color(.systemGray4)
-        case .other: return Color(.systemGray)
-        case .blank: return .clear
+        let trimmedName = name.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard let letter = trimmedName
+            .uppercased()
+            .unicodeScalars
+            .first(where: { CharacterSet.letters.contains($0) }),
+              letter.value >= 65,
+              letter.value <= 90 else {
+            switch scheduleKind {
+            case .transition: return Color(.systemGray4)
+            case .other: return Color(.systemGray)
+            case .blank: return .clear
+            default: return .blue
+            }
         }
+
+        let clampedIndex = max(0, min(25, Int(letter.value) - 65))
+        let progress = Double(clampedIndex) / 25.0
+        let hue = 0.0 + (0.78 - 0.0) * progress
+        return Color(hue: hue, saturation: 0.84, brightness: 0.92)
     }
 }

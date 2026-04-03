@@ -60,6 +60,8 @@ struct RootTabView: View {
     @State private var commitments: [CommitmentItem] = []
     @State private var studentProfiles: [StudentSupportProfile] = []
     @State private var classDefinitions: [ClassDefinitionItem] = []
+    @State private var teacherContacts: [ClassStaffContact] = []
+    @State private var paraContacts: [ClassStaffContact] = []
     @State private var attendanceRecords: [AttendanceRecord] = []
     @State private var subPlans: [SubPlanItem] = []
     @State private var dailySubPlans: [DailySubPlanItem] = []
@@ -481,6 +483,8 @@ struct RootTabView: View {
                 commitments: $commitments,
                 studentSupportProfiles: $studentProfiles,
                 classDefinitions: $classDefinitions,
+                teacherContacts: $teacherContacts,
+                paraContacts: $paraContacts,
                 attendanceRecords: $attendanceRecords,
                 subPlans: $subPlans,
                 dailySubPlans: $dailySubPlans,
@@ -526,6 +530,8 @@ struct RootTabView: View {
             dailySubPlans: $dailySubPlans,
             studentProfiles: $studentProfiles,
             classDefinitions: $classDefinitions,
+            teacherContacts: $teacherContacts,
+            paraContacts: $paraContacts,
             commitments: $commitments,
             activeOverrideName: activeDayOverride?.displayName,
             overrideSchedule: activeDayOverride?.alarms,
@@ -573,7 +579,9 @@ struct RootTabView: View {
         NavigationStack {
             StudentsHubView(
                 profiles: $studentProfiles,
-                classDefinitions: $classDefinitions
+                classDefinitions: $classDefinitions,
+                teacherContacts: $teacherContacts,
+                paraContacts: $paraContacts
             )
             .toolbar {
                 ToolbarItem(placement: .topBarTrailing) {
@@ -594,6 +602,8 @@ struct RootTabView: View {
                 todos: $todos,
                 studentProfiles: $studentProfiles,
                 classDefinitions: $classDefinitions,
+                teacherContacts: $teacherContacts,
+                paraContacts: $paraContacts,
                 suggestedContexts: suggestedTaskContexts,
                 suggestedStudents: suggestedStudents,
                 studentSupportsByName: studentSupportsByName,
@@ -620,6 +630,8 @@ struct RootTabView: View {
             NotesView(
                 studentProfiles: $studentProfiles,
                 classDefinitions: $classDefinitions,
+                teacherContacts: $teacherContacts,
+                paraContacts: $paraContacts,
                 suggestedContexts: suggestedTaskContexts,
                 suggestedStudents: suggestedStudents,
                 onRefresh: {
@@ -773,6 +785,11 @@ struct RootTabView: View {
                     parentPhoneNumbers: $0.parentPhoneNumbers,
                     parentEmails: $0.parentEmails,
                     studentEmail: $0.studentEmail,
+                    isSped: $0.isSped,
+                    supportTeacherIDs: $0.supportTeacherIDs,
+                    supportParaIDs: $0.supportParaIDs,
+                    supportRooms: $0.supportRooms,
+                    supportScheduleNotes: $0.supportScheduleNotes,
                     accommodations: $0.accommodations,
                     prompts: $0.prompts
                 )
@@ -780,6 +797,12 @@ struct RootTabView: View {
             .sorted { $0.name.localizedCaseInsensitiveCompare($1.name) == .orderedAscending }
         classDefinitions = persistenceSnapshot.classDefinitions.sorted {
             $0.displayName.localizedCaseInsensitiveCompare($1.displayName) == .orderedAscending
+        }
+        teacherContacts = persistenceSnapshot.teacherContacts.sorted {
+            $0.trimmedName.localizedCaseInsensitiveCompare($1.trimmedName) == .orderedAscending
+        }
+        paraContacts = persistenceSnapshot.paraContacts.sorted {
+            $0.trimmedName.localizedCaseInsensitiveCompare($1.trimmedName) == .orderedAscending
         }
         todos = secondSliceSnapshot.todos
         savedFollowUpNotes = (try? JSONEncoder().encode(secondSliceSnapshot.followUpNotes)) ?? Data()
@@ -809,6 +832,8 @@ struct RootTabView: View {
             alarms: normalized,
             studentProfiles: studentProfiles,
             classDefinitions: classDefinitions,
+            teacherContacts: teacherContacts,
+            paraContacts: paraContacts,
             commitments: commitments
         )
     }
@@ -847,6 +872,8 @@ struct RootTabView: View {
             alarms: alarms,
             studentProfiles: studentProfiles,
             classDefinitions: classDefinitions,
+            teacherContacts: teacherContacts,
+            paraContacts: paraContacts,
             commitments: commitments
         )
     }
@@ -868,6 +895,11 @@ struct RootTabView: View {
                     parentPhoneNumbers: $0.parentPhoneNumbers,
                     parentEmails: $0.parentEmails,
                     studentEmail: $0.studentEmail,
+                    isSped: $0.isSped,
+                    supportTeacherIDs: $0.supportTeacherIDs,
+                    supportParaIDs: $0.supportParaIDs,
+                    supportRooms: $0.supportRooms,
+                    supportScheduleNotes: $0.supportScheduleNotes,
                     accommodations: $0.accommodations,
                     prompts: $0.prompts
                 )
@@ -889,6 +921,8 @@ struct RootTabView: View {
             alarms: alarms,
             studentProfiles: profiles,
             classDefinitions: classDefinitions,
+            teacherContacts: teacherContacts,
+            paraContacts: paraContacts,
             commitments: commitments
         )
     }
@@ -901,6 +935,32 @@ struct RootTabView: View {
             alarms: alarms,
             studentProfiles: studentProfiles,
             classDefinitions: definitions,
+            teacherContacts: teacherContacts,
+            paraContacts: paraContacts,
+            commitments: commitments
+        )
+    }
+
+    private func saveTeacherContacts(_ contacts: [ClassStaffContact]) {
+        teacherContacts = contacts.sorted { $0.trimmedName.localizedCaseInsensitiveCompare($1.trimmedName) == .orderedAscending }
+        scheduleFirstPersistenceSave(
+            alarms: alarms,
+            studentProfiles: studentProfiles,
+            classDefinitions: classDefinitions,
+            teacherContacts: teacherContacts,
+            paraContacts: paraContacts,
+            commitments: commitments
+        )
+    }
+
+    private func saveParaContacts(_ contacts: [ClassStaffContact]) {
+        paraContacts = contacts.sorted { $0.trimmedName.localizedCaseInsensitiveCompare($1.trimmedName) == .orderedAscending }
+        scheduleFirstPersistenceSave(
+            alarms: alarms,
+            studentProfiles: studentProfiles,
+            classDefinitions: classDefinitions,
+            teacherContacts: teacherContacts,
+            paraContacts: paraContacts,
             commitments: commitments
         )
     }
@@ -943,12 +1003,16 @@ struct RootTabView: View {
         alarms: [AlarmItem],
         studentProfiles: [StudentSupportProfile],
         classDefinitions: [ClassDefinitionItem],
+        teacherContacts: [ClassStaffContact],
+        paraContacts: [ClassStaffContact],
         commitments: [CommitmentItem]
     ) {
         ClassTraxPersistence.saveFirstSlice(
             alarms: alarms,
             studentProfiles: studentProfiles,
             classDefinitions: classDefinitions,
+            teacherContacts: teacherContacts,
+            paraContacts: paraContacts,
             commitments: commitments,
             into: modelContext
         )
@@ -1010,6 +1074,11 @@ struct RootTabView: View {
                 parentPhoneNumbers: $0.parentPhoneNumbers,
                 parentEmails: $0.parentEmails,
                 studentEmail: $0.studentEmail,
+                isSped: $0.isSped,
+                supportTeacherIDs: $0.supportTeacherIDs,
+                supportParaIDs: $0.supportParaIDs,
+                supportRooms: $0.supportRooms,
+                supportScheduleNotes: $0.supportScheduleNotes,
                 accommodations: $0.accommodations,
                 prompts: $0.prompts
             )
@@ -1165,6 +1234,8 @@ struct RootTabView: View {
         alarms: [AlarmItem],
         studentProfiles: [StudentSupportProfile],
         classDefinitions: [ClassDefinitionItem],
+        teacherContacts: [ClassStaffContact],
+        paraContacts: [ClassStaffContact],
         commitments: [CommitmentItem]
     ) {
         pendingFirstSliceSaveTask?.cancel()
@@ -1175,6 +1246,8 @@ struct RootTabView: View {
                 alarms: alarms,
                 studentProfiles: studentProfiles,
                 classDefinitions: classDefinitions,
+                teacherContacts: teacherContacts,
+                paraContacts: paraContacts,
                 commitments: commitments
             )
             pendingFirstSliceSaveTask = nil
@@ -1229,6 +1302,8 @@ struct RootTabView: View {
             alarms: normalizedAlarms(alarms),
             studentProfiles: studentProfiles,
             classDefinitions: classDefinitions,
+            teacherContacts: teacherContacts,
+            paraContacts: paraContacts,
             commitments: commitments
         )
         saveSecondPersistenceSlice(
@@ -1634,6 +1709,8 @@ private struct NotificationRefreshSignature: Equatable {
 private struct StudentsHubView: View {
     @Binding var profiles: [StudentSupportProfile]
     @Binding var classDefinitions: [ClassDefinitionItem]
+    @Binding var teacherContacts: [ClassStaffContact]
+    @Binding var paraContacts: [ClassStaffContact]
     @State private var mode: Mode = .students
 
     private enum Mode: String, CaseIterable, Identifiable {
@@ -1656,7 +1733,12 @@ private struct StudentsHubView: View {
             Group {
                 switch mode {
                 case .students:
-                    StudentDirectoryView(profiles: $profiles, classDefinitions: $classDefinitions)
+                    StudentDirectoryView(
+                        profiles: $profiles,
+                        classDefinitions: $classDefinitions,
+                        teacherContacts: $teacherContacts,
+                        paraContacts: $paraContacts
+                    )
                 case .classes:
                     ClassDefinitionsView(classDefinitions: $classDefinitions, profiles: $profiles)
                 }

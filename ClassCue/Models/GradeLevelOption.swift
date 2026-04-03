@@ -81,28 +81,52 @@ enum GradeLevelOption: String, CaseIterable, Codable, Identifiable {
     }
 
     static func color(for value: String) -> Color {
-        switch normalized(value) {
-        case preK.rawValue:
-            return .red
-        case kindergarten.rawValue:
-            return .orange
-        case first.rawValue, second.rawValue:
-            return .yellow
-        case third.rawValue, fourth.rawValue:
-            return .green
-        case fifth.rawValue, sixth.rawValue:
-            return .mint
-        case seventh.rawValue, eighth.rawValue:
-            return .blue
-        case ninth.rawValue, tenth.rawValue:
-            return .indigo
-        case eleventh.rawValue, twelfth.rawValue, twelvePlus.rawValue:
-            return .purple
-        case other.rawValue:
+        let normalizedValue = normalized(value)
+        guard !normalizedValue.isEmpty else { return .gray }
+
+        let orderedLevels = [
+            preK.rawValue,
+            kindergarten.rawValue,
+            first.rawValue,
+            second.rawValue,
+            third.rawValue,
+            fourth.rawValue,
+            fifth.rawValue,
+            sixth.rawValue,
+            seventh.rawValue,
+            eighth.rawValue,
+            ninth.rawValue,
+            tenth.rawValue,
+            eleventh.rawValue,
+            twelfth.rawValue,
+            twelvePlus.rawValue,
+            other.rawValue
+        ]
+
+        guard let index = orderedLevels.firstIndex(of: normalizedValue) else {
             return .gray
-        default:
-            return value.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? .gray : .gray
         }
+
+        let progress = orderedLevels.count == 1 ? 0 : Double(index) / Double(orderedLevels.count - 1)
+        let hue = 0.15 + (0.78 - 0.15) * progress
+        return Color(hue: hue, saturation: 0.82, brightness: 0.94)
+    }
+
+    static func foregroundColor(for value: String) -> Color {
+        let normalizedValue = normalized(value)
+        let lightTextLevels: Set<String> = [
+            sixth.rawValue,
+            seventh.rawValue,
+            eighth.rawValue,
+            ninth.rawValue,
+            tenth.rawValue,
+            eleventh.rawValue,
+            twelfth.rawValue,
+            twelvePlus.rawValue,
+            other.rawValue
+        ]
+
+        return lightTextLevels.contains(normalizedValue) ? .white : Color.black.opacity(0.82)
     }
 
     static func pillLabel(for value: String) -> String {

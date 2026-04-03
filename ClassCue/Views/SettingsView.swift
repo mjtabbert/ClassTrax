@@ -103,6 +103,8 @@ struct SettingsView: View {
     @State private var overrides: [DayOverride] = []
     @State private var studentProfiles: [StudentSupportProfile] = []
     @State private var classDefinitions: [ClassDefinitionItem] = []
+    @State private var teacherContacts: [ClassStaffContact] = []
+    @State private var paraContacts: [ClassStaffContact] = []
     @State private var commitments: [CommitmentItem] = []
     @State private var exportURL: URL?
     @State private var showingShareSheet = false
@@ -245,6 +247,8 @@ struct SettingsView: View {
                     alarms: alarms,
                     studentProfiles: newValue,
                     classDefinitions: classDefinitions,
+                    teacherContacts: teacherContacts,
+                    paraContacts: paraContacts,
                     commitments: commitments,
                     into: modelContext
                 )
@@ -258,12 +262,38 @@ struct SettingsView: View {
                     alarms: alarms,
                     studentProfiles: studentProfiles,
                     classDefinitions: newValue,
+                    teacherContacts: teacherContacts,
+                    paraContacts: paraContacts,
                     commitments: commitments,
                     into: modelContext
                 )
                 savedClassDefinitions = (try? JSONEncoder().encode(newValue.sorted {
                     $0.displayName.localizedCaseInsensitiveCompare($1.displayName) == .orderedAscending
                 })) ?? Data()
+            }
+            .onChange(of: teacherContacts) { _, newValue in
+                guard !isLoadingInitialState else { return }
+                ClassTraxPersistence.saveFirstSlice(
+                    alarms: alarms,
+                    studentProfiles: studentProfiles,
+                    classDefinitions: classDefinitions,
+                    teacherContacts: newValue,
+                    paraContacts: paraContacts,
+                    commitments: commitments,
+                    into: modelContext
+                )
+            }
+            .onChange(of: paraContacts) { _, newValue in
+                guard !isLoadingInitialState else { return }
+                ClassTraxPersistence.saveFirstSlice(
+                    alarms: alarms,
+                    studentProfiles: studentProfiles,
+                    classDefinitions: classDefinitions,
+                    teacherContacts: teacherContacts,
+                    paraContacts: newValue,
+                    commitments: commitments,
+                    into: modelContext
+                )
             }
     }
 
@@ -898,7 +928,12 @@ struct SettingsView: View {
     private var workspaceSetupSection: some View {
         Section("Classroom Setup") {
             NavigationLink {
-                StudentDirectoryView(profiles: $studentProfiles, classDefinitions: $classDefinitions)
+                StudentDirectoryView(
+                    profiles: $studentProfiles,
+                    classDefinitions: $classDefinitions,
+                    teacherContacts: $teacherContacts,
+                    paraContacts: $paraContacts
+                )
             } label: {
                 LabeledContent("Student Directory") {
                     Text(studentProfiles.isEmpty ? "Not Set" : "\(studentProfiles.count)")
@@ -955,6 +990,8 @@ struct SettingsView: View {
                 StudentDirectoryView(
                     profiles: $studentProfiles,
                     classDefinitions: $classDefinitions,
+                    teacherContacts: $teacherContacts,
+                    paraContacts: $paraContacts,
                     showsRosterDataTools: true
                 )
             }
@@ -1081,6 +1118,12 @@ struct SettingsView: View {
         }
         classDefinitions = firstSlice.classDefinitions.sorted {
             $0.displayName.localizedCaseInsensitiveCompare($1.displayName) == .orderedAscending
+        }
+        teacherContacts = firstSlice.teacherContacts.sorted {
+            $0.trimmedName.localizedCaseInsensitiveCompare($1.trimmedName) == .orderedAscending
+        }
+        paraContacts = firstSlice.paraContacts.sorted {
+            $0.trimmedName.localizedCaseInsensitiveCompare($1.trimmedName) == .orderedAscending
         }
         overrides = thirdSlice.overrides
     }

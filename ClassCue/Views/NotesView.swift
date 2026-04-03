@@ -58,6 +58,8 @@ struct NotesView: View {
 
     @Binding var studentProfiles: [StudentSupportProfile]
     @Binding var classDefinitions: [ClassDefinitionItem]
+    @Binding var teacherContacts: [ClassStaffContact]
+    @Binding var paraContacts: [ClassStaffContact]
     let suggestedContexts: [String]
     let suggestedStudents: [String]
     let onRefresh: @MainActor () -> Void
@@ -91,6 +93,8 @@ struct NotesView: View {
     init(
         studentProfiles: Binding<[StudentSupportProfile]>,
         classDefinitions: Binding<[ClassDefinitionItem]>,
+        teacherContacts: Binding<[ClassStaffContact]>,
+        paraContacts: Binding<[ClassStaffContact]>,
         suggestedContexts: [String] = [],
         suggestedStudents: [String] = [],
         onRefresh: @escaping @MainActor () -> Void,
@@ -98,6 +102,8 @@ struct NotesView: View {
     ) {
         _studentProfiles = studentProfiles
         _classDefinitions = classDefinitions
+        _teacherContacts = teacherContacts
+        _paraContacts = paraContacts
         self.suggestedContexts = suggestedContexts
         self.suggestedStudents = suggestedStudents
         self.onRefresh = onRefresh
@@ -220,7 +226,12 @@ struct NotesView: View {
             }
             .sheet(isPresented: $showingStudentDirectory) {
                 NavigationStack {
-                    StudentDirectoryView(profiles: $studentProfiles, classDefinitions: $classDefinitions)
+                    StudentDirectoryView(
+                        profiles: $studentProfiles,
+                        classDefinitions: $classDefinitions,
+                        teacherContacts: $teacherContacts,
+                        paraContacts: $paraContacts
+                    )
                 }
             }
             .sheet(isPresented: $showingExportComposer) {
@@ -1247,7 +1258,7 @@ struct NotesView: View {
     private func gradePill(_ gradeLevel: String) -> some View {
         Text(GradeLevelOption.pillLabel(for: gradeLevel))
             .font(.caption2.weight(.semibold))
-            .foregroundStyle(.white)
+            .foregroundStyle(GradeLevelOption.foregroundColor(for: gradeLevel))
             .padding(.horizontal, 7)
             .padding(.vertical, 3)
             .background(

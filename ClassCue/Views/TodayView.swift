@@ -98,6 +98,8 @@ struct TodayView: View {
     @Binding var commitments: [CommitmentItem]
     @Binding var studentSupportProfiles: [StudentSupportProfile]
     @Binding var classDefinitions: [ClassDefinitionItem]
+    @Binding var teacherContacts: [ClassStaffContact]
+    @Binding var paraContacts: [ClassStaffContact]
     @Binding var attendanceRecords: [AttendanceRecord]
     @Binding var subPlans: [SubPlanItem]
     @Binding var dailySubPlans: [DailySubPlanItem]
@@ -308,7 +310,12 @@ struct TodayView: View {
             }
             .sheet(isPresented: $showingStudentDirectory) {
                 NavigationStack {
-                    StudentDirectoryView(profiles: $studentSupportProfiles, classDefinitions: $classDefinitions)
+                    StudentDirectoryView(
+                        profiles: $studentSupportProfiles,
+                        classDefinitions: $classDefinitions,
+                        teacherContacts: $teacherContacts,
+                        paraContacts: $paraContacts
+                    )
                 }
             }
             .sheet(item: $rosterItem) { item in
@@ -317,7 +324,9 @@ struct TodayView: View {
                         item: item,
                         alarms: $alarms,
                         profiles: $studentSupportProfiles,
-                        classDefinitions: $classDefinitions
+                        classDefinitions: $classDefinitions,
+                        teacherContacts: $teacherContacts,
+                        paraContacts: $paraContacts
                     )
                 }
             }
@@ -1204,12 +1213,17 @@ struct TodayView: View {
         let promptCount = students.filter {
             !$0.prompts.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
         }.count
+        let spedCount = students.filter(\.isSped).count
         let firstPrompt = students
             .map { $0.prompts.trimmingCharacters(in: .whitespacesAndNewlines) }
+            .first { !$0.isEmpty }
+        let firstSupportSummary = students
+            .map { supportSummary(for: $0, teachers: teacherContacts, paras: paraContacts) }
             .first { !$0.isEmpty }
 
         let summaryParts = [
             students.isEmpty ? nil : "\(students.count) student\(students.count == 1 ? "" : "s")",
+            spedCount == 0 ? nil : "\(spedCount) with additional supports",
             accommodationsCount == 0 ? nil : "\(accommodationsCount) with accommodations",
             promptCount == 0 ? nil : "\(promptCount) with prompts"
         ].compactMap { $0 }
@@ -1218,7 +1232,12 @@ struct TodayView: View {
             .font(compact ? .caption2 : .caption)
             .foregroundStyle(.secondary)
 
-        if let firstPrompt {
+        if let firstSupportSummary {
+            Text(firstSupportSummary)
+                .font(compact ? .caption2 : .caption)
+                .foregroundStyle(.tertiary)
+                .lineLimit(2)
+        } else if let firstPrompt {
             Text(firstPrompt)
                 .font(compact ? .caption2 : .caption)
                 .foregroundStyle(.tertiary)
@@ -1313,6 +1332,8 @@ struct TodayView: View {
                     Text(statusDetail)
                         .font(compact ? .caption : .subheadline)
                         .foregroundStyle(.secondary)
+                        .lineLimit(1)
+                        .minimumScaleFactor(0.82)
                 }
 
                 Spacer()
@@ -1469,10 +1490,13 @@ struct TodayView: View {
             Text(title)
                 .font(compact ? .caption2 : .caption)
                 .foregroundStyle(.secondary)
+                .lineLimit(1)
+                .minimumScaleFactor(0.78)
 
             Text(value)
                 .font((compact ? Font.caption : .subheadline).weight(.bold))
                 .lineLimit(1)
+                .minimumScaleFactor(0.82)
         }
         .frame(maxWidth: .infinity, alignment: .leading)
         .padding(.horizontal, compact ? 10 : 12)
@@ -2355,7 +2379,7 @@ struct TodayView: View {
 
         Text(label)
             .font(.caption2.weight(.black))
-            .foregroundStyle(color == .yellow ? Color.black.opacity(0.8) : .white)
+            .foregroundStyle(GradeLevelOption.foregroundColor(for: gradeLevel))
             .padding(.horizontal, 8)
             .padding(.vertical, 4)
             .background(color, in: Capsule(style: .continuous))
@@ -4268,6 +4292,8 @@ private struct TodayClassRosterView: View {
     @Binding var alarms: [AlarmItem]
     @Binding var profiles: [StudentSupportProfile]
     @Binding var classDefinitions: [ClassDefinitionItem]
+    @Binding var teacherContacts: [ClassStaffContact]
+    @Binding var paraContacts: [ClassStaffContact]
 
     @Environment(\.dismiss) private var dismiss
     @State private var showingAddExisting = false
@@ -4501,6 +4527,8 @@ private struct TodayClassRosterView: View {
             EditStudentSupportView(
                 profiles: $profiles,
                 classDefinitions: $classDefinitions,
+                teacherContacts: $teacherContacts,
+                paraContacts: $paraContacts,
                 existing: nil,
                 initialLinkedClassDefinitionIDs: item.classDefinitionID.map { [$0] } ?? [],
                 initialClassName: item.className,
@@ -4511,6 +4539,8 @@ private struct TodayClassRosterView: View {
             EditStudentSupportView(
                 profiles: $profiles,
                 classDefinitions: $classDefinitions,
+                teacherContacts: $teacherContacts,
+                paraContacts: $paraContacts,
                 existing: student
             )
         }
@@ -4654,7 +4684,7 @@ private struct TodayClassRosterView: View {
 
     private func applyClassDefinitionLink(_ definition: ClassDefinitionItem) {
         let normalizedGrade = GradeLevelOption.normalized(definition.gradeLevel)
-        let matchingIDs = weeklyMatchingIDs(for: item)
+        let matchingIDs = candidateLinkBlockIDs(for: item, definition: definition)
 
         for index in alarms.indices {
             guard matchingIDs.contains(alarms[index].id) else { continue }
@@ -4674,12 +4704,9 @@ private struct TodayClassRosterView: View {
         dismiss()
     }
 
-    private func weeklyMatchingIDs(for source: AlarmItem) -> Set<UUID> {
-        let sourceDefinition = source.classDefinitionID.flatMap { id in
-            classDefinitions.first(where: { $0.id == id })
-        }
-        let sourceName = sourceDefinition?.name ?? source.className
-        let sourceGrade = sourceDefinition?.gradeLevel ?? source.gradeLevel
+    private func candidateLinkBlockIDs(for source: AlarmItem, definition: ClassDefinitionItem) -> Set<UUID> {
+        let sourceName = source.className
+        let sourceGrade = source.gradeLevel
 
         return Set(
             alarms.filter { candidate in
@@ -4687,18 +4714,12 @@ private struct TodayClassRosterView: View {
                     return true
                 }
 
-                if let sourceDefinitionID = source.classDefinitionID, candidate.classDefinitionID == sourceDefinitionID {
+                if candidate.classDefinitionID == definition.id {
                     return true
                 }
 
-                let candidateDefinition = candidate.classDefinitionID.flatMap { id in
-                    classDefinitions.first(where: { $0.id == id })
-                }
-                let candidateName = candidateDefinition?.name ?? candidate.className
-                let candidateGrade = candidateDefinition?.gradeLevel ?? candidate.gradeLevel
-
-                return classNamesMatch(scheduleClassName: sourceName, profileClassName: candidateName) &&
-                    gradeLevelsCompatible(sourceGrade, candidateGrade)
+                return classNamesMatch(scheduleClassName: sourceName, profileClassName: candidate.className) &&
+                    gradeLevelsCompatible(sourceGrade, candidate.gradeLevel)
             }
             .map(\.id)
         )
@@ -4729,7 +4750,7 @@ private struct TodayClassRosterView: View {
 
         Text(label)
             .font(.caption2.weight(.black))
-            .foregroundStyle(color == .yellow ? Color.black.opacity(0.8) : .white)
+            .foregroundStyle(GradeLevelOption.foregroundColor(for: gradeLevel))
             .padding(.horizontal, 8)
             .padding(.vertical, 4)
             .background(color, in: Capsule(style: .continuous))

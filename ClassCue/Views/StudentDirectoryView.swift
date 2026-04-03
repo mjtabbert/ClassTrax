@@ -14,6 +14,8 @@ struct StudentDirectoryView: View {
 
     @Binding var profiles: [StudentSupportProfile]
     @Binding var classDefinitions: [ClassDefinitionItem]
+    @Binding var teacherContacts: [ClassStaffContact]
+    @Binding var paraContacts: [ClassStaffContact]
     let showsRosterDataTools: Bool
 
     private enum GroupingMode: String, CaseIterable, Identifiable {
@@ -41,8 +43,21 @@ struct StudentDirectoryView: View {
         }
     }
 
+    private struct DuplicateReviewSession: Identifiable {
+        let profiles: [StudentSupportProfile]
+
+        var id: String {
+            profiles
+                .map(\.id.uuidString)
+                .sorted()
+                .joined(separator: "-")
+        }
+    }
+
     @State private var showingAdd = false
     @State private var showingSavedClasses = false
+    @State private var showingTeacherList = false
+    @State private var showingParaList = false
     @State private var editingProfile: StudentSupportProfile?
     @State private var showingFileImporter = false
     @State private var showingTemplateShareSheet = false
@@ -70,14 +85,19 @@ struct StudentDirectoryView: View {
     @State private var homeworkSession: HomeworkSession?
     @State private var showingHomeworkClassPicker = false
     @State private var selectedHomeworkClass = ""
+    @State private var duplicateReviewSession: DuplicateReviewSession?
 
     init(
         profiles: Binding<[StudentSupportProfile]>,
         classDefinitions: Binding<[ClassDefinitionItem]>,
+        teacherContacts: Binding<[ClassStaffContact]>,
+        paraContacts: Binding<[ClassStaffContact]>,
         showsRosterDataTools: Bool = false
     ) {
         _profiles = profiles
         _classDefinitions = classDefinitions
+        _teacherContacts = teacherContacts
+        _paraContacts = paraContacts
         self.showsRosterDataTools = showsRosterDataTools
     }
 
@@ -101,6 +121,14 @@ struct StudentDirectoryView: View {
                     Menu {
                         Button("Manage Saved Classes") {
                             showingSavedClasses = true
+                        }
+
+                        Button("Teachers") {
+                            showingTeacherList = true
+                        }
+
+                        Button("Paras") {
+                            showingParaList = true
                         }
 
                         Divider()
@@ -136,7 +164,13 @@ struct StudentDirectoryView: View {
                 }
             }
             .sheet(isPresented: $showingAdd) {
-                EditStudentSupportView(profiles: $profiles, classDefinitions: $classDefinitions, existing: nil)
+                EditStudentSupportView(
+                    profiles: $profiles,
+                    classDefinitions: $classDefinitions,
+                    teacherContacts: $teacherContacts,
+                    paraContacts: $paraContacts,
+                    existing: nil
+                )
             }
             .sheet(isPresented: $showingSavedClasses) {
                 NavigationStack {
@@ -144,7 +178,31 @@ struct StudentDirectoryView: View {
                 }
             }
             .sheet(item: $editingProfile) { profile in
-                EditStudentSupportView(profiles: $profiles, classDefinitions: $classDefinitions, existing: profile)
+                EditStudentSupportView(
+                    profiles: $profiles,
+                    classDefinitions: $classDefinitions,
+                    teacherContacts: $teacherContacts,
+                    paraContacts: $paraContacts,
+                    existing: profile
+                )
+            }
+            .sheet(isPresented: $showingTeacherList) {
+                NavigationStack {
+                    SupportStaffDirectoryView(
+                        title: "Teachers",
+                        role: .teacher,
+                        contacts: $teacherContacts
+                    )
+                }
+            }
+            .sheet(isPresented: $showingParaList) {
+                NavigationStack {
+                    SupportStaffDirectoryView(
+                        title: "Paras",
+                        role: .para,
+                        contacts: $paraContacts
+                    )
+                }
             }
             .sheet(isPresented: $showingTemplateShareSheet) {
                 StudentDirectoryShareSheet(activityItems: [makeTemplateFileURL()])
@@ -212,6 +270,18 @@ struct StudentDirectoryView: View {
                     initialContext: session.context,
                     initialStudentOrGroup: session.studentOrGroup
                 )
+            }
+            .sheet(item: $duplicateReviewSession) { session in
+                NavigationStack {
+                    DuplicateStudentReviewView(
+                        profiles: session.profiles,
+                        classDefinitions: classDefinitions,
+                        onMerge: {
+                            mergeDuplicates(session.profiles)
+                            duplicateReviewSession = nil
+                        }
+                    )
+                }
             }
             .fileImporter(
                 isPresented: $showingFileImporter,
@@ -484,11 +554,19 @@ struct StudentDirectoryView: View {
                                 .font(.caption)
                                 .foregroundColor(.secondary)
 
-                            Button("Merge Duplicates") {
-                                mergeDuplicates(group)
+                            HStack(spacing: 10) {
+                                Button("Review") {
+                                    duplicateReviewSession = DuplicateReviewSession(profiles: group)
+                                }
+                                .buttonStyle(.bordered)
+                                .controlSize(.small)
+
+                                Button("Merge Duplicates") {
+                                    mergeDuplicates(group)
+                                }
+                                .buttonStyle(.borderedProminent)
+                                .controlSize(.small)
                             }
-                            .buttonStyle(.borderedProminent)
-                            .controlSize(.small)
                         }
                         .padding(.vertical, 4)
                         .listRowBackground(sectionCardBackground(accent: .orange))
@@ -575,6 +653,12 @@ struct StudentDirectoryView: View {
                     Text(profile.name)
                         .fontWeight(.semibold)
 
+                    if profile.isSped {
+                        Image(systemName: "checkmark.seal.fill")
+                            .foregroundStyle(.green)
+                            .accessibilityLabel("Additional Supports")
+                    }
+
                     gradePill(profile.gradeLevel)
                 }
 
@@ -586,7 +670,18 @@ struct StudentDirectoryView: View {
                         .lineLimit(1)
                 }
 
-                if !profile.accommodations.isEmpty {
+                let supportLine = supportSummary(
+                    for: profile,
+                    teachers: teacherContacts,
+                    paras: paraContacts
+                )
+
+                if !supportLine.isEmpty {
+                    Text(supportLine)
+                        .font(.caption)
+                        .foregroundColor(.secondary)
+                        .lineLimit(2)
+                } else if !profile.accommodations.isEmpty {
                     Text(profile.accommodations)
                         .font(.caption)
                         .foregroundColor(.secondary)
@@ -706,20 +801,7 @@ struct StudentDirectoryView: View {
     }
 
     private func accent(for profile: StudentSupportProfile) -> Color {
-        let grade = normalizedStudentKey(profile.gradeLevel)
-        if grade.contains("prek") || grade == "k" {
-            return .pink
-        }
-        if grade.contains("1") || grade.contains("2") || grade.contains("3") {
-            return .orange
-        }
-        if grade.contains("4") || grade.contains("5") {
-            return .green
-        }
-        if grade.contains("6") || grade.contains("7") || grade.contains("8") {
-            return .blue
-        }
-        return .indigo
+        GradeLevelOption.color(for: profile.gradeLevel)
     }
 
     private func sectionCardBackground(accent: Color) -> some View {
@@ -760,7 +842,7 @@ struct StudentDirectoryView: View {
 
         Text(label)
             .font(.caption2.weight(.black))
-            .foregroundStyle(color == .yellow ? Color.black.opacity(0.8) : .white)
+            .foregroundStyle(GradeLevelOption.foregroundColor(for: gradeLevel))
             .padding(.horizontal, 8)
             .padding(.vertical, 4)
             .background(color, in: Capsule(style: .continuous))
@@ -948,6 +1030,11 @@ struct StudentDirectoryView: View {
                     parentPhoneNumbers: parentPhoneNumbers,
                     parentEmails: parentEmails,
                     studentEmail: studentEmail,
+                    isSped: false,
+                    supportTeacherIDs: [],
+                    supportParaIDs: [],
+                    supportRooms: "",
+                    supportScheduleNotes: "",
                     accommodations: accommodations,
                     prompts: prompts
                 )
@@ -984,6 +1071,11 @@ struct StudentDirectoryView: View {
                 parentPhoneNumbers: $0.parentPhoneNumbers,
                 parentEmails: $0.parentEmails,
                 studentEmail: $0.studentEmail,
+                isSped: $0.isSped,
+                supportTeacherIDs: $0.supportTeacherIDs,
+                supportParaIDs: $0.supportParaIDs,
+                supportRooms: $0.supportRooms,
+                supportScheduleNotes: $0.supportScheduleNotes,
                 accommodations: $0.accommodations,
                 prompts: $0.prompts
             )
@@ -1303,6 +1395,199 @@ struct StudentDirectoryView: View {
         }
         .navigationTitle(title)
         .navigationBarTitleDisplayMode(.inline)
+    }
+}
+
+private struct DuplicateStudentReviewView: View {
+    let profiles: [StudentSupportProfile]
+    let classDefinitions: [ClassDefinitionItem]
+    let onMerge: () -> Void
+
+    @Environment(\.dismiss) private var dismiss
+
+    private var mergedPreview: StudentSupportProfile? {
+        mergedStudentProfile(from: profiles)
+    }
+
+    var body: some View {
+        List {
+            Section {
+                Text("Review these student records before merging. The merged preview shows the single record that will be kept.")
+                    .font(.footnote)
+                    .foregroundStyle(.secondary)
+            }
+
+            Section("Duplicate Records") {
+                ForEach(profiles) { profile in
+                    VStack(alignment: .leading, spacing: 6) {
+                        HStack {
+                            Text(profile.name)
+                                .font(.headline)
+                            Spacer(minLength: 8)
+                            gradePill(profile.gradeLevel)
+                        }
+
+                        if !classSummary(for: profile, in: classDefinitions).isEmpty {
+                            Text(classSummary(for: profile, in: classDefinitions))
+                                .font(.subheadline)
+                                .foregroundStyle(.secondary)
+                        }
+
+                        duplicateFieldRow("Accommodations", value: profile.accommodations)
+                        duplicateFieldRow("Prompts", value: profile.prompts)
+                        duplicateFieldRow("Parents", value: profile.parentNames)
+                        duplicateFieldRow("Email", value: profile.studentEmail)
+                    }
+                    .padding(.vertical, 4)
+                }
+            }
+
+            if let mergedPreview {
+                Section("Merged Preview") {
+                    VStack(alignment: .leading, spacing: 8) {
+                        HStack {
+                            Text(mergedPreview.name)
+                                .font(.headline)
+                            Spacer(minLength: 8)
+                            gradePill(mergedPreview.gradeLevel)
+                        }
+
+                        duplicateFieldRow("Classes", value: classSummary(for: mergedPreview, in: classDefinitions))
+                        duplicateFieldRow("Accommodations", value: mergedPreview.accommodations)
+                        duplicateFieldRow("Prompts", value: mergedPreview.prompts)
+                        duplicateFieldRow("Parents", value: mergedPreview.parentNames)
+                        duplicateFieldRow("Phone", value: mergedPreview.parentPhoneNumbers)
+                        duplicateFieldRow("Email", value: mergedPreview.studentEmail)
+                    }
+                    .padding(.vertical, 4)
+                }
+            }
+        }
+        .navigationTitle("Review Duplicates")
+        .navigationBarTitleDisplayMode(.inline)
+        .toolbar {
+            ToolbarItem(placement: .navigationBarLeading) {
+                Button("Cancel") { dismiss() }
+            }
+
+            ToolbarItem(placement: .navigationBarTrailing) {
+                Button("Merge") {
+                    onMerge()
+                }
+                .fontWeight(.semibold)
+                .disabled(mergedPreview == nil)
+            }
+        }
+    }
+
+    @ViewBuilder
+    private func duplicateFieldRow(_ title: String, value: String) -> some View {
+        let trimmed = value.trimmingCharacters(in: .whitespacesAndNewlines)
+        if !trimmed.isEmpty {
+            VStack(alignment: .leading, spacing: 2) {
+                Text(title)
+                    .font(.caption.weight(.semibold))
+                    .foregroundStyle(.secondary)
+                Text(trimmed)
+                    .font(.subheadline)
+            }
+        }
+    }
+
+    @ViewBuilder
+    private func gradePill(_ gradeLevel: String) -> some View {
+        let normalized = GradeLevelOption.normalized(gradeLevel)
+        if !normalized.isEmpty {
+            Text(GradeLevelOption.pillLabel(for: normalized))
+                .font(.caption2.weight(.bold))
+                .foregroundStyle(GradeLevelOption.foregroundColor(for: normalized))
+                .padding(.horizontal, 8)
+                .padding(.vertical, 4)
+                .background(GradeLevelOption.color(for: normalized), in: Capsule(style: .continuous))
+        }
+    }
+}
+
+private struct SupportStaffDirectoryView: View {
+    let title: String
+    let role: SupportStaffRole
+    @Binding var contacts: [ClassStaffContact]
+
+    @Environment(\.dismiss) private var dismiss
+
+    var body: some View {
+        Form {
+            Section {
+                Text("Manage your \(role.pluralTitle.lowercased()) here, then assign them to students with Additional Supports.")
+                    .foregroundStyle(.secondary)
+            }
+
+            Section(role.pluralTitle) {
+                if contacts.isEmpty {
+                    Text("No \(role.pluralTitle.lowercased()) added yet.")
+                        .foregroundStyle(.secondary)
+                }
+
+                ForEach($contacts) { $contact in
+                    VStack(alignment: .leading, spacing: 10) {
+                        TextField("Name", text: $contact.name)
+                        TextField("Room", text: $contact.room)
+                        TextField("Cell", text: $contact.cell)
+                            .keyboardType(.phonePad)
+                        TextField("Extension", text: $contact.extensionNumber)
+                        TextField("Email Address", text: $contact.emailAddress)
+                            .textInputAutocapitalization(.never)
+                            .keyboardType(.emailAddress)
+                        TextField("Subject", text: $contact.subject)
+
+                        Button(role: .destructive) {
+                            contacts.removeAll { $0.id == contact.id }
+                        } label: {
+                            Label("Remove \(role.title)", systemImage: "trash")
+                        }
+                        .font(.caption.weight(.semibold))
+                    }
+                    .padding(.vertical, 6)
+                }
+
+                Button {
+                    contacts.append(ClassStaffContact())
+                } label: {
+                    Label("Add \(role.title)", systemImage: "plus.circle.fill")
+                }
+            }
+        }
+        .navigationTitle(title)
+        .toolbar {
+            ToolbarItem(placement: .navigationBarLeading) {
+                Button("Done") {
+                    contacts = contacts
+                        .map {
+                            ClassStaffContact(
+                                id: $0.id,
+                                name: $0.name.trimmingCharacters(in: .whitespacesAndNewlines),
+                                room: $0.room.trimmingCharacters(in: .whitespacesAndNewlines),
+                                cell: $0.cell.trimmingCharacters(in: .whitespacesAndNewlines),
+                                extensionNumber: $0.extensionNumber.trimmingCharacters(in: .whitespacesAndNewlines),
+                                emailAddress: $0.emailAddress.trimmingCharacters(in: .whitespacesAndNewlines),
+                                subject: $0.subject.trimmingCharacters(in: .whitespacesAndNewlines)
+                            )
+                        }
+                        .filter {
+                            ![
+                                $0.name,
+                                $0.room,
+                                $0.cell,
+                                $0.extensionNumber,
+                                $0.emailAddress,
+                                $0.subject
+                            ].allSatisfy(\.isEmpty)
+                        }
+                        .sorted { $0.trimmedName.localizedCaseInsensitiveCompare($1.trimmedName) == .orderedAscending }
+                    dismiss()
+                }
+            }
+        }
     }
 }
 

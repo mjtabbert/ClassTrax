@@ -79,6 +79,11 @@ final class PersistedStudentSupportProfile: PersistedUUIDModel {
     var parentPhoneNumbers: String = ""
     var parentEmails: String = ""
     var studentEmail: String = ""
+    var isSped: Bool = false
+    var supportTeacherIDsRawValue: String = ""
+    var supportParaIDsRawValue: String = ""
+    var supportRooms: String = ""
+    var supportScheduleNotes: String = ""
     var accommodations: String = ""
     var prompts: String = ""
 
@@ -101,6 +106,15 @@ final class PersistedStudentSupportProfile: PersistedUUIDModel {
         self.parentPhoneNumbers = item.parentPhoneNumbers
         self.parentEmails = item.parentEmails
         self.studentEmail = item.studentEmail
+        self.isSped = item.isSped
+        self.supportTeacherIDsRawValue = item.supportTeacherIDs
+            .map(\.uuidString)
+            .joined(separator: ",")
+        self.supportParaIDsRawValue = item.supportParaIDs
+            .map(\.uuidString)
+            .joined(separator: ",")
+        self.supportRooms = item.supportRooms
+        self.supportScheduleNotes = item.supportScheduleNotes
         self.accommodations = item.accommodations
         self.prompts = item.prompts
     }
@@ -121,6 +135,15 @@ final class PersistedStudentSupportProfile: PersistedUUIDModel {
             parentPhoneNumbers: parentPhoneNumbers,
             parentEmails: parentEmails,
             studentEmail: studentEmail,
+            isSped: isSped,
+            supportTeacherIDs: supportTeacherIDsRawValue
+                .split(separator: ",")
+                .compactMap { UUID(uuidString: String($0)) },
+            supportParaIDs: supportParaIDsRawValue
+                .split(separator: ",")
+                .compactMap { UUID(uuidString: String($0)) },
+            supportRooms: supportRooms,
+            supportScheduleNotes: supportScheduleNotes,
             accommodations: accommodations,
             prompts: prompts
         )
@@ -134,6 +157,8 @@ final class PersistedClassDefinitionItem: PersistedUUIDModel {
     var scheduleKindRawValue: String = ClassDefinitionItem.ScheduleKind.other.rawValue
     var gradeLevel: String = ""
     var defaultLocation: String = ""
+    var teacherContactsRawValue: String = ""
+    var paraContactsRawValue: String = ""
 
     init(from item: ClassDefinitionItem) {
         update(from: item)
@@ -145,6 +170,8 @@ final class PersistedClassDefinitionItem: PersistedUUIDModel {
         self.scheduleKindRawValue = item.scheduleKind.rawValue
         self.gradeLevel = item.gradeLevel
         self.defaultLocation = item.defaultLocation
+        self.teacherContactsRawValue = (try? String(data: JSONEncoder().encode(item.teacherContacts), encoding: .utf8)) ?? ""
+        self.paraContactsRawValue = (try? String(data: JSONEncoder().encode(item.paraContacts), encoding: .utf8)) ?? ""
     }
 
     func asClassDefinitionItem() -> ClassDefinitionItem {
@@ -153,7 +180,48 @@ final class PersistedClassDefinitionItem: PersistedUUIDModel {
             name: name,
             scheduleType: ClassDefinitionItem.ScheduleKind(rawValue: scheduleKindRawValue) ?? .other,
             gradeLevel: gradeLevel,
-            defaultLocation: defaultLocation
+            defaultLocation: defaultLocation,
+            teacherContacts: (try? JSONDecoder().decode([ClassStaffContact].self, from: Data(teacherContactsRawValue.utf8))) ?? [],
+            paraContacts: (try? JSONDecoder().decode([ClassStaffContact].self, from: Data(paraContactsRawValue.utf8))) ?? []
+        )
+    }
+}
+
+@Model
+final class PersistedSupportStaffMember: PersistedUUIDModel {
+    var id: UUID = UUID()
+    var roleRawValue: String = SupportStaffRole.teacher.rawValue
+    var name: String = ""
+    var room: String = ""
+    var cell: String = ""
+    var extensionNumber: String = ""
+    var emailAddress: String = ""
+    var subject: String = ""
+
+    init(role: SupportStaffRole, contact: ClassStaffContact) {
+        update(role: role, contact: contact)
+    }
+
+    func update(role: SupportStaffRole, contact: ClassStaffContact) {
+        self.id = contact.id
+        self.roleRawValue = role.rawValue
+        self.name = contact.name
+        self.room = contact.room
+        self.cell = contact.cell
+        self.extensionNumber = contact.extensionNumber
+        self.emailAddress = contact.emailAddress
+        self.subject = contact.subject
+    }
+
+    func asStaffContact() -> ClassStaffContact {
+        ClassStaffContact(
+            id: id,
+            name: name,
+            room: room,
+            cell: cell,
+            extensionNumber: extensionNumber,
+            emailAddress: emailAddress,
+            subject: subject
         )
     }
 }
@@ -630,6 +698,8 @@ struct FirstPersistenceSliceSnapshot {
     var alarms: [AlarmItem]
     var studentProfiles: [StudentSupportProfile]
     var classDefinitions: [ClassDefinitionItem]
+    var teacherContacts: [ClassStaffContact]
+    var paraContacts: [ClassStaffContact]
     var commitments: [CommitmentItem]
 }
 
@@ -928,6 +998,9 @@ enum ClassTraxPersistence {
         let students = deduplicatedModels((try? context.fetch(FetchDescriptor<PersistedStudentSupportProfile>(
             sortBy: [SortDescriptor(\.name)]
         ))) ?? [], in: context)
+        let supportStaff = deduplicatedModels((try? context.fetch(FetchDescriptor<PersistedSupportStaffMember>(
+            sortBy: [SortDescriptor(\.roleRawValue), SortDescriptor(\.name)]
+        ))) ?? [], in: context)
         let alarms = deduplicatedModels((try? context.fetch(FetchDescriptor<PersistedAlarmItem>(
             sortBy: [SortDescriptor(\.dayOfWeekValue), SortDescriptor(\.start)]
         ))) ?? [], in: context)
@@ -939,6 +1012,12 @@ enum ClassTraxPersistence {
             alarms: alarms.map { $0.asAlarmItem() },
             studentProfiles: students.map { $0.asStudentSupportProfile() },
             classDefinitions: classes.map { $0.asClassDefinitionItem() },
+            teacherContacts: supportStaff
+                .filter { $0.roleRawValue == SupportStaffRole.teacher.rawValue }
+                .map { $0.asStaffContact() },
+            paraContacts: supportStaff
+                .filter { $0.roleRawValue == SupportStaffRole.para.rawValue }
+                .map { $0.asStaffContact() },
             commitments: commitments.map { $0.asCommitmentItem() }
         )
     }
@@ -948,11 +1027,21 @@ enum ClassTraxPersistence {
         alarms: [AlarmItem],
         studentProfiles: [StudentSupportProfile],
         classDefinitions: [ClassDefinitionItem],
+        teacherContacts: [ClassStaffContact],
+        paraContacts: [ClassStaffContact],
         commitments: [CommitmentItem],
         into context: ModelContext
     ) {
         syncModels(PersistedClassDefinitionItem.self, values: classDefinitions, in: context, create: PersistedClassDefinitionItem.init, update: { $0.update(from: $1) })
         syncModels(PersistedStudentSupportProfile.self, values: studentProfiles, in: context, create: PersistedStudentSupportProfile.init, update: { $0.update(from: $1) })
+        let staffValues = teacherContacts.map { (role: SupportStaffRole.teacher, contact: $0) } + paraContacts.map { (role: SupportStaffRole.para, contact: $0) }
+        syncModels(
+            PersistedSupportStaffMember.self,
+            values: staffValues,
+            in: context,
+            create: { PersistedSupportStaffMember(role: $0.role, contact: $0.contact) },
+            update: { $0.update(role: $1.role, contact: $1.contact) }
+        )
         syncModels(PersistedAlarmItem.self, values: alarms, in: context, create: PersistedAlarmItem.init, update: { $0.update(from: $1) })
         syncModels(PersistedCommitmentItem.self, values: commitments, in: context, create: PersistedCommitmentItem.init, update: { $0.update(from: $1) })
         save(context)

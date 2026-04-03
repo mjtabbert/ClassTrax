@@ -15,6 +15,8 @@ struct TodoListView: View {
     @Binding var todos: [TodoItem]
     @Binding var studentProfiles: [StudentSupportProfile]
     @Binding var classDefinitions: [ClassDefinitionItem]
+    @Binding var teacherContacts: [ClassStaffContact]
+    @Binding var paraContacts: [ClassStaffContact]
     let suggestedContexts: [String]
     let suggestedStudents: [String]
     let studentSupportsByName: [String: StudentSupportProfile]
@@ -127,6 +129,8 @@ struct TodoListView: View {
         todos: Binding<[TodoItem]>,
         studentProfiles: Binding<[StudentSupportProfile]>,
         classDefinitions: Binding<[ClassDefinitionItem]>,
+        teacherContacts: Binding<[ClassStaffContact]>,
+        paraContacts: Binding<[ClassStaffContact]>,
         suggestedContexts: [String] = [],
         suggestedStudents: [String] = [],
         studentSupportsByName: [String: StudentSupportProfile] = [:],
@@ -136,6 +140,8 @@ struct TodoListView: View {
         _todos = todos
         _studentProfiles = studentProfiles
         _classDefinitions = classDefinitions
+        _teacherContacts = teacherContacts
+        _paraContacts = paraContacts
         self.suggestedContexts = suggestedContexts
         self.suggestedStudents = suggestedStudents
         self.studentSupportsByName = studentSupportsByName
@@ -373,7 +379,12 @@ struct TodoListView: View {
             }
             .sheet(isPresented: $showingStudentDirectory) {
                 NavigationStack {
-                    StudentDirectoryView(profiles: $studentProfiles, classDefinitions: $classDefinitions)
+                    StudentDirectoryView(
+                        profiles: $studentProfiles,
+                        classDefinitions: $classDefinitions,
+                        teacherContacts: $teacherContacts,
+                        paraContacts: $paraContacts
+                    )
                 }
             }
         }
@@ -918,7 +929,7 @@ struct TodoListView: View {
     private func gradePill(_ gradeLevel: String) -> some View {
         Text(GradeLevelOption.pillLabel(for: gradeLevel))
             .font(.caption2.weight(.semibold))
-            .foregroundStyle(.white)
+            .foregroundStyle(GradeLevelOption.foregroundColor(for: gradeLevel))
             .padding(.horizontal, 7)
             .padding(.vertical, 3)
             .background(
@@ -937,6 +948,8 @@ struct TodoListView: View {
         ]),
         studentProfiles: .constant([]),
         classDefinitions: .constant([]),
+        teacherContacts: .constant([]),
+        paraContacts: .constant([]),
         suggestedContexts: [],
         suggestedStudents: [],
         studentSupportsByName: [:],
