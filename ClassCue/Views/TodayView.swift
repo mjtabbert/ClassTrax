@@ -546,7 +546,7 @@ struct TodayView: View {
 
         ScrollViewReader { proxy in
             ScrollView {
-                VStack(spacing: 10) {
+                VStack(spacing: 8) {
 
                 header(now: now)
 
@@ -595,7 +595,7 @@ struct TodayView: View {
                 }
                 .frame(maxWidth: 920)
                 .frame(maxWidth: .infinity)
-                .padding(.bottom, 96)
+                .padding(.bottom, 88)
                 .padding(.top, -6)
             }
             .onChange(of: scrollTargetCard) { _, newValue in
@@ -698,7 +698,7 @@ struct TodayView: View {
         nextItem: AlarmItem?,
         todayCommitments: [CommitmentItem]
     ) -> some View {
-        VStack(spacing: 12) {
+        VStack(spacing: 10) {
             if shouldShowAfterHoursPersonalMode(now: now, schedule: schedule) {
                 schoolBoundaryCard(now: now, schedule: schedule)
                 if showPersonalFocusCard {
@@ -728,7 +728,7 @@ struct TodayView: View {
         nextItem: AlarmItem?,
         todayCommitments: [CommitmentItem]
     ) -> some View {
-        VStack(spacing: 12) {
+        VStack(spacing: 10) {
             if shouldShowAfterHoursPersonalMode(now: now, schedule: schedule) {
                 schoolBoundaryCard(now: now, schedule: schedule, compact: true)
                 if showPersonalFocusCard {
@@ -906,12 +906,7 @@ struct TodayView: View {
                     }
                 }
 
-                Text("Live Controls")
-                    .font(.caption2.weight(.bold))
-                    .foregroundStyle(.secondary)
-                    .textCase(.uppercase)
-
-                VStack(spacing: 10) {
+                VStack(spacing: 8) {
                     HStack(spacing: 10) {
                         Button {
                             presentAttendance(for: item, now: now, schedule: schedule)
@@ -920,6 +915,7 @@ struct TodayView: View {
                                 .frame(maxWidth: .infinity)
                         }
                         .buttonStyle(.borderedProminent)
+                        .controlSize(compact ? .small : .regular)
                         .disabled(roster.isEmpty)
 
                         Button {
@@ -929,6 +925,7 @@ struct TodayView: View {
                                 .frame(maxWidth: .infinity)
                         }
                         .buttonStyle(.bordered)
+                        .controlSize(compact ? .small : .regular)
                     }
 
                     HStack(spacing: 10) {
@@ -939,6 +936,7 @@ struct TodayView: View {
                                 .frame(maxWidth: .infinity)
                         }
                         .buttonStyle(.bordered)
+                        .controlSize(compact ? .small : .regular)
 
                         Menu {
                             Button("Sub Plan", systemImage: "doc.text") {
@@ -953,6 +951,7 @@ struct TodayView: View {
                                 .frame(maxWidth: .infinity)
                         }
                         .buttonStyle(.bordered)
+                        .controlSize(compact ? .small : .regular)
                     }
                 }
 
@@ -1337,6 +1336,13 @@ struct TodayView: View {
                 }
 
                 Spacer()
+
+                Button {
+                    openScheduleTab()
+                } label: {
+                    cardActionLabel("Schedule", accent: tint)
+                }
+                .buttonStyle(.plain)
             }
 
             HStack(spacing: compact ? 8 : 10) {
@@ -1354,14 +1360,6 @@ struct TodayView: View {
                     )
                 }
             }
-
-            Button {
-                openScheduleTab()
-            } label: {
-                Label("Open Schedule", systemImage: "calendar")
-                    .frame(maxWidth: .infinity)
-            }
-            .buttonStyle(.bordered)
         }
         .modifier(DashboardCardStyle(accent: tint, compact: compact))
         .overlay(
@@ -1447,12 +1445,6 @@ struct TodayView: View {
                 .lineLimit(1)
 
             Spacer(minLength: 0)
-
-            if isInteractive {
-                Image(systemName: "pencil")
-                    .font(compact ? .caption2.weight(.bold) : .caption.weight(.bold))
-                    .foregroundStyle(tint)
-            }
 
             Text("\(remainingCount) left")
                 .font((compact ? Font.caption2 : .caption).weight(.semibold))
@@ -2136,7 +2128,7 @@ struct TodayView: View {
                     .fill(Color.blue.opacity(0.14))
                     .frame(width: 34, height: 34)
 
-                Image(systemName: "wand.and.stars")
+                Image(systemName: "calendar.badge.clock")
                     .foregroundColor(.blue)
             }
 
@@ -2148,9 +2140,10 @@ struct TodayView: View {
                     .font(.subheadline)
                     .foregroundColor(.secondary)
 
-                Text("Class Trax is running today from the override schedule.")
+                Text("Today is using an override schedule.")
                     .font(.caption)
                     .foregroundColor(.secondary)
+                    .lineLimit(1)
             }
 
             Spacer()
@@ -7212,7 +7205,7 @@ private struct DashboardCardStyle: ViewModifier {
 
     func body(content: Content) -> some View {
         content
-            .padding(compact ? 12 : 14)
+            .padding(compact ? 11 : 13)
             .background(
                 RoundedRectangle(cornerRadius: 22, style: .continuous)
                     .fill(
@@ -7229,8 +7222,8 @@ private struct DashboardCardStyle: ViewModifier {
             )
             .overlay(
                 RoundedRectangle(cornerRadius: 22, style: .continuous)
-                    .stroke(accent.opacity(0.12), lineWidth: 1)
+                    .stroke(accent.opacity(0.10), lineWidth: 1)
             )
-            .shadow(color: accent.opacity(0.08), radius: 16, y: 8)
+            .shadow(color: accent.opacity(0.06), radius: 12, y: 6)
     }
 }

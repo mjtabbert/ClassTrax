@@ -113,32 +113,10 @@ struct NotesView: View {
     var body: some View {
         NavigationStack {
             VStack(spacing: 0) {
-                VStack(alignment: .leading, spacing: 12) {
-                    HStack(alignment: .top, spacing: 12) {
-                        VStack(alignment: .leading, spacing: 4) {
-                            Text("Notes")
-                                .font(.title3.weight(.bold))
-
-                            Text(notesHeaderSummary)
-                                .font(.caption)
-                                .foregroundStyle(.secondary)
-                        }
-
-                        Spacer(minLength: 0)
-
-                        notesModeBadge
-                    }
-
-                    Picker("View", selection: $notesMode) {
-                        ForEach(NotesMode.allCases, id: \.self) { mode in
-                            Text(mode.title).tag(mode)
-                        }
-                    }
-                    .pickerStyle(.segmented)
-                }
-                .padding(.horizontal)
-                .padding(.top, 14)
-                .padding(.bottom, 12)
+                notesOverviewCard
+                    .padding(.horizontal)
+                    .padding(.top, 14)
+                    .padding(.bottom, 12)
                 .background(notesHeaderBackground)
 
                 currentModeView
@@ -287,6 +265,48 @@ struct NotesView: View {
             )
     }
 
+    private var notesOverviewCard: some View {
+        VStack(alignment: .leading, spacing: 14) {
+            HStack(alignment: .top, spacing: 12) {
+                VStack(alignment: .leading, spacing: 4) {
+                    Text("Notes")
+                        .font(.headline.weight(.semibold))
+
+                    Text(notesHeaderSummary)
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                        .lineLimit(2)
+                }
+
+                Spacer(minLength: 12)
+
+                notesModeBadge
+            }
+
+            HStack(spacing: 8) {
+                notesMetric(title: "Visible", value: "\(currentModeNotes.count)", accent: .teal)
+                notesMetric(title: "Classes", value: "\(classNoteContexts.count)", accent: .blue)
+                notesMetric(title: "Students", value: "\(studentNoteStudents.count)", accent: .orange)
+            }
+
+            compactNotesModeMenu
+        }
+        .padding(16)
+        .background(
+            RoundedRectangle(cornerRadius: 22, style: .continuous)
+                .fill(
+                    LinearGradient(
+                        colors: [
+                            Color.teal.opacity(0.10),
+                            Color(.secondarySystemGroupedBackground).opacity(0.96)
+                        ],
+                        startPoint: .topLeading,
+                        endPoint: .bottomTrailing
+                    )
+                )
+        )
+    }
+
     private var notesHeaderBackground: some View {
         LinearGradient(
             colors: [
@@ -310,6 +330,41 @@ struct NotesView: View {
             endPoint: .bottomTrailing
         )
         .ignoresSafeArea()
+    }
+
+    private var compactNotesModeMenu: some View {
+        Menu {
+            Picker("View", selection: $notesMode) {
+                ForEach(NotesMode.allCases, id: \.self) { mode in
+                    Text(mode.title).tag(mode)
+                }
+            }
+        } label: {
+            HStack(spacing: 8) {
+                Image(systemName: "line.3.horizontal.decrease.circle")
+                    .font(.caption.weight(.semibold))
+                VStack(alignment: .leading, spacing: 1) {
+                    Text("View")
+                        .font(.caption2.weight(.semibold))
+                        .foregroundStyle(.secondary)
+                    Text(notesMode.title)
+                        .font(.subheadline.weight(.semibold))
+                        .foregroundStyle(.primary)
+                }
+                Spacer(minLength: 8)
+                Image(systemName: "chevron.down")
+                    .font(.caption2.weight(.bold))
+                    .foregroundStyle(.secondary)
+            }
+            .padding(.horizontal, 12)
+            .padding(.vertical, 10)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .background(
+                RoundedRectangle(cornerRadius: 14, style: .continuous)
+                    .fill(Color.white.opacity(0.55))
+            )
+        }
+        .buttonStyle(.plain)
     }
 
     private func toolbarCapsuleLabel(title: String, systemImage: String) -> some View {
@@ -451,6 +506,48 @@ struct NotesView: View {
                 .filter { selectedStudentFilter.isEmpty || $0.studentOrGroup == selectedStudentFilter }
                 .sorted { $0.createdAt > $1.createdAt }
         }
+    }
+
+    private var classNoteContexts: [String] {
+        let values = followUpNotes
+            .filter { $0.kind == .classNote }
+            .map { $0.context.trimmingCharacters(in: .whitespacesAndNewlines) }
+            .filter { !$0.isEmpty }
+        return values.reduce(into: [String]()) { partialResult, value in
+            if !partialResult.contains(value) {
+                partialResult.append(value)
+            }
+        }
+    }
+
+    private var studentNoteStudents: [String] {
+        let values = followUpNotes
+            .filter { $0.kind == .studentNote || $0.kind == .parentContact }
+            .map { $0.studentOrGroup.trimmingCharacters(in: .whitespacesAndNewlines) }
+            .filter { !$0.isEmpty }
+        return values.reduce(into: [String]()) { partialResult, value in
+            if !partialResult.contains(value) {
+                partialResult.append(value)
+            }
+        }
+    }
+
+    @ViewBuilder
+    private func notesMetric(title: String, value: String, accent: Color) -> some View {
+        VStack(alignment: .leading, spacing: 2) {
+            Text(value)
+                .font(.headline.weight(.bold))
+            Text(title)
+                .font(.caption2.weight(.semibold))
+                .foregroundStyle(.secondary)
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(.horizontal, 10)
+        .padding(.vertical, 8)
+        .background(
+            RoundedRectangle(cornerRadius: 12, style: .continuous)
+                .fill(accent.opacity(0.10))
+        )
     }
 
     private func notes(for kind: FollowUpNoteItem.Kind) -> [FollowUpNoteItem] {

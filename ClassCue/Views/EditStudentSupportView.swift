@@ -8,6 +8,14 @@
 import SwiftUI
 
 struct EditStudentSupportView: View {
+    private enum FormSection: String, Hashable {
+        case student
+        case contacts
+        case supports
+        case accommodations
+        case prompts
+    }
+
     @Binding var profiles: [StudentSupportProfile]
     @Binding var classDefinitions: [ClassDefinitionItem]
     @Binding var teacherContacts: [ClassStaffContact]
@@ -16,6 +24,7 @@ struct EditStudentSupportView: View {
     let initialLinkedClassDefinitionIDs: [UUID]
     let initialClassName: String
     let initialGradeLevel: String
+    let onSaveProfiles: (([StudentSupportProfile]) -> Void)?
 
     @Environment(\.dismiss) private var dismiss
 
@@ -35,6 +44,7 @@ struct EditStudentSupportView: View {
     @State private var supportScheduleNotes = ""
     @State private var accommodations = ""
     @State private var prompts = ""
+    @State private var expandedSections: Set<FormSection> = [.student]
 
     init(
         profiles: Binding<[StudentSupportProfile]>,
@@ -44,7 +54,8 @@ struct EditStudentSupportView: View {
         existing: StudentSupportProfile?,
         initialLinkedClassDefinitionIDs: [UUID] = [],
         initialClassName: String = "",
-        initialGradeLevel: String = ""
+        initialGradeLevel: String = "",
+        onSaveProfiles: (([StudentSupportProfile]) -> Void)? = nil
     ) {
         _profiles = profiles
         _classDefinitions = classDefinitions
@@ -54,12 +65,13 @@ struct EditStudentSupportView: View {
         self.initialLinkedClassDefinitionIDs = initialLinkedClassDefinitionIDs
         self.initialClassName = initialClassName
         self.initialGradeLevel = initialGradeLevel
+        self.onSaveProfiles = onSaveProfiles
     }
 
     var body: some View {
         NavigationStack {
             Form {
-                Section("Student or Group") {
+                collapsibleSection(.student, title: "Student or Group", systemImage: "person.text.rectangle") {
                     TextField("Name", text: $name)
 
                     TextField("Class", text: $className)
@@ -101,7 +113,7 @@ struct EditStudentSupportView: View {
                     Toggle("Additional Supports", isOn: $isSped)
                 }
 
-                Section("Contacts") {
+                collapsibleSection(.contacts, title: "Contacts", systemImage: "person.crop.circle.badge") {
                     TextField("Parent / Guardian Names", text: $parentNames)
                     TextField("Parent Phone Numbers", text: $parentPhoneNumbers)
                     TextField("Parent Emails", text: $parentEmails)
@@ -113,14 +125,16 @@ struct EditStudentSupportView: View {
                 }
 
                 if isSped {
-                    Section("Supports") {
-                        if availableTeacherContacts.isEmpty && availableParaContacts.isEmpty {
-                            Text("Add teachers or paras in the Students support lists to assign classroom supports here.")
-                                .foregroundStyle(.secondary)
-                        }
+                    collapsibleSection(.supports, title: "Supports", systemImage: "figure.2.and.child.holdinghands") {
+                        Text("Assign classroom teachers and paras for this student’s additional supports.")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
 
-                        if !availableTeacherContacts.isEmpty {
-                            DisclosureGroup("Classroom Teachers") {
+                        if availableTeacherContacts.isEmpty {
+                            Text("No teachers added yet.")
+                                .foregroundStyle(.secondary)
+                        } else {
+                            DisclosureGroup("Assign Teachers (\(selectedSupportTeacherIDs.count))") {
                                 ForEach(availableTeacherContacts) { contact in
                                     supportAssignmentRow(
                                         contact: contact,
@@ -131,8 +145,11 @@ struct EditStudentSupportView: View {
                             }
                         }
 
-                        if !availableParaContacts.isEmpty {
-                            DisclosureGroup("Paras") {
+                        if availableParaContacts.isEmpty {
+                            Text("No paras added yet.")
+                                .foregroundStyle(.secondary)
+                        } else {
+                            DisclosureGroup("Assign Paras (\(selectedSupportParaIDs.count))") {
                                 ForEach(availableParaContacts) { contact in
                                     supportAssignmentRow(
                                         contact: contact,
@@ -149,12 +166,12 @@ struct EditStudentSupportView: View {
                     }
                 }
 
-                Section("Accommodations") {
+                collapsibleSection(.accommodations, title: "Accommodations", systemImage: "list.clipboard") {
                     TextField("Supports, accommodations, or reminders", text: $accommodations, axis: .vertical)
                         .lineLimit(3...8)
                 }
 
-                Section("Instructional Prompts") {
+                collapsibleSection(.prompts, title: "Instructional Prompts", systemImage: "lightbulb") {
                     TextField("What to remember during class", text: $prompts, axis: .vertical)
                         .lineLimit(2...6)
                 }
@@ -176,6 +193,7 @@ struct EditStudentSupportView: View {
             }
             .onAppear {
                 configureInitialValues()
+                reconcileSupportAssignments()
             }
             .onChange(of: selectedClassDefinitionIDs) { _, _ in
                 applySelectedClassDefinitions()
@@ -213,6 +231,7 @@ struct EditStudentSupportView: View {
         }
 
         profiles.sort { $0.name.localizedCaseInsensitiveCompare($1.name) == .orderedAscending }
+        onSaveProfiles?(profiles)
         dismiss()
     }
 
@@ -402,6 +421,36 @@ struct EditStudentSupportView: View {
             .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
+    }
+
+    @ViewBuilder
+    private func collapsibleSection<Content: View>(
+        _ section: FormSection,
+        title: String,
+        systemImage: String,
+        @ViewBuilder content: @escaping () -> Content
+    ) -> some View {
+        Section {
+            DisclosureGroup(isExpanded: expansionBinding(for: section)) {
+                content()
+            } label: {
+                Label(title, systemImage: systemImage)
+                    .font(.headline)
+            }
+        }
+    }
+
+    private func expansionBinding(for section: FormSection) -> Binding<Bool> {
+        Binding(
+            get: { expandedSections.contains(section) },
+            set: { isExpanded in
+                if isExpanded {
+                    expandedSections.insert(section)
+                } else {
+                    expandedSections.remove(section)
+                }
+            }
+        )
     }
 
     private func resolvedClassSummary() -> String {

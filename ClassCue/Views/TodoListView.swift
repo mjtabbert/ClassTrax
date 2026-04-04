@@ -153,20 +153,9 @@ struct TodoListView: View {
         NavigationStack {
             List {
                 Section {
-                    Picker("Workspace", selection: $workspaceFilter) {
-                        ForEach(WorkspaceFilter.allCases, id: \.self) { filter in
-                            Text(filter.displayName).tag(filter)
-                        }
-                    }
-                    .pickerStyle(.segmented)
-                    
-                    Button {
-                        showAdd = true
-                    } label: {
-                        Label("New Task", systemImage: "plus.circle.fill")
-                            .frame(maxWidth: .infinity, alignment: .leading)
-                    }
-                    .buttonStyle(.borderedProminent)
+                    todoOverviewCard
+                        .listRowInsets(EdgeInsets(top: 8, leading: 16, bottom: 8, trailing: 16))
+                        .listRowBackground(Color.clear)
                 }
 
                 if workspaceFilter != .personal && (!attentionItems.isEmpty || !linkedContextGroups.isEmpty || studentContextCount != 0) {
@@ -402,6 +391,85 @@ struct TodoListView: View {
             endPoint: .bottomTrailing
         )
         .ignoresSafeArea()
+    }
+
+    private var todoOverviewCard: some View {
+        VStack(alignment: .leading, spacing: 14) {
+            HStack(alignment: .top, spacing: 12) {
+                VStack(alignment: .leading, spacing: 4) {
+                    Text("Tasks")
+                        .font(.headline.weight(.semibold))
+
+                    Text(todoHeaderSummary)
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                        .lineLimit(2)
+                }
+
+                Spacer(minLength: 12)
+
+                Button {
+                    showAdd = true
+                } label: {
+                    Label("New Task", systemImage: "plus")
+                        .font(.caption.weight(.semibold))
+                }
+                .buttonStyle(.borderedProminent)
+                .controlSize(.small)
+            }
+
+            HStack(spacing: 8) {
+                overviewMetric(title: "Open", value: "\(openTaskCount)", accent: .orange)
+                overviewMetric(title: "School", value: "\(schoolTaskCount)", accent: .blue)
+                overviewMetric(title: "Personal", value: "\(personalTaskCount)", accent: .purple)
+                overviewMetric(title: "Attention", value: "\(attentionCount)", accent: .red)
+            }
+
+            HStack(spacing: 12) {
+                compactSelectionMenu(
+                    title: "Workspace",
+                    value: workspaceFilter.displayName,
+                    systemImage: "square.grid.2x2"
+                ) {
+                    Picker("Workspace", selection: $workspaceFilter) {
+                        ForEach(WorkspaceFilter.allCases, id: \.self) { filter in
+                            Text(filter.displayName).tag(filter)
+                        }
+                    }
+                }
+
+                if activeFilterCount > 0 {
+                    overviewTag("\(activeFilterCount) filters", accent: .indigo)
+                }
+            }
+        }
+        .padding(16)
+        .background(
+            RoundedRectangle(cornerRadius: 22, style: .continuous)
+                .fill(
+                    LinearGradient(
+                        colors: [
+                            Color.orange.opacity(0.09),
+                            Color(.secondarySystemGroupedBackground).opacity(0.96)
+                        ],
+                        startPoint: .topLeading,
+                        endPoint: .bottomTrailing
+                    )
+                )
+        )
+    }
+
+    private var todoHeaderSummary: String {
+        if activeFilterCount > 0 {
+            return "\(filteredTaskCount) tasks match the current filters."
+        }
+        if workspaceFilter == .school {
+            return "School tasks with linked class and student context."
+        }
+        if workspaceFilter == .personal {
+            return "Personal tasks separated from classroom workflow."
+        }
+        return "One place for school and personal tasks without the visual clutter."
     }
 
     private func toolbarCapsuleLabel(title: String, systemImage: String) -> some View {
@@ -812,6 +880,16 @@ struct TodoListView: View {
         return count
     }
 
+    private var openTaskCount: Int {
+        todos.filter { !$0.isCompleted }.count
+    }
+
+    private var filteredTaskCount: Int {
+        TodoItem.Bucket.allCases.reduce(into: 0) { total, bucket in
+            total += items(for: bucket).count
+        }
+    }
+
     private var attentionCount: Int {
         todos.filter { item in
             !item.isCompleted && (
@@ -916,6 +994,74 @@ struct TodoListView: View {
         case .tomorrowMorning: return 1
         case .none: return 2
         }
+    }
+
+    @ViewBuilder
+    private func overviewMetric(title: String, value: String, accent: Color) -> some View {
+        VStack(alignment: .leading, spacing: 2) {
+            Text(value)
+                .font(.headline.weight(.bold))
+            Text(title)
+                .font(.caption2.weight(.semibold))
+                .foregroundStyle(.secondary)
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(.horizontal, 10)
+        .padding(.vertical, 8)
+        .background(
+            RoundedRectangle(cornerRadius: 12, style: .continuous)
+                .fill(accent.opacity(0.10))
+        )
+    }
+
+    @ViewBuilder
+    private func overviewTag(_ text: String, accent: Color) -> some View {
+        Text(text)
+            .font(.caption2.weight(.semibold))
+            .foregroundStyle(accent)
+            .padding(.horizontal, 10)
+            .padding(.vertical, 6)
+            .background(
+                Capsule(style: .continuous)
+                    .fill(accent.opacity(0.12))
+            )
+    }
+
+    @ViewBuilder
+    private func compactSelectionMenu<Content: View>(
+        title: String,
+        value: String,
+        systemImage: String,
+        @ViewBuilder content: () -> Content
+    ) -> some View {
+        Menu {
+            content()
+        } label: {
+            HStack(spacing: 8) {
+                Image(systemName: systemImage)
+                    .font(.caption.weight(.semibold))
+                VStack(alignment: .leading, spacing: 1) {
+                    Text(title)
+                        .font(.caption2.weight(.semibold))
+                        .foregroundStyle(.secondary)
+                    Text(value)
+                        .font(.subheadline.weight(.semibold))
+                        .foregroundStyle(.primary)
+                }
+                Spacer(minLength: 8)
+                Image(systemName: "chevron.down")
+                    .font(.caption2.weight(.bold))
+                    .foregroundStyle(.secondary)
+            }
+            .padding(.horizontal, 12)
+            .padding(.vertical, 10)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .background(
+                RoundedRectangle(cornerRadius: 14, style: .continuous)
+                    .fill(Color.white.opacity(0.55))
+            )
+        }
+        .buttonStyle(.plain)
     }
 
     private func studentProfile(named name: String) -> StudentSupportProfile? {

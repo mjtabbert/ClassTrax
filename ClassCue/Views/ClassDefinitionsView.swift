@@ -10,32 +10,8 @@ struct ClassDefinitionsView: View {
     var body: some View {
         List {
             Section {
-                Text("Save your recurring classes here so schedule blocks and student profiles can link to the same exact class definition instead of relying only on text matching.")
-                    .font(.footnote)
-                    .foregroundStyle(.secondary)
-                    .listRowBackground(sectionCardBackground(accent: .blue))
-            }
-
-            Section {
-                HStack(spacing: 12) {
-                    summaryPill(
-                        title: "Classes",
-                        value: "\(classDefinitions.count)",
-                        accent: .blue
-                    )
-                    summaryPill(
-                        title: "Linked Students",
-                        value: "\(linkedStudentCount)",
-                        accent: .green
-                    )
-                    summaryPill(
-                        title: "Unlinked",
-                        value: "\(unlinkedClassCount)",
-                        accent: .orange
-                    )
-                }
-                .padding(.vertical, 4)
-                .listRowInsets(EdgeInsets(top: 8, leading: 0, bottom: 8, trailing: 0))
+                classDefinitionsOverviewCard
+                .listRowInsets(EdgeInsets(top: 8, leading: 16, bottom: 8, trailing: 16))
                 .listRowBackground(Color.clear)
                 .listRowSeparator(.hidden)
             }
@@ -176,6 +152,53 @@ struct ClassDefinitionsView: View {
             Spacer(minLength: 0)
         }
         .padding(.vertical, 4)
+    }
+
+    private var classDefinitionsOverviewCard: some View {
+        VStack(alignment: .leading, spacing: 14) {
+            HStack(alignment: .top, spacing: 12) {
+                VStack(alignment: .leading, spacing: 4) {
+                    Text("Saved Classes")
+                        .font(.headline.weight(.semibold))
+
+                    Text("Reusable class definitions keep schedules and student links aligned without extra setup.")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                        .lineLimit(2)
+                }
+
+                Spacer(minLength: 12)
+
+                Button {
+                    showingAdd = true
+                } label: {
+                    Label("Add Class", systemImage: "plus")
+                        .font(.caption.weight(.semibold))
+                }
+                .buttonStyle(.borderedProminent)
+                .controlSize(.small)
+            }
+
+            HStack(spacing: 12) {
+                summaryPill(
+                    title: "Classes",
+                    value: "\(classDefinitions.count)",
+                    accent: .blue
+                )
+                summaryPill(
+                    title: "Linked Students",
+                    value: "\(linkedStudentCount)",
+                    accent: .green
+                )
+                summaryPill(
+                    title: "Unlinked",
+                    value: "\(unlinkedClassCount)",
+                    accent: .orange
+                )
+            }
+        }
+        .padding(16)
+        .background(sectionCardBackground(accent: .blue))
     }
 
     private func rowAccent(for definition: ClassDefinitionItem) -> Color {

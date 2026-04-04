@@ -40,7 +40,7 @@ struct RootTabView: View {
     }
 
     private static let cloudSyncRefreshInterval: Duration = .seconds(30)
-    private static let localMutationRefreshPauseSeconds: TimeInterval = 4
+    private static let localMutationRefreshPauseSeconds: TimeInterval = 120
     private static let runtimeSyncHeartbeatInterval: Duration = .seconds(30)
     private static let persistenceDebounceInterval: Duration = .milliseconds(450)
 
@@ -54,6 +54,8 @@ struct RootTabView: View {
     @AppStorage("commitments_v1_data") private var savedCommitments: Data = Data()
     @AppStorage("student_support_profiles_v1_data") private var savedStudentProfiles: Data = Data()
     @AppStorage("class_definitions_v1_data") private var savedClassDefinitions: Data = Data()
+    @AppStorage("teacher_contacts_v1_data") private var savedTeacherContacts: Data = Data()
+    @AppStorage("para_contacts_v1_data") private var savedParaContacts: Data = Data()
     @AppStorage("attendance_v1_data") private var savedAttendance: Data = Data()
     @AppStorage("sub_plans_v1_data") private var savedSubPlans: Data = Data()
     @AppStorage("daily_sub_plans_v1_data") private var savedDailySubPlans: Data = Data()
@@ -494,7 +496,7 @@ struct RootTabView: View {
 
     @MainActor
     private func manuallyRefreshSyncedData() {
-        refreshFromCloudBackedStore(force: true)
+        refreshFromCloudBackedStore(force: true, bypassLocalMutationPause: true)
     }
 
     private var todayTab: some View {
@@ -588,7 +590,28 @@ struct RootTabView: View {
                 profiles: $studentProfiles,
                 classDefinitions: $classDefinitions,
                 teacherContacts: $teacherContacts,
-                paraContacts: $paraContacts
+                paraContacts: $paraContacts,
+                onImportedStudents: { importedProfiles in
+                    persistStudentProfilesImmediately(importedProfiles)
+                },
+                onSavedProfiles: { updatedProfiles in
+                    persistStudentProfilesImmediately(updatedProfiles)
+                },
+                onSavedTeacherContacts: { updatedContacts in
+                    persistSupportStaffImmediately(
+                        teacherContacts: updatedContacts,
+                        paraContacts: paraContacts
+                    )
+                },
+                onSavedParaContacts: { updatedContacts in
+                    persistSupportStaffImmediately(
+                        teacherContacts: teacherContacts,
+                        paraContacts: updatedContacts
+                    )
+                },
+                onPrepareStudentEditor: {
+                    flushPendingPersistenceSaves()
+                }
             )
         }
         .tabItem {
@@ -646,7 +669,12 @@ struct RootTabView: View {
 
     private var settingsTab: some View {
         NavigationStack {
-            SettingsView()
+            SettingsView(
+                studentProfiles: $studentProfiles,
+                classDefinitions: $classDefinitions,
+                teacherContacts: $teacherContacts,
+                paraContacts: $paraContacts
+            )
                 .navigationBarTitleDisplayMode(.inline)
         }
         .tabItem {
@@ -700,8 +728,15 @@ struct RootTabView: View {
     }
 
     @MainActor
-    private func refreshFromCloudBackedStore(force: Bool = false) {
+    private func refreshFromCloudBackedStore(
+        force: Bool = false,
+        bypassLocalMutationPause: Bool = false
+    ) {
         if !force, Date().timeIntervalSince(lastCloudBackedRefreshAt) < 10 {
+            return
+        }
+        if !bypassLocalMutationPause,
+           Date().timeIntervalSince(lastLocalMutationAt) < Self.localMutationRefreshPauseSeconds {
             return
         }
         lastCloudBackedRefreshAt = Date()
@@ -728,7 +763,7 @@ struct RootTabView: View {
             try? await Task.sleep(for: Self.cloudSyncRefreshInterval)
             guard !Task.isCancelled, scenePhase == .active else { return }
             guard ClassTraxPersistence.activeContainerMode == .cloudKit else { continue }
-            guard selectedTab != .settings else { continue }
+            guard selectedTab != .settings, selectedTab != .students else { continue }
             guard Date().timeIntervalSince(lastLocalMutationAt) >= Self.localMutationRefreshPauseSeconds else {
                 continue
             }
@@ -743,6 +778,9 @@ struct RootTabView: View {
         let persistenceSnapshot = ClassTraxPersistence.loadFirstSlice(from: modelContext)
         let secondSliceSnapshot = ClassTraxPersistence.loadSecondSlice(from: modelContext)
         let thirdSliceSnapshot = ClassTraxPersistence.loadThirdSlice(from: modelContext)
+        let localStudentProfiles = decodeLegacyStudentProfiles()
+        let localTeacherContacts = decodeLegacyTeacherContacts()
+        let localParaContacts = decodeLegacyParaContacts()
         alarms = persistenceSnapshot.alarms.map {
             AlarmItem(
                 id: $0.id,
@@ -758,7 +796,45 @@ struct RootTabView: View {
             )
         }
         commitments = persistenceSnapshot.commitments
-        studentProfiles = persistenceSnapshot.studentProfiles
+        studentProfiles = normalizedStudentProfiles(
+            from: (savedStudentProfiles.isEmpty && localStudentProfiles.isEmpty)
+                ? persistenceSnapshot.studentProfiles
+                : localStudentProfiles
+        )
+        classDefinitions = persistenceSnapshot.classDefinitions.sorted {
+            $0.displayName.localizedCaseInsensitiveCompare($1.displayName) == .orderedAscending
+        }
+        teacherContacts = (savedTeacherContacts.isEmpty && localTeacherContacts.isEmpty
+            ? persistenceSnapshot.teacherContacts
+            : localTeacherContacts
+        ).sorted {
+            $0.trimmedName.localizedCaseInsensitiveCompare($1.trimmedName) == .orderedAscending
+        }
+        paraContacts = (savedParaContacts.isEmpty && localParaContacts.isEmpty
+            ? persistenceSnapshot.paraContacts
+            : localParaContacts
+        ).sorted {
+            $0.trimmedName.localizedCaseInsensitiveCompare($1.trimmedName) == .orderedAscending
+        }
+        todos = secondSliceSnapshot.todos
+        savedFollowUpNotes = (try? JSONEncoder().encode(secondSliceSnapshot.followUpNotes)) ?? Data()
+        reconcileClassDefinitionLinks()
+        attendanceRecords = AttendanceRecord.pruneToCurrentWeek(thirdSliceSnapshot.attendanceRecords)
+        subPlans = secondSliceSnapshot.subPlans
+        dailySubPlans = secondSliceSnapshot.dailySubPlans
+        profiles = thirdSliceSnapshot.profiles
+        overrides = thirdSliceSnapshot.overrides
+        savedAttendance = (try? JSONEncoder().encode(attendanceRecords)) ?? Data()
+        savedProfiles = (try? JSONEncoder().encode(thirdSliceSnapshot.profiles)) ?? Data()
+        savedOverrides = (try? JSONEncoder().encode(thirdSliceSnapshot.overrides)) ?? Data()
+
+        Task { @MainActor in
+            isRefreshingFromPersistence = false
+        }
+    }
+
+    private func normalizedStudentProfiles(from profiles: [StudentSupportProfile]) -> [StudentSupportProfile] {
+        profiles
             .map {
                 StudentSupportProfile(
                     id: $0.id,
@@ -783,30 +859,6 @@ struct RootTabView: View {
                 )
             }
             .sorted { $0.name.localizedCaseInsensitiveCompare($1.name) == .orderedAscending }
-        classDefinitions = persistenceSnapshot.classDefinitions.sorted {
-            $0.displayName.localizedCaseInsensitiveCompare($1.displayName) == .orderedAscending
-        }
-        teacherContacts = persistenceSnapshot.teacherContacts.sorted {
-            $0.trimmedName.localizedCaseInsensitiveCompare($1.trimmedName) == .orderedAscending
-        }
-        paraContacts = persistenceSnapshot.paraContacts.sorted {
-            $0.trimmedName.localizedCaseInsensitiveCompare($1.trimmedName) == .orderedAscending
-        }
-        todos = secondSliceSnapshot.todos
-        savedFollowUpNotes = (try? JSONEncoder().encode(secondSliceSnapshot.followUpNotes)) ?? Data()
-        reconcileClassDefinitionLinks()
-        attendanceRecords = AttendanceRecord.pruneToCurrentWeek(thirdSliceSnapshot.attendanceRecords)
-        subPlans = secondSliceSnapshot.subPlans
-        dailySubPlans = secondSliceSnapshot.dailySubPlans
-        profiles = thirdSliceSnapshot.profiles
-        overrides = thirdSliceSnapshot.overrides
-        savedAttendance = (try? JSONEncoder().encode(attendanceRecords)) ?? Data()
-        savedProfiles = (try? JSONEncoder().encode(thirdSliceSnapshot.profiles)) ?? Data()
-        savedOverrides = (try? JSONEncoder().encode(thirdSliceSnapshot.overrides)) ?? Data()
-
-        Task { @MainActor in
-            isRefreshingFromPersistence = false
-        }
     }
 
     // MARK: - Save Alarms
@@ -902,7 +954,39 @@ struct RootTabView: View {
     }
 
     private func saveSupportStaff(teacherContacts: [ClassStaffContact], paraContacts: [ClassStaffContact]) {
+        savedTeacherContacts = (try? JSONEncoder().encode(teacherContacts.sorted {
+            $0.trimmedName.localizedCaseInsensitiveCompare($1.trimmedName) == .orderedAscending
+        })) ?? Data()
+        savedParaContacts = (try? JSONEncoder().encode(paraContacts.sorted {
+            $0.trimmedName.localizedCaseInsensitiveCompare($1.trimmedName) == .orderedAscending
+        })) ?? Data()
         scheduleFirstPersistenceSave(for: .supportStaff)
+    }
+
+    private func persistStudentProfilesImmediately(_ profiles: [StudentSupportProfile]) {
+        recordLocalMutation()
+        savedStudentProfiles = (try? JSONEncoder().encode(profiles.sorted {
+            $0.name.localizedCaseInsensitiveCompare($1.name) == .orderedAscending
+        })) ?? Data()
+        ClassTraxPersistence.saveFirstSliceStudentProfiles(profiles, into: modelContext)
+    }
+
+    private func persistSupportStaffImmediately(
+        teacherContacts: [ClassStaffContact],
+        paraContacts: [ClassStaffContact]
+    ) {
+        recordLocalMutation()
+        savedTeacherContacts = (try? JSONEncoder().encode(teacherContacts.sorted {
+            $0.trimmedName.localizedCaseInsensitiveCompare($1.trimmedName) == .orderedAscending
+        })) ?? Data()
+        savedParaContacts = (try? JSONEncoder().encode(paraContacts.sorted {
+            $0.trimmedName.localizedCaseInsensitiveCompare($1.trimmedName) == .orderedAscending
+        })) ?? Data()
+        ClassTraxPersistence.saveFirstSliceSupportStaff(
+            teacherContacts: teacherContacts,
+            paraContacts: paraContacts,
+            into: modelContext
+        )
     }
 
     private func saveAttendanceRecords(_ records: [AttendanceRecord]) {
@@ -1256,6 +1340,16 @@ struct RootTabView: View {
 
     private func decodeLegacyOverrides() -> [DayOverride] {
         (try? JSONDecoder().decode([DayOverride].self, from: savedOverrides)) ?? []
+    }
+
+    private func decodeLegacyTeacherContacts() -> [ClassStaffContact] {
+        ((try? JSONDecoder().decode([ClassStaffContact].self, from: savedTeacherContacts)) ?? [])
+            .sorted { $0.trimmedName.localizedCaseInsensitiveCompare($1.trimmedName) == .orderedAscending }
+    }
+
+    private func decodeLegacyParaContacts() -> [ClassStaffContact] {
+        ((try? JSONDecoder().decode([ClassStaffContact].self, from: savedParaContacts)) ?? [])
+            .sorted { $0.trimmedName.localizedCaseInsensitiveCompare($1.trimmedName) == .orderedAscending }
     }
 
     private var shouldRunRuntimeHeartbeat: Bool {
@@ -1650,6 +1744,11 @@ private struct StudentsHubView: View {
     @Binding var classDefinitions: [ClassDefinitionItem]
     @Binding var teacherContacts: [ClassStaffContact]
     @Binding var paraContacts: [ClassStaffContact]
+    let onImportedStudents: ([StudentSupportProfile]) -> Void
+    let onSavedProfiles: ([StudentSupportProfile]) -> Void
+    let onSavedTeacherContacts: ([ClassStaffContact]) -> Void
+    let onSavedParaContacts: ([ClassStaffContact]) -> Void
+    let onPrepareStudentEditor: () -> Void
     @State private var mode: Mode = .students
 
     private enum Mode: String, CaseIterable, Identifiable {
@@ -1676,7 +1775,22 @@ private struct StudentsHubView: View {
                         profiles: $profiles,
                         classDefinitions: $classDefinitions,
                         teacherContacts: $teacherContacts,
-                        paraContacts: $paraContacts
+                        paraContacts: $paraContacts,
+                        onImportedStudents: { importedProfiles in
+                            onImportedStudents(importedProfiles)
+                        },
+                        onSavedProfiles: { updatedProfiles in
+                            onSavedProfiles(updatedProfiles)
+                        },
+                        onSavedTeacherContacts: { updatedContacts in
+                            onSavedTeacherContacts(updatedContacts)
+                        },
+                        onSavedParaContacts: { updatedContacts in
+                            onSavedParaContacts(updatedContacts)
+                        },
+                        onPrepareStudentEditor: {
+                            onPrepareStudentEditor()
+                        }
                     )
                 case .classes:
                     ClassDefinitionsView(classDefinitions: $classDefinitions, profiles: $profiles)

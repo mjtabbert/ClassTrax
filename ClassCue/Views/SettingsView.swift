@@ -100,10 +100,10 @@ struct SettingsView: View {
     @State private var todos: [TodoItem] = []
     @State private var profiles: [ScheduleProfile] = []
     @State private var overrides: [DayOverride] = []
-    @State private var studentProfiles: [StudentSupportProfile] = []
-    @State private var classDefinitions: [ClassDefinitionItem] = []
-    @State private var teacherContacts: [ClassStaffContact] = []
-    @State private var paraContacts: [ClassStaffContact] = []
+    @Binding private var studentProfiles: [StudentSupportProfile]
+    @Binding private var classDefinitions: [ClassDefinitionItem]
+    @Binding private var teacherContacts: [ClassStaffContact]
+    @Binding private var paraContacts: [ClassStaffContact]
     @State private var commitments: [CommitmentItem] = []
     @State private var exportURL: URL?
     @State private var showingShareSheet = false
@@ -112,22 +112,43 @@ struct SettingsView: View {
     @State private var isLoadingInitialState = false
     @State private var hasLoadedInitialState = false
 
+    init(
+        studentProfiles: Binding<[StudentSupportProfile]>,
+        classDefinitions: Binding<[ClassDefinitionItem]>,
+        teacherContacts: Binding<[ClassStaffContact]>,
+        paraContacts: Binding<[ClassStaffContact]>
+    ) {
+        _studentProfiles = studentProfiles
+        _classDefinitions = classDefinitions
+        _teacherContacts = teacherContacts
+        _paraContacts = paraContacts
+    }
+
     var body: some View {
         settingsContent
     }
 
     private var settingsListContent: some View {
         List {
+            Section {
+                settingsOverviewCard
+                    .listRowInsets(EdgeInsets(top: 8, leading: 16, bottom: 8, trailing: 16))
+                    .listRowBackground(Color.clear)
+                    .listRowSeparator(.hidden)
+            }
+
             Section("Daily Use") {
-                NavigationLink("Alerts") {
+                NavigationLink {
                     settingsDestinationView(.alerts)
                         .onChange(of: selectedSoundRawValue) { _, _ in refreshNotifications() }
                         .onChange(of: warningFiveSoundRawValue) { _, _ in refreshNotifications() }
                         .onChange(of: warningTwoSoundRawValue) { _, _ in refreshNotifications() }
                         .onChange(of: warningOneSoundRawValue) { _, _ in refreshNotifications() }
+                } label: {
+                    settingsRowLabel(.alerts, detail: "Bell sounds, warning cues, and haptics")
                 }
 
-                NavigationLink("After Hours") {
+                NavigationLink {
                     settingsDestinationView(.boundaries)
                         .onChange(of: schoolQuietHoursEnabled) { _, _ in
                             syncSchoolQuietStart()
@@ -139,9 +160,11 @@ struct SettingsView: View {
                             schoolQuietMinute = components.minute ?? 0
                             refreshNotifications()
                         }
+                } label: {
+                    settingsRowLabel(.boundaries, detail: "Quiet hours and after-school behavior")
                 }
 
-                NavigationLink("Today Layout") {
+                NavigationLink {
                     settingsDestinationView(.todayLayout)
                         .onChange(of: dashboardCardOrder) { _, _ in
                             persistTodayLayoutSettings()
@@ -149,38 +172,56 @@ struct SettingsView: View {
                         .onChange(of: hiddenDashboardCards) { _, _ in
                             persistTodayLayoutSettings()
                         }
+                } label: {
+                    settingsRowLabel(.todayLayout, detail: "Choose what appears on the Today dashboard")
                 }
 
-                NavigationLink("Classroom Setup") {
+                NavigationLink {
                     settingsDestinationView(.classroomSetup)
+                } label: {
+                    settingsRowLabel(.classroomSetup, detail: "Saved classes, roster tools, and staff setup")
                 }
 
-                NavigationLink("Sub Plans") {
+                NavigationLink {
                     settingsDestinationView(.subPlans)
+                } label: {
+                    settingsRowLabel(.subPlans, detail: "Reusable sub plans and daily prep")
                 }
 
-                NavigationLink("Data Management") {
+                NavigationLink {
                     settingsDestinationView(.data)
+                } label: {
+                    settingsRowLabel(.data, detail: "Import, export, and local data utilities")
                 }
 
-                NavigationLink("Live Activities") {
+                NavigationLink {
                     settingsDestinationView(.liveActivities)
+                } label: {
+                    settingsRowLabel(.liveActivities, detail: "Live Activity and lock screen controls")
                 }
 
-                NavigationLink("Cloud Sync") {
+                NavigationLink {
                     settingsDestinationView(.cloudSync)
+                } label: {
+                    settingsRowLabel(.cloudSync, detail: "CloudKit status and sync diagnostics")
                 }
 
-                NavigationLink("Integrations") {
+                NavigationLink {
                     settingsDestinationView(.integrations)
+                } label: {
+                    settingsRowLabel(.integrations, detail: "Widgets, watch, and related integrations")
                 }
 
-                NavigationLink("Diagnostics") {
+                NavigationLink {
                     settingsDestinationView(.diagnostics)
+                } label: {
+                    settingsRowLabel(.diagnostics, detail: "Debug details, logs, and troubleshooting")
                 }
 
-                NavigationLink("About") {
+                NavigationLink {
                     settingsDestinationView(.about)
+                } label: {
+                    settingsRowLabel(.about, detail: "App details and version information")
                 }
             }
         }
@@ -198,6 +239,83 @@ struct SettingsView: View {
         .navigationTitle("Settings")
         .scrollContentBackground(.hidden)
         .background(settingsBackground)
+    }
+
+    private var settingsOverviewCard: some View {
+        VStack(alignment: .leading, spacing: 14) {
+            VStack(alignment: .leading, spacing: 4) {
+                Text("Settings")
+                    .font(.headline.weight(.semibold))
+
+                Text("System preferences, sync controls, and classroom setup tools live here now.")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                    .lineLimit(2)
+            }
+
+            HStack(spacing: 12) {
+                settingsMetric(title: "Classes", value: "\(classDefinitions.count)", accent: .blue)
+                settingsMetric(title: "Students", value: "\(studentProfiles.count)", accent: .green)
+                settingsMetric(title: "Tasks", value: "\(todos.count)", accent: .orange)
+            }
+        }
+        .padding(16)
+        .background(
+            RoundedRectangle(cornerRadius: 22, style: .continuous)
+                .fill(
+                    LinearGradient(
+                        colors: [
+                            Color.blue.opacity(0.08),
+                            Color(.secondarySystemGroupedBackground).opacity(0.96)
+                        ],
+                        startPoint: .topLeading,
+                        endPoint: .bottomTrailing
+                    )
+                )
+        )
+    }
+
+    @ViewBuilder
+    private func settingsMetric(title: String, value: String, accent: Color) -> some View {
+        VStack(alignment: .leading, spacing: 2) {
+            Text(value)
+                .font(.headline.weight(.bold))
+            Text(title)
+                .font(.caption2.weight(.semibold))
+                .foregroundStyle(.secondary)
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(.horizontal, 10)
+        .padding(.vertical, 8)
+        .background(
+            RoundedRectangle(cornerRadius: 12, style: .continuous)
+                .fill(accent.opacity(0.10))
+        )
+    }
+
+    @ViewBuilder
+    private func settingsRowLabel(_ destination: SettingsDestination, detail: String) -> some View {
+        HStack(spacing: 12) {
+            RoundedRectangle(cornerRadius: 12, style: .continuous)
+                .fill(Color.accentColor.opacity(0.10))
+                .frame(width: 36, height: 36)
+                .overlay {
+                    Image(systemName: destination.systemImage)
+                        .font(.subheadline.weight(.bold))
+                        .foregroundStyle(Color.accentColor)
+                }
+
+            VStack(alignment: .leading, spacing: 2) {
+                Text(destination.rawValue)
+                    .font(.subheadline.weight(.semibold))
+                    .foregroundStyle(.primary)
+                Text(detail)
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                    .lineLimit(2)
+            }
+        }
+        .padding(.vertical, 2)
     }
 
     private var settingsContent: some View {
@@ -905,7 +1023,43 @@ struct SettingsView: View {
                     profiles: $studentProfiles,
                     classDefinitions: $classDefinitions,
                     teacherContacts: $teacherContacts,
-                    paraContacts: $paraContacts
+                    paraContacts: $paraContacts,
+                    onSavedProfiles: { updatedProfiles in
+                        studentProfiles = updatedProfiles
+                        ClassTraxPersistence.saveFirstSlice(
+                            alarms: alarms,
+                            studentProfiles: updatedProfiles,
+                            classDefinitions: classDefinitions,
+                            teacherContacts: teacherContacts,
+                            paraContacts: paraContacts,
+                            commitments: commitments,
+                            into: modelContext
+                        )
+                    },
+                    onSavedTeacherContacts: { updatedContacts in
+                        teacherContacts = updatedContacts
+                        ClassTraxPersistence.saveFirstSlice(
+                            alarms: alarms,
+                            studentProfiles: studentProfiles,
+                            classDefinitions: classDefinitions,
+                            teacherContacts: updatedContacts,
+                            paraContacts: paraContacts,
+                            commitments: commitments,
+                            into: modelContext
+                        )
+                    },
+                    onSavedParaContacts: { updatedContacts in
+                        paraContacts = updatedContacts
+                        ClassTraxPersistence.saveFirstSlice(
+                            alarms: alarms,
+                            studentProfiles: studentProfiles,
+                            classDefinitions: classDefinitions,
+                            teacherContacts: teacherContacts,
+                            paraContacts: updatedContacts,
+                            commitments: commitments,
+                            into: modelContext
+                        )
+                    }
                 )
             } label: {
                 LabeledContent("Student Directory") {
@@ -920,6 +1074,56 @@ struct SettingsView: View {
                 LabeledContent("Saved Classes") {
                     Text(classDefinitions.isEmpty ? "Not Set" : "\(classDefinitions.count)")
                         .foregroundColor(classDefinitions.isEmpty ? .secondary : .primary)
+                }
+            }
+
+            NavigationLink {
+                SupportStaffDirectoryView(
+                    title: "Teachers",
+                    role: .teacher,
+                    contacts: $teacherContacts,
+                    onCommitContacts: { updatedContacts in
+                        teacherContacts = updatedContacts
+                        ClassTraxPersistence.saveFirstSlice(
+                            alarms: alarms,
+                            studentProfiles: studentProfiles,
+                            classDefinitions: classDefinitions,
+                            teacherContacts: updatedContacts,
+                            paraContacts: paraContacts,
+                            commitments: commitments,
+                            into: modelContext
+                        )
+                    }
+                )
+            } label: {
+                LabeledContent("Teachers") {
+                    Text(teacherContacts.isEmpty ? "Not Set" : "\(teacherContacts.count)")
+                        .foregroundColor(teacherContacts.isEmpty ? .secondary : .primary)
+                }
+            }
+
+            NavigationLink {
+                SupportStaffDirectoryView(
+                    title: "Paras",
+                    role: .para,
+                    contacts: $paraContacts,
+                    onCommitContacts: { updatedContacts in
+                        paraContacts = updatedContacts
+                        ClassTraxPersistence.saveFirstSlice(
+                            alarms: alarms,
+                            studentProfiles: studentProfiles,
+                            classDefinitions: classDefinitions,
+                            teacherContacts: teacherContacts,
+                            paraContacts: updatedContacts,
+                            commitments: commitments,
+                            into: modelContext
+                        )
+                    }
+                )
+            } label: {
+                LabeledContent("Paras") {
+                    Text(paraContacts.isEmpty ? "Not Set" : "\(paraContacts.count)")
+                        .foregroundColor(paraContacts.isEmpty ? .secondary : .primary)
                 }
             }
 
@@ -965,7 +1169,43 @@ struct SettingsView: View {
                     classDefinitions: $classDefinitions,
                     teacherContacts: $teacherContacts,
                     paraContacts: $paraContacts,
-                    showsRosterDataTools: true
+                    showsRosterDataTools: true,
+                    onSavedProfiles: { updatedProfiles in
+                        studentProfiles = updatedProfiles
+                        ClassTraxPersistence.saveFirstSlice(
+                            alarms: alarms,
+                            studentProfiles: updatedProfiles,
+                            classDefinitions: classDefinitions,
+                            teacherContacts: teacherContacts,
+                            paraContacts: paraContacts,
+                            commitments: commitments,
+                            into: modelContext
+                        )
+                    },
+                    onSavedTeacherContacts: { updatedContacts in
+                        teacherContacts = updatedContacts
+                        ClassTraxPersistence.saveFirstSlice(
+                            alarms: alarms,
+                            studentProfiles: studentProfiles,
+                            classDefinitions: classDefinitions,
+                            teacherContacts: updatedContacts,
+                            paraContacts: paraContacts,
+                            commitments: commitments,
+                            into: modelContext
+                        )
+                    },
+                    onSavedParaContacts: { updatedContacts in
+                        paraContacts = updatedContacts
+                        ClassTraxPersistence.saveFirstSlice(
+                            alarms: alarms,
+                            studentProfiles: studentProfiles,
+                            classDefinitions: classDefinitions,
+                            teacherContacts: teacherContacts,
+                            paraContacts: updatedContacts,
+                            commitments: commitments,
+                            into: modelContext
+                        )
+                    }
                 )
             }
 

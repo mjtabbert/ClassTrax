@@ -726,7 +726,7 @@ enum ClassTraxPersistence {
     static let secondSliceMigrationKey = "swiftdata_second_slice_migration_v1"
     static let thirdSliceMigrationKey = "swiftdata_third_slice_migration_v1"
     static let cloudKitContainerIdentifier = "iCloud.com.mrmike.classtrax"
-    static let cloudKitSchemaInitializationKey = "swiftdata_cloudkit_schema_initialized_classtrax_v1"
+    static let cloudKitSchemaInitializationKey = "swiftdata_cloudkit_schema_initialized_classtrax_v2"
     static let cloudKitLastEventSummaryKey = "cloudkit_last_event_summary_v1"
     static let cloudKitLastEventTimestampKey = "cloudkit_last_event_timestamp_v1"
     static private(set) var activeContainerMode: ContainerMode = .localFallback
@@ -1042,7 +1042,8 @@ enum ClassTraxPersistence {
             values: staffValues,
             in: context,
             create: { PersistedSupportStaffMember(role: $0.role, contact: $0.contact) },
-            update: { $0.update(role: $1.role, contact: $1.contact) }
+            update: { $0.update(role: $1.role, contact: $1.contact) },
+            identifier: { $0.contact.id }
         )
         syncModels(PersistedAlarmItem.self, values: alarms, in: context, create: PersistedAlarmItem.init, update: { $0.update(from: $1) })
         syncModels(PersistedCommitmentItem.self, values: commitments, in: context, create: PersistedCommitmentItem.init, update: { $0.update(from: $1) })
@@ -1102,7 +1103,8 @@ enum ClassTraxPersistence {
             values: staffValues,
             in: context,
             create: { PersistedSupportStaffMember(role: $0.role, contact: $0.contact) },
-            update: { $0.update(role: $1.role, contact: $1.contact) }
+            update: { $0.update(role: $1.role, contact: $1.contact) },
+            identifier: { $0.contact.id }
         )
         save(context)
         UserDefaults.standard.set(true, forKey: firstSliceMigrationKey)
@@ -1293,7 +1295,9 @@ enum ClassTraxPersistence {
         do {
             try context.save()
         } catch {
-            assertionFailure("Failed to save SwiftData migration slice: \(error)")
+            let message = "Failed to save SwiftData migration slice: \(describe(error: error))"
+            NSLog("%@", message)
+            lastContainerStatusMessage = message
         }
     }
 
