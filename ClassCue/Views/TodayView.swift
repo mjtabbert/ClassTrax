@@ -919,17 +919,6 @@ struct TodayView: View {
                         .disabled(roster.isEmpty)
 
                         Button {
-                            rosterItem = item
-                        } label: {
-                            Label("Roster", systemImage: "person.3")
-                                .frame(maxWidth: .infinity)
-                        }
-                        .buttonStyle(.bordered)
-                        .controlSize(compact ? .small : .regular)
-                    }
-
-                    HStack(spacing: 10) {
-                        Button {
                             homeworkCaptureSession = HomeworkCaptureSession(item: item, date: now)
                         } label: {
                             Label("Homework", systemImage: "text.book.closed")
@@ -937,22 +926,26 @@ struct TodayView: View {
                         }
                         .buttonStyle(.bordered)
                         .controlSize(compact ? .small : .regular)
-
-                        Menu {
-                            Button("Sub Plan", systemImage: "doc.text") {
-                                subPlanItem = item
-                            }
-
-                            Button("Class Controls", systemImage: "ellipsis.circle") {
-                                showingSessionActions = true
-                            }
-                        } label: {
-                            Label("More", systemImage: "ellipsis.circle")
-                                .frame(maxWidth: .infinity)
-                        }
-                        .buttonStyle(.bordered)
-                        .controlSize(compact ? .small : .regular)
                     }
+
+                    Menu {
+                        Button("Open Roster", systemImage: "person.3") {
+                            rosterItem = item
+                        }
+
+                        Button("Sub Plan", systemImage: "doc.text") {
+                            subPlanItem = item
+                        }
+
+                        Button("Class Controls", systemImage: "ellipsis.circle") {
+                            showingSessionActions = true
+                        }
+                    } label: {
+                        Label("Roster & More", systemImage: "ellipsis.circle")
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                    }
+                    .buttonStyle(.bordered)
+                    .controlSize(compact ? .small : .regular)
                 }
 
             }
@@ -1004,7 +997,7 @@ struct TodayView: View {
                         .foregroundStyle(.secondary)
                 }
 
-                Text("Open the current block quickly or catch up on an earlier class from one place.")
+                Text("Open attendance first. Use roster only when you need to review or adjust who is attached to the block.")
                     .font(compact ? .caption2 : .caption)
                     .foregroundStyle(.secondary)
 
@@ -1016,6 +1009,14 @@ struct TodayView: View {
                 }
                 .buttonStyle(.borderedProminent)
                 .disabled(rosterStudents(for: currentAttendanceTarget).isEmpty)
+
+                Button {
+                    rosterItem = currentAttendanceTarget
+                } label: {
+                    Label("Open Roster", systemImage: "person.3")
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                }
+                .buttonStyle(.bordered)
             } else {
                 Text("No active class right now.")
                     .font((compact ? Font.caption : .subheadline).weight(.semibold))
@@ -1050,7 +1051,7 @@ struct TodayView: View {
                 homeworkReviewDate = now
                 showingHomeworkReview = true
             } label: {
-                Label("Review Homework", systemImage: "text.book.closed")
+                Label("Review Missing Work", systemImage: "text.book.closed")
                     .frame(maxWidth: .infinity, alignment: .leading)
             }
             .buttonStyle(.bordered)
@@ -2892,7 +2893,6 @@ struct TodayView: View {
     private func saveClassHomework(_ text: String, for item: AlarmItem, now: Date) {
         let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
         let dateKey = AttendanceRecord.dateKey(for: now)
-        let roster = rosterStudents(for: item)
 
         attendanceRecords.removeAll {
             $0.dateKey == dateKey &&
@@ -2917,25 +2917,6 @@ struct TodayView: View {
                 absentHomework: trimmed
             )
         )
-
-        for student in roster {
-            attendanceRecords.append(
-                AttendanceRecord(
-                    dateKey: dateKey,
-                    className: item.className,
-                    gradeLevel: GradeLevelOption.normalized(student.gradeLevel).isEmpty ? GradeLevelOption.normalized(item.gradeLevel) : GradeLevelOption.normalized(student.gradeLevel),
-                    studentName: student.name,
-                    studentID: student.id,
-                    classDefinitionID: item.classDefinitionID,
-                    blockID: item.id,
-                    blockStartTime: item.startTime,
-                    blockEndTime: item.endTime,
-                    status: .present,
-                    absentHomework: trimmed,
-                    isHomeworkAssignmentOnly: true
-                )
-            )
-        }
     }
 
     private func attendanceRecordMatchesClass(_ record: AttendanceRecord, item: AlarmItem) -> Bool {
@@ -3353,17 +3334,8 @@ struct AttendanceEditorView: View {
                 }
             }
 
-            Section("Summary") {
-                LabeledContent("Unmarked", value: "\(unmarkedCount)")
-                LabeledContent("Absent", value: "\(absentCount)")
-                LabeledContent("Tardy", value: "\(tardyCount)")
-                LabeledContent("Excused", value: "\(excusedCount)")
-
-                if !earlierAbsentStudents.isEmpty {
-                    Button("Carry Forward Earlier Absences (\(earlierAbsentStudents.count))") {
-                        carryForwardEarlierAbsences()
-                    }
-                }
+            Section {
+                attendanceSummaryCard
             }
 
             Section("Class Missing Work") {
@@ -3661,25 +3633,44 @@ struct AttendanceEditorView: View {
                 absentHomework: trimmed
             )
         )
+    }
 
-        for student in students {
-            draftClassRecords.append(
-                AttendanceRecord(
-                    dateKey: dateKey,
-                    className: item.className,
-                    gradeLevel: GradeLevelOption.normalized(student.gradeLevel).isEmpty ? normalizedGrade : GradeLevelOption.normalized(student.gradeLevel),
-                    studentName: student.name,
-                    studentID: student.id,
-                    classDefinitionID: item.classDefinitionID,
-                    blockID: item.id,
-                    blockStartTime: item.startTime,
-                    blockEndTime: item.endTime,
-                    status: .present,
-                    absentHomework: trimmed,
-                    isHomeworkAssignmentOnly: true
-                )
-            )
+    private var attendanceSummaryCard: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            HStack(spacing: 10) {
+                attendanceSummaryMetric(title: "Unmarked", value: unmarkedCount, accent: .gray)
+                attendanceSummaryMetric(title: "Absent", value: absentCount, accent: .red)
+                attendanceSummaryMetric(title: "Tardy", value: tardyCount, accent: .orange)
+                attendanceSummaryMetric(title: "Excused", value: excusedCount, accent: .blue)
+            }
+
+            if !earlierAbsentStudents.isEmpty {
+                Button("Carry Forward Earlier Absences (\(earlierAbsentStudents.count))") {
+                    carryForwardEarlierAbsences()
+                }
+                .buttonStyle(.bordered)
+                .controlSize(.small)
+            }
         }
+        .padding(.vertical, 4)
+    }
+
+    private func attendanceSummaryMetric(title: String, value: Int, accent: Color) -> some View {
+        VStack(alignment: .leading, spacing: 2) {
+            Text("\(value)")
+                .font(.headline.weight(.bold))
+                .foregroundStyle(.primary)
+            Text(title)
+                .font(.caption2.weight(.semibold))
+                .foregroundStyle(.secondary)
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(.horizontal, 10)
+        .padding(.vertical, 8)
+        .background(
+            RoundedRectangle(cornerRadius: 12, style: .continuous)
+                .fill(accent.opacity(0.10))
+        )
     }
 
     private func recordIndex(for student: StudentSupportProfile) -> Int? {

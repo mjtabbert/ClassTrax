@@ -59,7 +59,20 @@ struct StudentDirectoryView: View {
         }
     }
 
-    @State private var showingAdd = false
+    private struct AddStudentSeed: Identifiable {
+        let id = UUID()
+        let linkedClassDefinitionIDs: [UUID]
+        let className: String
+        let gradeLevel: String
+
+        static let blank = AddStudentSeed(
+            linkedClassDefinitionIDs: [],
+            className: "",
+            gradeLevel: ""
+        )
+    }
+
+    @State private var addStudentSeed: AddStudentSeed?
     @State private var showingSavedClasses = false
     @State private var showingTeacherList = false
     @State private var showingParaList = false
@@ -136,7 +149,7 @@ struct StudentDirectoryView: View {
                     Menu {
                         Button("New Student", systemImage: "plus") {
                             onPrepareStudentEditor?()
-                            showingAdd = true
+                            addStudentSeed = .blank
                         }
 
                         Divider()
@@ -181,13 +194,16 @@ struct StudentDirectoryView: View {
                     }
                 }
             }
-            .sheet(isPresented: $showingAdd) {
+            .sheet(item: $addStudentSeed) { seed in
                 EditStudentSupportView(
                     profiles: $profiles,
                     classDefinitions: $classDefinitions,
                     teacherContacts: $teacherContacts,
                     paraContacts: $paraContacts,
                     existing: nil,
+                    initialLinkedClassDefinitionIDs: seed.linkedClassDefinitionIDs,
+                    initialClassName: seed.className,
+                    initialGradeLevel: seed.gradeLevel,
                     onSaveProfiles: onSavedProfiles
                 )
             }
@@ -437,21 +453,39 @@ struct StudentDirectoryView: View {
                 .listRowBackground(sectionCardBackground(accent: .indigo))
             }
 
-            if filteredProfiles.isEmpty {
-                Section("Saved Supports") {
-                    Text("No student supports saved yet.")
-                        .foregroundColor(.secondary)
-                        .listRowBackground(sectionCardBackground(accent: .secondary))
-                }
-            } else {
-                if groupingMode == .className {
-                    ForEach(groupedProfiles, id: \.title) { section in
+            if groupingMode == .className {
+                if classRosterSections.isEmpty {
+                    Section("Saved Supports") {
+                        Text("No student supports saved yet.")
+                            .foregroundColor(.secondary)
+                            .listRowBackground(sectionCardBackground(accent: .secondary))
+                    }
+                } else {
+                    ForEach(classRosterSections) { section in
                         Section {
                             DisclosureGroup(
-                                isExpanded: classSectionBinding(for: section.title)
+                                isExpanded: classSectionBinding(for: section.id)
                             ) {
-                                ForEach(section.profiles) { profile in
-                                    profileRow(profile)
+                                if let definition = section.definition {
+                                    Button {
+                                        openAddStudent(for: definition)
+                                    } label: {
+                                        Label("Add Student to \(definition.name)", systemImage: "plus.circle.fill")
+                                            .font(.subheadline.weight(.semibold))
+                                    }
+                                    .buttonStyle(.plain)
+                                    .padding(.vertical, 6)
+                                }
+
+                                if section.profiles.isEmpty {
+                                    Text(section.definition == nil ? "No students in this group yet." : "No students linked to this saved class yet.")
+                                        .font(.caption)
+                                        .foregroundStyle(.secondary)
+                                        .padding(.vertical, 6)
+                                } else {
+                                    ForEach(section.profiles) { profile in
+                                        profileRow(profile)
+                                    }
                                 }
                             } label: {
                                 VStack(alignment: .leading, spacing: 4) {
@@ -466,21 +500,29 @@ struct StudentDirectoryView: View {
                                             .foregroundStyle(.secondary)
                                     }
 
-                                    Text(section.profiles.prefix(3).map(\.name).joined(separator: ", "))
-                                        .font(.caption)
-                                        .foregroundStyle(.secondary)
-                                        .lineLimit(1)
+                                    if !section.summary.isEmpty {
+                                        Text(section.summary)
+                                            .font(.caption)
+                                            .foregroundStyle(.secondary)
+                                            .lineLimit(1)
+                                    }
                                 }
                             }
-                            .listRowBackground(sectionCardBackground(accent: .indigo))
+                            .listRowBackground(sectionCardBackground(accent: section.accent))
                         }
                     }
-                } else {
-                    ForEach(groupedProfiles, id: \.title) { section in
-                        Section(section.title) {
-                            ForEach(section.profiles) { profile in
-                                profileRow(profile)
-                            }
+                }
+            } else if filteredProfiles.isEmpty {
+                Section("Saved Supports") {
+                    Text("No student supports saved yet.")
+                        .foregroundColor(.secondary)
+                        .listRowBackground(sectionCardBackground(accent: .secondary))
+                }
+            } else {
+                ForEach(groupedProfiles, id: \.title) { section in
+                    Section(section.title) {
+                        ForEach(section.profiles) { profile in
+                            profileRow(profile)
                         }
                     }
                 }
@@ -490,36 +532,49 @@ struct StudentDirectoryView: View {
 
     private var directoryOverviewCard: some View {
         VStack(alignment: .leading, spacing: 14) {
-            HStack(alignment: .top, spacing: 12) {
-                VStack(alignment: .leading, spacing: 4) {
-                    Text(showsRosterDataTools ? "Student Rosters" : "Class List")
-                        .font(.headline.weight(.semibold))
+            VStack(alignment: .leading, spacing: 4) {
+                Text(showsRosterDataTools ? "Student Rosters" : "Class List")
+                    .font(.headline.weight(.semibold))
 
-                    Text(directoryOverviewSubtitle)
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                        .lineLimit(2)
-                }
+                Text(directoryOverviewSubtitle)
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                    .lineLimit(2)
+            }
 
-                Spacer(minLength: 12)
-
-                if !showsRosterDataTools {
-                    Button {
+            if !showsRosterDataTools {
+                HStack(spacing: 10) {
+                    overviewActionPill(title: "Student", systemImage: "plus", accent: .blue) {
                         onPrepareStudentEditor?()
-                        showingAdd = true
-                    } label: {
-                        Label("Add Student", systemImage: "plus")
-                            .font(.caption.weight(.semibold))
+                        addStudentSeed = .blank
                     }
-                    .buttonStyle(.borderedProminent)
-                    .controlSize(.small)
+
+                    overviewActionPill(title: "Teacher", systemImage: "person.badge.plus", accent: .teal) {
+                        showingTeacherList = true
+                    }
+
+                    overviewActionPill(title: "Para", systemImage: "person.2.badge.plus", accent: .orange) {
+                        showingParaList = true
+                    }
                 }
             }
 
             HStack(spacing: 8) {
-                overviewMetric(title: "Students", value: "\(profiles.count)", accent: .blue)
-                overviewMetric(title: "Classes", value: "\(availableClasses.count)", accent: .indigo)
-                overviewMetric(title: "Grades", value: "\(availableGrades.count)", accent: .orange)
+                overviewMetricButton(title: "Students", value: "\(profiles.count)", accent: .blue) {
+                    searchText = ""
+                    groupingMode = .none
+                }
+                overviewMetricButton(title: "Classes", value: "\(classDefinitions.count)", accent: .indigo) {
+                    searchText = ""
+                    groupingMode = .className
+                    expandedClassSections = Set(classRosterSections.map(\.id))
+                }
+                overviewMetricButton(title: "Teachers", value: "\(teacherContacts.count)", accent: .teal) {
+                    showingTeacherList = true
+                }
+                overviewMetricButton(title: "Paras", value: "\(paraContacts.count)", accent: .orange) {
+                    showingParaList = true
+                }
 
                 if !selection.isEmpty {
                     overviewMetric(title: "Selected", value: "\(selectedProfilesForExport.count)", accent: .green)
@@ -550,7 +605,9 @@ struct StudentDirectoryView: View {
     }
 
     private var directoryOverviewSubtitle: String {
-        if let largestClass = groupedProfiles.max(by: { $0.profiles.count < $1.profiles.count }), !largestClass.title.isEmpty {
+        if let largestClass = classRosterSections
+            .filter({ $0.definition != nil || !$0.profiles.isEmpty })
+            .max(by: { $0.profiles.count < $1.profiles.count }), !largestClass.title.isEmpty {
             return "Largest group: \(largestClass.title) (\(largestClass.profiles.count))"
         }
 
@@ -578,6 +635,58 @@ struct StudentDirectoryView: View {
             RoundedRectangle(cornerRadius: 12, style: .continuous)
                 .fill(accent.opacity(0.10))
         )
+    }
+
+    @ViewBuilder
+    private func overviewMetricButton(
+        title: String,
+        value: String,
+        accent: Color,
+        action: @escaping () -> Void
+    ) -> some View {
+        Button(action: action) {
+            overviewMetric(title: title, value: value, accent: accent)
+        }
+        .buttonStyle(.plain)
+    }
+
+    @ViewBuilder
+    private func overviewActionPill(
+        title: String,
+        systemImage: String,
+        accent: Color,
+        action: @escaping () -> Void
+    ) -> some View {
+        Button(action: action) {
+            HStack(spacing: 8) {
+                Image(systemName: systemImage)
+                    .font(.caption.weight(.bold))
+                    .foregroundStyle(accent)
+                    .frame(width: 22, height: 22)
+                    .background(
+                        Circle()
+                            .fill(accent.opacity(0.16))
+                    )
+
+                Text(title)
+                    .font(.caption.weight(.semibold))
+                    .foregroundStyle(.primary)
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.85)
+            }
+            .frame(maxWidth: .infinity)
+            .padding(.horizontal, 12)
+            .padding(.vertical, 10)
+            .background(
+                Capsule(style: .continuous)
+                    .fill(accent.opacity(0.12))
+            )
+            .overlay(
+                Capsule(style: .continuous)
+                    .stroke(accent.opacity(0.18), lineWidth: 1)
+            )
+        }
+        .buttonStyle(.plain)
     }
 
     @ViewBuilder
@@ -825,6 +934,15 @@ struct StudentDirectoryView: View {
                     expandedClassSections.remove(title)
                 }
             }
+        )
+    }
+
+    private func openAddStudent(for definition: ClassDefinitionItem) {
+        onPrepareStudentEditor?()
+        addStudentSeed = AddStudentSeed(
+            linkedClassDefinitionIDs: [definition.id],
+            className: definition.name,
+            gradeLevel: definition.gradeLevel
         )
     }
 
@@ -1398,6 +1516,7 @@ private struct DuplicateStudentReviewView: View {
     let onMerge: () -> Void
 
     @Environment(\.dismiss) private var dismiss
+    @State private var expandedProfileIDs: Set<UUID> = []
 
     private var mergedPreview: StudentSupportProfile? {
         mergedStudentProfile(from: profiles)
@@ -1413,26 +1532,53 @@ private struct DuplicateStudentReviewView: View {
 
             Section("Duplicate Records") {
                 ForEach(profiles) { profile in
-                    VStack(alignment: .leading, spacing: 6) {
-                        HStack {
-                            Text(profile.name)
-                                .font(.headline)
-                            Spacer(minLength: 8)
-                            gradePill(profile.gradeLevel)
-                        }
+                    DisclosureGroup(
+                        isExpanded: expandedBinding(for: profile.id)
+                    ) {
+                        VStack(alignment: .leading, spacing: 10) {
+                            duplicateFieldRow("Classes", value: classSummary(for: profile, in: classDefinitions))
+                            duplicateFieldRow("Graduation Year", value: profile.graduationYear)
+                            duplicateFieldRow("Parents", value: profile.parentNames)
+                            duplicateFieldRow("Parent Phones", value: profile.parentPhoneNumbers)
+                            duplicateFieldRow("Parent Emails", value: profile.parentEmails)
+                            duplicateFieldRow("Student Email", value: profile.studentEmail)
+                            duplicateFieldRow("Support Rooms", value: profile.supportRooms)
+                            duplicateFieldRow("Support Schedule", value: profile.supportScheduleNotes)
+                            duplicateFieldRow("Accommodations", value: profile.accommodations)
+                            duplicateFieldRow("Prompts", value: profile.prompts)
 
-                        if !classSummary(for: profile, in: classDefinitions).isEmpty {
-                            Text(classSummary(for: profile, in: classDefinitions))
-                                .font(.subheadline)
-                                .foregroundStyle(.secondary)
+                            if profile.isSped || !profile.supportTeacherIDs.isEmpty || !profile.supportParaIDs.isEmpty {
+                                HStack(spacing: 8) {
+                                    comparisonBadge(title: "Supports", value: profile.isSped ? "On" : "Off", accent: .green)
+                                    if !profile.supportTeacherIDs.isEmpty {
+                                        comparisonBadge(title: "Teachers", value: "\(profile.supportTeacherIDs.count)", accent: .blue)
+                                    }
+                                    if !profile.supportParaIDs.isEmpty {
+                                        comparisonBadge(title: "Paras", value: "\(profile.supportParaIDs.count)", accent: .orange)
+                                    }
+                                }
+                            }
                         }
+                        .padding(.top, 8)
+                    } label: {
+                        VStack(alignment: .leading, spacing: 6) {
+                            HStack {
+                                Text(profile.name)
+                                    .font(.headline)
+                                Spacer(minLength: 8)
+                                gradePill(profile.gradeLevel)
+                            }
 
-                        duplicateFieldRow("Accommodations", value: profile.accommodations)
-                        duplicateFieldRow("Prompts", value: profile.prompts)
-                        duplicateFieldRow("Parents", value: profile.parentNames)
-                        duplicateFieldRow("Email", value: profile.studentEmail)
+                            let summary = duplicateSummaryLine(for: profile)
+                            if !summary.isEmpty {
+                                Text(summary)
+                                    .font(.subheadline)
+                                    .foregroundStyle(.secondary)
+                                    .lineLimit(2)
+                            }
+                        }
+                        .padding(.vertical, 4)
                     }
-                    .padding(.vertical, 4)
                 }
             }
 
@@ -1459,6 +1605,9 @@ private struct DuplicateStudentReviewView: View {
         }
         .navigationTitle("Review Duplicates")
         .navigationBarTitleDisplayMode(.inline)
+        .onAppear {
+            expandedProfileIDs = Set(profiles.map(\.id))
+        }
         .toolbar {
             ToolbarItem(placement: .navigationBarLeading) {
                 Button("Cancel") { dismiss() }
@@ -1488,6 +1637,47 @@ private struct DuplicateStudentReviewView: View {
         }
     }
 
+    private func expandedBinding(for id: UUID) -> Binding<Bool> {
+        Binding(
+            get: { expandedProfileIDs.contains(id) },
+            set: { isExpanded in
+                if isExpanded {
+                    expandedProfileIDs.insert(id)
+                } else {
+                    expandedProfileIDs.remove(id)
+                }
+            }
+        )
+    }
+
+    private func duplicateSummaryLine(for profile: StudentSupportProfile) -> String {
+        [
+            classSummary(for: profile, in: classDefinitions),
+            profile.parentNames.trimmingCharacters(in: .whitespacesAndNewlines),
+            profile.studentEmail.trimmingCharacters(in: .whitespacesAndNewlines)
+        ]
+        .filter { !$0.isEmpty }
+        .joined(separator: " • ")
+    }
+
+    @ViewBuilder
+    private func comparisonBadge(title: String, value: String, accent: Color) -> some View {
+        HStack(spacing: 4) {
+            Text(title)
+                .font(.caption2.weight(.semibold))
+                .foregroundStyle(.secondary)
+            Text(value)
+                .font(.caption2.weight(.bold))
+                .foregroundStyle(accent)
+        }
+        .padding(.horizontal, 8)
+        .padding(.vertical, 5)
+        .background(
+            Capsule(style: .continuous)
+                .fill(accent.opacity(0.12))
+        )
+    }
+
     @ViewBuilder
     private func gradePill(_ gradeLevel: String) -> some View {
         let normalized = GradeLevelOption.normalized(gradeLevel)
@@ -1510,7 +1700,8 @@ struct SupportStaffDirectoryView: View {
 
     @Environment(\.dismiss) private var dismiss
     @State private var draftContacts: [ClassStaffContact]
-    @State private var expandedContactIDs: Set<UUID>
+    @State private var editingContact: ClassStaffContact?
+    @State private var showingAddContact = false
 
     init(
         title: String,
@@ -1524,13 +1715,6 @@ struct SupportStaffDirectoryView: View {
         self.onCommitContacts = onCommitContacts
         let initialDrafts = contacts.wrappedValue
         _draftContacts = State(initialValue: initialDrafts)
-        _expandedContactIDs = State(
-            initialValue: Set(
-                initialDrafts
-                    .filter { $0.name.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty }
-                    .map(\.id)
-            )
-        )
     }
 
     var body: some View {
@@ -1551,85 +1735,39 @@ struct SupportStaffDirectoryView: View {
                 Section {
                     Text("No \(role.pluralTitle.lowercased()) added yet.")
                         .foregroundStyle(.secondary)
+                        .padding(.vertical, 4)
 
-                    Button {
-                        let newContact = ClassStaffContact()
-                        draftContacts.append(newContact)
-                        expandedContactIDs.insert(newContact.id)
-                    } label: {
-                        Label("Add \(role.title)", systemImage: "plus.circle.fill")
-                    }
+                    addContactButton
                 } header: {
                     Text(role.pluralTitle)
                 } footer: {
-                    Text("Tap Add \(role.title) to create one, then tap Done to save your \(role.pluralTitle.lowercased()).")
+                    Text("Add \(role.pluralTitle.lowercased()) here, then tap Done to save them for student supports.")
                 }
             } else {
-                ForEach(draftContacts) { contact in
-                    let contactBinding = binding(for: contact.id)
-                    let liveContact = contactBinding.wrappedValue
-                    let isExpanded = expandedContactIDs.contains(contact.id)
-
-                    Section {
-                        if isExpanded {
-                            TextField("Name", text: contactBinding.name)
-                            TextField("Room", text: contactBinding.room)
-                            TextField("Cell", text: contactBinding.cell)
-                                .keyboardType(.phonePad)
-                            TextField("Extension", text: contactBinding.extensionNumber)
-                            TextField("Email Address", text: contactBinding.emailAddress)
-                                .textInputAutocapitalization(.never)
-                                .keyboardType(.emailAddress)
-                            TextField("Subject", text: contactBinding.subject)
-
-                            Button(role: .destructive) {
-                                draftContacts.removeAll { $0.id == contact.id }
-                                expandedContactIDs.remove(contact.id)
-                            } label: {
-                                Label("Remove \(role.title)", systemImage: "trash")
-                            }
-                            .font(.caption.weight(.semibold))
-                        }
-                    } header: {
+                Section(role.pluralTitle) {
+                    ForEach(draftContacts) { contact in
                         Button {
-                            toggleExpansion(for: contact.id)
+                            editingContact = contact
                         } label: {
-                            HStack(alignment: .center, spacing: 12) {
-                                VStack(alignment: .leading, spacing: 4) {
-                                    Text(liveContact.name.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? "New \(role.title)" : liveContact.name)
-                                        .font(.headline)
-                                        .foregroundStyle(.primary)
-
-                                    let summary = contactSummary(liveContact)
-                                    if !summary.isEmpty {
-                                        Text(summary)
-                                            .font(.caption)
-                                            .foregroundStyle(.secondary)
-                                            .lineLimit(1)
-                                    }
-                                }
-
-                                Spacer()
-
-                                Image(systemName: isExpanded ? "chevron.up" : "chevron.down")
-                                    .font(.caption.weight(.semibold))
-                                    .foregroundStyle(.secondary)
-                            }
-                            .contentShape(Rectangle())
+                            supportStaffRow(contact)
                         }
                         .buttonStyle(.plain)
-                        .textCase(nil)
+                        .listRowBackground(supportStaffCardBackground(accent: role == .teacher ? .teal : .orange))
+                        .swipeActions(edge: .trailing, allowsFullSwipe: false) {
+                            Button("Edit") {
+                                editingContact = contact
+                            }
+                            .tint(.orange)
+
+                            Button("Delete", role: .destructive) {
+                                draftContacts.removeAll { $0.id == contact.id }
+                            }
+                        }
                     }
                 }
 
                 Section {
-                    Button {
-                        let newContact = ClassStaffContact()
-                        draftContacts.append(newContact)
-                        expandedContactIDs.insert(newContact.id)
-                    } label: {
-                        Label("Add \(role.title)", systemImage: "plus.circle.fill")
-                    }
+                    addContactButton
                 } footer: {
                     Text("Tap Done to save your \(role.pluralTitle.lowercased()).")
                 }
@@ -1650,25 +1788,44 @@ struct SupportStaffDirectoryView: View {
                 }
             }
         }
-    }
-
-    private func binding(for id: UUID) -> Binding<ClassStaffContact> {
-        Binding(
-            get: {
-                draftContacts.first(where: { $0.id == id }) ?? ClassStaffContact(id: id)
-            },
-            set: { updatedContact in
-                guard let index = draftContacts.firstIndex(where: { $0.id == id }) else { return }
-                draftContacts[index] = updatedContact
+        .sheet(isPresented: $showingAddContact) {
+            NavigationStack {
+                SupportStaffEditorView(
+                    role: role,
+                    initialContact: ClassStaffContact(),
+                    onSave: { contact in
+                        upsertDraftContact(contact)
+                        showingAddContact = false
+                    },
+                    onCancel: {
+                        showingAddContact = false
+                    }
+                )
             }
-        )
+        }
+        .sheet(item: $editingContact) { contact in
+            NavigationStack {
+                SupportStaffEditorView(
+                    role: role,
+                    initialContact: contact,
+                    onSave: { updatedContact in
+                        upsertDraftContact(updatedContact)
+                        editingContact = nil
+                    },
+                    onCancel: {
+                        editingContact = nil
+                    }
+                )
+            }
+        }
     }
 
-    private func toggleExpansion(for id: UUID) {
-        if expandedContactIDs.contains(id) {
-            expandedContactIDs.remove(id)
-        } else {
-            expandedContactIDs.insert(id)
+    private var addContactButton: some View {
+        Button {
+            showingAddContact = true
+        } label: {
+            Label("Add \(role.title)", systemImage: "plus.circle.fill")
+                .font(.subheadline.weight(.semibold))
         }
     }
 
@@ -1688,6 +1845,26 @@ struct SupportStaffDirectoryView: View {
             .sorted { $0.trimmedName.localizedCaseInsensitiveCompare($1.trimmedName) == .orderedAscending }
         contacts = committedContacts
         onCommitContacts?(committedContacts)
+    }
+
+    private func upsertDraftContact(_ contact: ClassStaffContact) {
+        let normalized = normalizedContact(contact)
+        guard ![
+            normalized.name,
+            normalized.room,
+            normalized.cell,
+            normalized.extensionNumber,
+            normalized.emailAddress,
+            normalized.subject
+        ].allSatisfy(\.isEmpty) else { return }
+
+        if let index = draftContacts.firstIndex(where: { $0.id == normalized.id }) {
+            draftContacts[index] = normalized
+        } else {
+            draftContacts.append(normalized)
+        }
+
+        draftContacts.sort { $0.trimmedName.localizedCaseInsensitiveCompare($1.trimmedName) == .orderedAscending }
     }
 
     private func normalizedContact(_ contact: ClassStaffContact) -> ClassStaffContact {
@@ -1711,12 +1888,152 @@ struct SupportStaffDirectoryView: View {
         .filter { !$0.isEmpty }
         .joined(separator: " • ")
     }
+
+    private func supportStaffCardBackground(accent: Color) -> some View {
+        RoundedRectangle(cornerRadius: 18, style: .continuous)
+            .fill(
+                LinearGradient(
+                    colors: [
+                        accent.opacity(0.10),
+                        Color(.secondarySystemBackground).opacity(0.94)
+                    ],
+                    startPoint: .topLeading,
+                    endPoint: .bottomTrailing
+                )
+            )
+            .overlay(
+                RoundedRectangle(cornerRadius: 18, style: .continuous)
+                    .stroke(accent.opacity(0.12), lineWidth: 1)
+            )
+    }
+
+    @ViewBuilder
+    private func supportStaffRow(_ contact: ClassStaffContact) -> some View {
+        HStack(spacing: 12) {
+            RoundedRectangle(cornerRadius: 14, style: .continuous)
+                .fill((role == .teacher ? Color.teal : Color.orange).opacity(0.14))
+                .frame(width: 42, height: 42)
+                .overlay {
+                    Image(systemName: role == .teacher ? "person.text.rectangle" : "person.2.badge.gearshape")
+                        .font(.headline.weight(.bold))
+                        .foregroundStyle(role == .teacher ? Color.teal : Color.orange)
+                }
+
+            VStack(alignment: .leading, spacing: 6) {
+                Text(contact.name.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? "New \(role.title)" : contact.name)
+                    .fontWeight(.semibold)
+                    .foregroundStyle(.primary)
+
+                let summary = contactSummary(contact)
+                if !summary.isEmpty {
+                    Text(summary)
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                        .lineLimit(1)
+                } else {
+                    Text("No room, subject, or email saved yet.")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
+            }
+
+            Spacer(minLength: 0)
+        }
+        .padding(.vertical, 4)
+    }
+}
+
+private struct SupportStaffEditorView: View {
+    let role: SupportStaffRole
+    let initialContact: ClassStaffContact
+    let onSave: (ClassStaffContact) -> Void
+    let onCancel: () -> Void
+
+    @State private var name: String
+    @State private var room: String
+    @State private var cell: String
+    @State private var extensionNumber: String
+    @State private var emailAddress: String
+    @State private var subject: String
+
+    init(
+        role: SupportStaffRole,
+        initialContact: ClassStaffContact,
+        onSave: @escaping (ClassStaffContact) -> Void,
+        onCancel: @escaping () -> Void
+    ) {
+        self.role = role
+        self.initialContact = initialContact
+        self.onSave = onSave
+        self.onCancel = onCancel
+        _name = State(initialValue: initialContact.name)
+        _room = State(initialValue: initialContact.room)
+        _cell = State(initialValue: initialContact.cell)
+        _extensionNumber = State(initialValue: initialContact.extensionNumber)
+        _emailAddress = State(initialValue: initialContact.emailAddress)
+        _subject = State(initialValue: initialContact.subject)
+    }
+
+    var body: some View {
+        Form {
+            Section("Contact") {
+                TextField("Name", text: $name)
+                TextField("Room", text: $room)
+                TextField("Subject", text: $subject)
+            }
+
+            Section("Communication") {
+                TextField("Cell", text: $cell)
+                    .keyboardType(.phonePad)
+                TextField("Extension", text: $extensionNumber)
+                    .keyboardType(.numberPad)
+                TextField("Email Address", text: $emailAddress)
+                    .textInputAutocapitalization(.never)
+                    .keyboardType(.emailAddress)
+            }
+        }
+        .navigationTitle(initialContact.name.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? "Add \(role.title)" : "Edit \(role.title)")
+        .navigationBarTitleDisplayMode(.inline)
+        .toolbar {
+            ToolbarItem(placement: .navigationBarLeading) {
+                Button("Cancel") {
+                    onCancel()
+                }
+            }
+
+            ToolbarItem(placement: .navigationBarTrailing) {
+                Button("Save") {
+                    onSave(
+                        ClassStaffContact(
+                            id: initialContact.id,
+                            name: name,
+                            room: room,
+                            cell: cell,
+                            extensionNumber: extensionNumber,
+                            emailAddress: emailAddress,
+                            subject: subject
+                        )
+                    )
+                }
+                .disabled(name.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+            }
+        }
+    }
 }
 
 private extension StudentDirectoryView {
     struct StudentProfileSection {
         let title: String
         let profiles: [StudentSupportProfile]
+    }
+
+    struct ClassRosterSection: Identifiable {
+        let id: String
+        let title: String
+        let summary: String
+        let profiles: [StudentSupportProfile]
+        let accent: Color
+        let definition: ClassDefinitionItem?
     }
 
     var filteredProfiles: [StudentSupportProfile] {
@@ -1753,6 +2070,51 @@ private extension StudentDirectoryView {
                     return value.isEmpty ? "Unassigned Grade" : value
                 }
             )
+        }
+    }
+
+    var classRosterSections: [ClassRosterSection] {
+        var sections: [ClassRosterSection] = classDefinitions.map { definition in
+            let linkedProfiles = filteredProfiles.filter { profile in
+                if profileMatches(classDefinitionID: definition.id, profile: profile) {
+                    return true
+                }
+
+                return linkedClassDefinitionIDs(for: profile).isEmpty &&
+                    classNamesMatch(scheduleClassName: definition.name, profileClassName: profile.className)
+            }
+
+            return ClassRosterSection(
+                id: definition.id.uuidString,
+                title: definition.name,
+                summary: rosterSectionSummary(
+                    profiles: linkedProfiles,
+                    emptyText: definition.gradeLevel.trimmingCharacters(in: .whitespacesAndNewlines)
+                ),
+                profiles: sortProfiles(linkedProfiles),
+                accent: definition.themeColor == .clear ? .indigo : definition.themeColor,
+                definition: definition
+            )
+        }
+
+        let linkedDefinitionIDs = Set(classDefinitions.map(\.id))
+        let unsavedProfiles = filteredProfiles.filter { profile in
+            Set(linkedClassDefinitionIDs(for: profile)).isDisjoint(with: linkedDefinitionIDs)
+        }
+        let unsavedSections = groupedClassSections(from: unsavedProfiles).map { section in
+            ClassRosterSection(
+                id: "custom-\(section.title)",
+                title: section.title,
+                summary: rosterSectionSummary(profiles: section.profiles),
+                profiles: section.profiles,
+                accent: .secondary,
+                definition: nil
+            )
+        }
+
+        sections.append(contentsOf: unsavedSections)
+        return sections.sorted { lhs, rhs in
+            lhs.title.localizedCaseInsensitiveCompare(rhs.title) == .orderedAscending
         }
     }
 
@@ -1802,6 +2164,16 @@ private extension StudentDirectoryView {
             )
         }
         .sorted { $0.title.localizedCaseInsensitiveCompare($1.title) == .orderedAscending }
+    }
+
+    func rosterSectionSummary(profiles: [StudentSupportProfile], emptyText: String = "Saved class") -> String {
+        let names = profiles.prefix(3).map(\.name)
+        if !names.isEmpty {
+            return names.joined(separator: ", ")
+        }
+
+        let trimmedEmptyText = emptyText.trimmingCharacters(in: .whitespacesAndNewlines)
+        return trimmedEmptyText.isEmpty ? "No linked students yet." : trimmedEmptyText
     }
 
     func sortProfiles(_ profiles: [StudentSupportProfile]) -> [StudentSupportProfile] {
