@@ -520,6 +520,9 @@ struct RootTabView: View {
                 onRefresh: {
                     manuallyRefreshSyncedData()
                 },
+                openAttendanceTab: {
+                    selectedTab = .attendance
+                },
                 openScheduleTab: {
                     selectedTab = .schedule
                 }, openStudentsTab: {
@@ -639,7 +642,7 @@ struct RootTabView: View {
             )
         }
         .tabItem {
-            tabLabel(title: "Tasks", systemImage: "checklist")
+            tabLabel(title: "Tasks", systemImage: "checkmark.rectangle.stack")
         }
         .accessibilityLabel("To Do")
         .tag(AppTab.todo)
@@ -779,6 +782,7 @@ struct RootTabView: View {
         let secondSliceSnapshot = ClassTraxPersistence.loadSecondSlice(from: modelContext)
         let thirdSliceSnapshot = ClassTraxPersistence.loadThirdSlice(from: modelContext)
         let localStudentProfiles = decodeLegacyStudentProfiles()
+        let localClassDefinitions = decodeLegacyClassDefinitions()
         let localTeacherContacts = decodeLegacyTeacherContacts()
         let localParaContacts = decodeLegacyParaContacts()
         alarms = persistenceSnapshot.alarms.map {
@@ -801,7 +805,10 @@ struct RootTabView: View {
                 ? persistenceSnapshot.studentProfiles
                 : localStudentProfiles
         )
-        classDefinitions = persistenceSnapshot.classDefinitions.sorted {
+        classDefinitions = (savedClassDefinitions.isEmpty && localClassDefinitions.isEmpty
+            ? persistenceSnapshot.classDefinitions
+            : localClassDefinitions
+        ).sorted {
             $0.displayName.localizedCaseInsensitiveCompare($1.displayName) == .orderedAscending
         }
         teacherContacts = (savedTeacherContacts.isEmpty && localTeacherContacts.isEmpty
@@ -1434,6 +1441,7 @@ struct AttendanceWorkspaceView: View {
             }
         }
         .navigationTitle("Attendance")
+        .navigationBarTitleDisplayMode(.inline)
         .sheet(item: $selectedBlock) { session in
             NavigationStack {
                 AttendanceEditorView(

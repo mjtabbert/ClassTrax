@@ -89,7 +89,21 @@ struct ScheduleView: View {
                 .background(scheduleBackground)
             }
             .navigationTitle("Schedule")
+            .navigationBarTitleDisplayMode(.inline)
             .toolbar {
+                ToolbarItem(placement: .topBarTrailing) {
+                    Button {
+                        showingAddSheet = true
+                    } label: {
+                        ToolbarMenuLabel(
+                            title: "Add",
+                            systemImage: "plus",
+                            expanded: prefersExpandedToolbar
+                        )
+                    }
+                    .disabled(isViewingActiveOverride)
+                }
+
                 ToolbarItem(placement: .topBarTrailing) {
                     Menu {
                         Button("New Block", systemImage: "plus") {

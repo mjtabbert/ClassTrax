@@ -134,13 +134,14 @@ struct StudentDirectoryView: View {
             .frame(maxWidth: 1040)
             .frame(maxWidth: .infinity)
             .navigationTitle("Class List")
+            .navigationBarTitleDisplayMode(.inline)
             .environment(\.editMode, .constant(selection.isEmpty ? .inactive : .active))
             .searchable(text: $searchText, prompt: "Search students, class, grade, or contact")
             .scrollContentBackground(.hidden)
             .background(directoryBackground)
             .listStyle(.insetGrouped)
             .onChange(of: groupingMode) { _, newValue in
-                if newValue != .className {
+                if newValue == .none {
                     expandedClassSections.removeAll()
                 }
             }
@@ -512,6 +513,37 @@ struct StudentDirectoryView: View {
                         }
                     }
                 }
+            } else if groupingMode == .gradeLevel {
+                ForEach(groupedProfiles, id: \.title) { section in
+                    Section {
+                        DisclosureGroup(
+                            isExpanded: classSectionBinding(for: "grade-\(section.title)")
+                        ) {
+                            ForEach(section.profiles) { profile in
+                                profileRow(profile)
+                            }
+                        } label: {
+                            VStack(alignment: .leading, spacing: 4) {
+                                HStack {
+                                    Text(section.title)
+                                        .fontWeight(.semibold)
+
+                                    Spacer()
+
+                                    Text("\(section.profiles.count)")
+                                        .font(.caption.weight(.semibold))
+                                        .foregroundStyle(.secondary)
+                                }
+
+                                Text(section.profiles.prefix(3).map(\.name).joined(separator: ", "))
+                                    .font(.caption)
+                                    .foregroundStyle(.secondary)
+                                    .lineLimit(1)
+                            }
+                        }
+                        .listRowBackground(sectionCardBackground(accent: .orange))
+                    }
+                }
             } else if filteredProfiles.isEmpty {
                 Section("Saved Supports") {
                     Text("No student supports saved yet.")
@@ -534,7 +566,7 @@ struct StudentDirectoryView: View {
         VStack(alignment: .leading, spacing: 14) {
             VStack(alignment: .leading, spacing: 4) {
                 Text(showsRosterDataTools ? "Student Rosters" : "Class List")
-                    .font(.headline.weight(.semibold))
+                    .font(.title3.weight(.bold))
 
                 Text(directoryOverviewSubtitle)
                     .font(.caption)

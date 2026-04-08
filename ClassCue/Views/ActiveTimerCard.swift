@@ -103,102 +103,40 @@ struct ActiveTimerCard: View {
             if landscape {
 
                 VStack(spacing: 14) {
-
-                    headerRow
-
                     Text(timeRemaining)
                         .font(.system(size: landscapeTimerSize(for: geo), weight: .bold, design: .rounded))
                         .monospacedDigit()
                         .lineLimit(1)
                         .minimumScaleFactor(0.55)
-                        .padding(.horizontal, 20)
                         .foregroundStyle(isCriticalCountdown ? .red : .primary)
                         .scaleEffect(isCriticalCountdown && pulse ? 1.04 : 0.98)
                         .animation(.easeInOut(duration: 0.55).repeatForever(autoreverses: true), value: pulse)
-
-                    if let warningStage {
-                        warningCallout(for: warningStage, compact: false)
-                    }
-
-                    detailsBlock(
-                        titleFont: isTeacherMode ? .system(size: 38, weight: .bold, design: .rounded) : .largeTitle,
-                        detailFont: isTeacherMode ? .title2 : .title3
-                    )
-
-                    controlStrip(compact: false)
                 }
                 .padding(.horizontal, 20)
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
                 .background(landscapeBackdrop)
-                .overlay(alignment: .topTrailing) {
-                    if let warningStage {
-                        warningBadge(for: warningStage)
-                            .padding(16)
-                    }
-                }
                 .clipShape(RoundedRectangle(cornerRadius: 32, style: .continuous))
 
             } else {
 
                 VStack {
-
-                    ZStack(alignment: .top) {
-
-                        Circle()
-                            .stroke(Color.gray.opacity(0.15), lineWidth: 20)
-
-                        Circle()
-                            .trim(from: 0, to: progress)
-                            .stroke(
-                                AngularGradient(
-                                    gradient: Gradient(colors: [
-                                        ringPrimaryColor,
-                                        ringSecondaryColor,
-                                        ringPrimaryColor
-                                    ]),
-                                    center: .center
-                                ),
-                                style: StrokeStyle(
-                                    lineWidth: 20,
-                                    lineCap: .round
-                                )
-                            )
-                            .rotationEffect(.degrees(-90))
-                            .shadow(color: ringPrimaryColor.opacity(0.28), radius: 10)
-                            .overlay(
-                                Circle()
-                                    .trim(from: 0, to: progress)
-                                    .stroke(isCriticalCountdown ? Color.red.opacity(0.28) : .clear, lineWidth: 28)
-                                    .blur(radius: 8)
-                                    .rotationEffect(.degrees(-90))
-                                    .scaleEffect(isCriticalCountdown && pulse ? 1.03 : 0.98)
-                            )
-
-                        VStack(spacing: 8) {
-
-                            headerRow
-
-                            Text(timeRemaining)
-                                .font(.system(size: min(geo.size.width * 0.16, 48), weight: .bold, design: .rounded))
-                                .monospacedDigit()
-                                .lineLimit(1)
-                                .minimumScaleFactor(0.6)
-                                .padding(.horizontal, 24)
-                                .foregroundStyle(isCriticalCountdown ? .red : .primary)
-                                .scaleEffect(isCriticalCountdown && pulse ? 1.04 : 0.98)
-
-                            if let warningStage {
-                                warningCallout(for: warningStage, compact: true)
-                            }
-
-                            detailsBlock(titleFont: .title3, detailFont: .caption)
-
-                            controlStrip(compact: true)
-                        }
-                        .padding(.horizontal, 18)
+                    VStack(alignment: .leading, spacing: 12) {
+                        Text(timeRemaining)
+                            .font(.system(size: min(geo.size.width * 0.18, 56), weight: .black, design: .rounded))
+                            .monospacedDigit()
+                            .lineLimit(1)
+                            .minimumScaleFactor(0.64)
+                            .foregroundStyle(isCriticalCountdown ? .red : .primary)
+                            .scaleEffect(isCriticalCountdown && pulse ? 1.03 : 0.99)
+                            .frame(maxWidth: .infinity, alignment: .center)
                     }
-                    .frame(width: 280, height: 280)
-
+                    .padding(.horizontal, 16)
+                    .padding(.vertical, 14)
+                    .background(currentBlockBackdrop)
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 22, style: .continuous)
+                            .stroke(currentBlockBorderColor, lineWidth: 1)
+                    )
                 }
                 .frame(maxWidth: .infinity)
             }
@@ -317,6 +255,24 @@ struct ActiveTimerCard: View {
             )
     }
 
+    private var currentBlockBackdrop: some View {
+        RoundedRectangle(cornerRadius: 22, style: .continuous)
+            .fill(
+                LinearGradient(
+                    colors: [
+                        ringPrimaryColor.opacity(isCriticalCountdown ? 0.18 : 0.14),
+                        Color(.secondarySystemBackground).opacity(0.96)
+                    ],
+                    startPoint: .topLeading,
+                    endPoint: .bottomTrailing
+                )
+            )
+    }
+
+    private var currentBlockBorderColor: Color {
+        (isCriticalCountdown ? Color.red : ringPrimaryColor).opacity(isCriticalCountdown ? 0.32 : 0.18)
+    }
+
     private var warningBackdropColor: Color {
         warningStage?.tint ?? ringSecondaryColor
     }
@@ -362,6 +318,76 @@ struct ActiveTimerCard: View {
         )
         .scaleEffect(pulse ? 1.01 : 0.99)
     }
+
+    @ViewBuilder
+    private var currentBlockHeader: some View {
+        HStack(alignment: .top, spacing: 12) {
+            ZStack {
+                RoundedRectangle(cornerRadius: 10, style: .continuous)
+                    .fill(ringPrimaryColor.opacity(item.type == .blank ? 0.10 : 0.16))
+                    .frame(width: 38, height: 58)
+
+                Image(systemName: item.type.symbolName)
+                    .font(.system(size: 16, weight: .bold))
+                    .foregroundStyle(item.type == .blank ? .secondary : ringPrimaryColor)
+            }
+
+            VStack(alignment: .leading, spacing: 6) {
+                HStack(alignment: .firstTextBaseline, spacing: 8) {
+                    Text(item.displayClassName)
+                        .font(.headline.weight(.bold))
+                        .foregroundStyle(.primary)
+                        .lineLimit(1)
+                        .minimumScaleFactor(0.75)
+
+                    statusPill(
+                        "Now",
+                        tint: ringPrimaryColor,
+                        foregroundStyle: AnyShapeStyle(.white)
+                    )
+
+                    Spacer(minLength: 6)
+
+                    if item.type != .blank {
+                        TypeBadge(type: item.type)
+                    }
+                }
+
+                HStack(spacing: 10) {
+                    Text(timeRangeText)
+                        .font(.caption.weight(.semibold))
+                        .foregroundStyle(.secondary)
+
+                    let room = item.location.trimmingCharacters(in: .whitespacesAndNewlines)
+                    if !room.isEmpty {
+                        Text(room)
+                            .font(.caption2.weight(.medium))
+                            .foregroundStyle(.secondary)
+                            .lineLimit(1)
+                    }
+                }
+
+                HStack(spacing: 8) {
+                    if isHeld {
+                        statusPill(
+                            "Hold",
+                            tint: .orange,
+                            foregroundStyle: AnyShapeStyle(.white)
+                        )
+                    }
+
+                    if bellSkipped {
+                        statusPill(
+                            "Bell Skipped",
+                            tint: Color(.systemGray5),
+                            foregroundStyle: AnyShapeStyle(.secondary)
+                        )
+                    }
+                }
+            }
+        }
+    }
+
 
     private var anchoredEndTime: Date {
         guard let anchoredEnd = anchoredTime(for: item.endTime) else {

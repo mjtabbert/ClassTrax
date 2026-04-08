@@ -486,6 +486,7 @@ struct AddEditView: View {
     }
 
     private func restoreDraftIfNeeded() {
+        guard existing != nil else { return }
         guard let draft = try? JSONDecoder().decode(Draft.self, from: savedDraftData) else { return }
         guard draft.existingID == existing?.id else { return }
         name = draft.name

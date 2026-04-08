@@ -110,6 +110,7 @@ struct EditStudentSupportView: View {
                         }
                     }
                     TextField("Graduation Year", text: $graduationYear)
+                        .keyboardType(.numberPad)
                     Toggle("Additional Supports", isOn: $isSped)
                 }
 

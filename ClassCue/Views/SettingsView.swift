@@ -14,7 +14,7 @@ import ActivityKit
 import SwiftData
 
 struct SettingsView: View {
-    private enum SettingsDestination: String, Identifiable, CaseIterable {
+    private enum SettingsDestination: String, Identifiable, CaseIterable, Hashable {
         case alerts = "Alerts"
         case boundaries = "After Hours"
         case todayLayout = "Today Layout"
@@ -53,6 +53,41 @@ struct SettingsView: View {
                 return "wrench.and.screwdriver"
             case .about:
                 return "info.circle"
+            }
+        }
+    }
+
+    private enum DiagnosticsTool: String, Identifiable, CaseIterable {
+        case launchReadiness
+        case debugScreen
+
+        var id: String { rawValue }
+
+        var title: String {
+            switch self {
+            case .launchReadiness:
+                return "Launch Readiness"
+            case .debugScreen:
+                return "Debug Screen"
+            }
+        }
+
+        var summary: String {
+            switch self {
+            case .launchReadiness:
+                return "Startup checks and launch-state inspection"
+            case .debugScreen:
+                return "Deep app-state inspection and troubleshooting"
+            }
+        }
+
+        @ViewBuilder
+        var destinationView: some View {
+            switch self {
+            case .launchReadiness:
+                LaunchPrepView()
+            case .debugScreen:
+                DebugView()
             }
         }
     }
@@ -107,10 +142,12 @@ struct SettingsView: View {
     @State private var commitments: [CommitmentItem] = []
     @State private var exportURL: URL?
     @State private var showingShareSheet = false
-    @State private var dashboardCardOrder = TodayView.TodayDashboardCard.defaultOrder
-    @State private var hiddenDashboardCards = Set<TodayView.TodayDashboardCard>()
+    @State private var dashboardCardOrder = TodayDashboardCard.defaultOrder
+    @State private var hiddenDashboardCards = Set<TodayDashboardCard>()
     @State private var isLoadingInitialState = false
     @State private var hasLoadedInitialState = false
+
+    private let diagnosticsToolsEnabled = true
 
     init(
         studentProfiles: Binding<[StudentSupportProfile]>,
@@ -126,6 +163,9 @@ struct SettingsView: View {
 
     var body: some View {
         settingsContent
+            .navigationDestination(for: SettingsDestination.self) { destination in
+                settingsDestinationView(destination)
+            }
     }
 
     private var settingsListContent: some View {
@@ -138,89 +178,47 @@ struct SettingsView: View {
             }
 
             Section("Daily Use") {
-                NavigationLink {
-                    settingsDestinationView(.alerts)
-                        .onChange(of: selectedSoundRawValue) { _, _ in refreshNotifications() }
-                        .onChange(of: warningFiveSoundRawValue) { _, _ in refreshNotifications() }
-                        .onChange(of: warningTwoSoundRawValue) { _, _ in refreshNotifications() }
-                        .onChange(of: warningOneSoundRawValue) { _, _ in refreshNotifications() }
-                } label: {
+                NavigationLink(value: SettingsDestination.alerts) {
                     settingsRowLabel(.alerts, detail: "Bell sounds, warning cues, and haptics")
                 }
 
-                NavigationLink {
-                    settingsDestinationView(.boundaries)
-                        .onChange(of: schoolQuietHoursEnabled) { _, _ in
-                            syncSchoolQuietStart()
-                            refreshNotifications()
-                        }
-                        .onChange(of: schoolQuietStart) { _, newValue in
-                            let components = Calendar.current.dateComponents([.hour, .minute], from: newValue)
-                            schoolQuietHour = components.hour ?? 16
-                            schoolQuietMinute = components.minute ?? 0
-                            refreshNotifications()
-                        }
-                } label: {
+                NavigationLink(value: SettingsDestination.boundaries) {
                     settingsRowLabel(.boundaries, detail: "Quiet hours and after-school behavior")
                 }
 
-                NavigationLink {
-                    settingsDestinationView(.todayLayout)
-                        .onChange(of: dashboardCardOrder) { _, _ in
-                            persistTodayLayoutSettings()
-                        }
-                        .onChange(of: hiddenDashboardCards) { _, _ in
-                            persistTodayLayoutSettings()
-                        }
-                } label: {
+                NavigationLink(value: SettingsDestination.todayLayout) {
                     settingsRowLabel(.todayLayout, detail: "Choose what appears on the Today dashboard")
                 }
 
-                NavigationLink {
-                    settingsDestinationView(.classroomSetup)
-                } label: {
+                NavigationLink(value: SettingsDestination.classroomSetup) {
                     settingsRowLabel(.classroomSetup, detail: "Saved classes, roster tools, and staff setup")
                 }
 
-                NavigationLink {
-                    settingsDestinationView(.subPlans)
-                } label: {
+                NavigationLink(value: SettingsDestination.subPlans) {
                     settingsRowLabel(.subPlans, detail: "Reusable sub plans and daily prep")
                 }
 
-                NavigationLink {
-                    settingsDestinationView(.data)
-                } label: {
+                NavigationLink(value: SettingsDestination.data) {
                     settingsRowLabel(.data, detail: "Import, export, and local data utilities")
                 }
 
-                NavigationLink {
-                    settingsDestinationView(.liveActivities)
-                } label: {
+                NavigationLink(value: SettingsDestination.liveActivities) {
                     settingsRowLabel(.liveActivities, detail: "Live Activity and lock screen controls")
                 }
 
-                NavigationLink {
-                    settingsDestinationView(.cloudSync)
-                } label: {
+                NavigationLink(value: SettingsDestination.cloudSync) {
                     settingsRowLabel(.cloudSync, detail: "CloudKit status and sync diagnostics")
                 }
 
-                NavigationLink {
-                    settingsDestinationView(.integrations)
-                } label: {
+                NavigationLink(value: SettingsDestination.integrations) {
                     settingsRowLabel(.integrations, detail: "Widgets, watch, and related integrations")
                 }
 
-                NavigationLink {
-                    settingsDestinationView(.diagnostics)
-                } label: {
+                NavigationLink(value: SettingsDestination.diagnostics) {
                     settingsRowLabel(.diagnostics, detail: "Debug details, logs, and troubleshooting")
                 }
 
-                NavigationLink {
-                    settingsDestinationView(.about)
-                } label: {
+                NavigationLink(value: SettingsDestination.about) {
                     settingsRowLabel(.about, detail: "App details and version information")
                 }
             }
@@ -237,6 +235,7 @@ struct SettingsView: View {
             configureHolidayMode()
         }
         .navigationTitle("Settings")
+        .navigationBarTitleDisplayMode(.inline)
         .scrollContentBackground(.hidden)
         .background(settingsBackground)
     }
@@ -245,7 +244,7 @@ struct SettingsView: View {
         VStack(alignment: .leading, spacing: 14) {
             VStack(alignment: .leading, spacing: 4) {
                 Text("Settings")
-                    .font(.headline.weight(.semibold))
+                    .font(.title3.weight(.bold))
 
                 Text("System preferences, sync controls, and classroom setup tools live here now.")
                     .font(.caption)
@@ -452,7 +451,9 @@ struct SettingsView: View {
             settingsLink(.cloudSync, detail: ClassTraxPersistence.activeContainerMode.rawValue)
             settingsLink(.liveActivities, detail: liveActivitiesEnabledPreference ? "Enabled" : "Disabled")
             settingsLink(.data, detail: "Import and export schedule CSV")
-            settingsLink(.diagnostics, detail: "Launch readiness and debug")
+            if diagnosticsToolsEnabled {
+                settingsLink(.diagnostics, detail: diagnosticsSummaryText)
+            }
             settingsLink(.about, detail: "App info")
         }
     }
@@ -572,7 +573,7 @@ struct SettingsView: View {
         case .data:
             return "CSV"
         case .diagnostics:
-            return "Inspect"
+            return diagnosticsToolsEnabled ? "\(diagnosticsTools.count)" : "Off"
         case .about:
             return "Info"
         }
@@ -599,7 +600,7 @@ struct SettingsView: View {
         case .data:
             return .cyan
         case .diagnostics:
-            return .red
+            return diagnosticsToolsEnabled ? .red : .gray
         case .about:
             return .blue
         }
@@ -615,6 +616,12 @@ struct SettingsView: View {
             .navigationTitle(destination.rawValue)
             .scrollContentBackground(.hidden)
             .background(settingsBackground)
+            .onChange(of: dashboardCardOrder) { _, _ in
+                persistTodayLayoutSettings()
+            }
+            .onChange(of: hiddenDashboardCards) { _, _ in
+                persistTodayLayoutSettings()
+            }
         } else {
         Form {
             Section {
@@ -644,7 +651,7 @@ struct SettingsView: View {
             case .data:
                 dataManagementSection
             case .diagnostics:
-                appToolsSection
+                diagnosticsSection
             case .about:
                 aboutSection
             }
@@ -654,6 +661,34 @@ struct SettingsView: View {
         .background(settingsBackground)
         .task {
             ensureDataLoadedIfNeeded()
+        }
+        .onChange(of: selectedSoundRawValue) { _, _ in
+            guard destination == .alerts else { return }
+            refreshNotifications()
+        }
+        .onChange(of: warningFiveSoundRawValue) { _, _ in
+            guard destination == .alerts else { return }
+            refreshNotifications()
+        }
+        .onChange(of: warningTwoSoundRawValue) { _, _ in
+            guard destination == .alerts else { return }
+            refreshNotifications()
+        }
+        .onChange(of: warningOneSoundRawValue) { _, _ in
+            guard destination == .alerts else { return }
+            refreshNotifications()
+        }
+        .onChange(of: schoolQuietHoursEnabled) { _, _ in
+            guard destination == .boundaries else { return }
+            syncSchoolQuietStart()
+            refreshNotifications()
+        }
+        .onChange(of: schoolQuietStart) { _, newValue in
+            guard destination == .boundaries else { return }
+            let components = Calendar.current.dateComponents([.hour, .minute], from: newValue)
+            schoolQuietHour = components.hour ?? 16
+            schoolQuietMinute = components.minute ?? 0
+            refreshNotifications()
         }
         }
     }
@@ -679,7 +714,9 @@ struct SettingsView: View {
         case .data:
             return "Import and export the schedule CSV. Student and class roster CSV tools live in Class List."
         case .diagnostics:
-            return "Open launch readiness and debugging tools when you need to inspect the app state."
+            return diagnosticsToolsEnabled
+                ? "Open removable troubleshooting tools when you need to inspect startup behavior or internal app state."
+                : "Diagnostics tools are currently hidden from Settings."
         case .about:
             return "View app information and general project details."
         }
@@ -714,18 +751,18 @@ struct SettingsView: View {
     private func loadTodayLayoutSettings() {
         let storedOrder = storedDashboardCardOrder
             .split(separator: ",")
-            .compactMap { TodayView.TodayDashboardCard(rawValue: String($0)) }
+            .compactMap { TodayDashboardCard(rawValue: String($0)) }
         if storedOrder.isEmpty {
-            dashboardCardOrder = TodayView.TodayDashboardCard.defaultOrder
+            dashboardCardOrder = TodayDashboardCard.defaultOrder
         } else {
-            let missingCards = TodayView.TodayDashboardCard.defaultOrder.filter { !storedOrder.contains($0) }
+            let missingCards = TodayDashboardCard.defaultOrder.filter { !storedOrder.contains($0) }
             dashboardCardOrder = storedOrder + missingCards
         }
 
         hiddenDashboardCards = Set(
             storedHiddenDashboardCards
                 .split(separator: ",")
-                .compactMap { TodayView.TodayDashboardCard(rawValue: String($0)) }
+                .compactMap { TodayDashboardCard(rawValue: String($0)) }
         )
     }
 
@@ -1059,7 +1096,8 @@ struct SettingsView: View {
                             commitments: commitments,
                             into: modelContext
                         )
-                    }
+                    },
+                    onPrepareStudentEditor: {}
                 )
             } label: {
                 LabeledContent("Student Directory") {
@@ -1155,15 +1193,19 @@ struct SettingsView: View {
 
     private var dataManagementSection: some View {
         Section("Data Management") {
-            NavigationLink("Import Schedule CSV") {
+            NavigationLink {
                 ImportView(alarms: $alarms)
+            } label: {
+                Text("Import Schedule CSV")
             }
 
-            NavigationLink("Export Schedule CSV") {
+            NavigationLink {
                 ExportView(alarms: $alarms)
+            } label: {
+                Text("Export Schedule CSV")
             }
 
-            NavigationLink("Student Roster Data") {
+            NavigationLink {
                 StudentDirectoryView(
                     profiles: $studentProfiles,
                     classDefinitions: $classDefinitions,
@@ -1205,8 +1247,11 @@ struct SettingsView: View {
                             commitments: commitments,
                             into: modelContext
                         )
-                    }
+                    },
+                    onPrepareStudentEditor: {}
                 )
+            } label: {
+                Text("Student Roster Data")
             }
 
             Text("Schedule CSV tools stay here, and student roster CSV import/export now lives here too. Class List stays focused on managing students and saved classes.")
@@ -1215,16 +1260,36 @@ struct SettingsView: View {
         }
     }
 
-    private var appToolsSection: some View {
+    private var diagnosticsSection: some View {
         Section("Diagnostics") {
-            NavigationLink("Launch Readiness") {
-                LaunchPrepView()
-            }
-
-            NavigationLink("Debug Screen") {
-                DebugView()
+            if diagnosticsToolsEnabled {
+                ForEach(diagnosticsTools) { tool in
+                    NavigationLink {
+                        tool.destinationView
+                    } label: {
+                        LabeledContent(tool.title) {
+                            Text(tool.summary)
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                        }
+                    }
+                }
+            } else {
+                Text("Diagnostics tools are disabled for this build.")
+                    .font(.footnote)
+                    .foregroundStyle(.secondary)
             }
         }
+    }
+
+    private var diagnosticsTools: [DiagnosticsTool] {
+        diagnosticsToolsEnabled ? DiagnosticsTool.allCases : []
+    }
+
+    private var diagnosticsSummaryText: String {
+        diagnosticsTools
+            .map(\.title)
+            .joined(separator: " • ")
     }
 
     private var aboutSection: some View {

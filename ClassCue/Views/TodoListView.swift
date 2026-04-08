@@ -225,6 +225,7 @@ struct TodoListView: View {
                 onRefresh()
             }
             .navigationTitle("To Do")
+            .navigationBarTitleDisplayMode(.inline)
             .scrollContentBackground(.hidden)
             .background(todoBackground)
             .listStyle(.insetGrouped)
@@ -398,7 +399,7 @@ struct TodoListView: View {
             HStack(alignment: .top, spacing: 12) {
                 VStack(alignment: .leading, spacing: 4) {
                     Text("Tasks")
-                        .font(.headline.weight(.semibold))
+                        .font(.title3.weight(.bold))
 
                     Text(todoHeaderSummary)
                         .font(.caption)

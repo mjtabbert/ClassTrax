@@ -720,6 +720,7 @@ enum ClassTraxPersistence {
     enum ContainerMode: String {
         case cloudKit = "CloudKit"
         case localFallback = "Local Fallback"
+        case inMemoryRecovery = "In-Memory Recovery"
     }
 
     static let firstSliceMigrationKey = "swiftdata_first_slice_migration_v1"
@@ -846,65 +847,70 @@ enum ClassTraxPersistence {
     }
 
     static let sharedModelContainer: ModelContainer = {
+        let cloudConfiguration = ModelConfiguration(
+            "ClassTrax",
+            cloudKitDatabase: .private(cloudKitContainerIdentifier)
+        )
+
         do {
-            let cloudConfiguration = ModelConfiguration(
+            let container = try makeModelContainer(configuration: cloudConfiguration)
+            activeContainerMode = .cloudKit
+            lastContainerStatusMessage = "Using CloudKit container \(cloudKitContainerIdentifier)."
+            return container
+        } catch {
+            let cloudFailureMessage = "CloudKit-backed SwiftData container unavailable. Falling back to local store: \(describe(error: error))"
+            NSLog("%@", cloudFailureMessage)
+
+            let localConfiguration = ModelConfiguration(
                 "ClassTrax",
-                cloudKitDatabase: .private(cloudKitContainerIdentifier)
+                cloudKitDatabase: .none
             )
+
             do {
-                let container = try ModelContainer(
-                    for:
-                        PersistedAlarmItem.self,
-                        PersistedStudentSupportProfile.self,
-                        PersistedClassDefinitionItem.self,
-                        PersistedSupportStaffMember.self,
-                        PersistedCommitmentItem.self,
-                        PersistedTodoItem.self,
-                        PersistedFollowUpNoteItem.self,
-                        PersistedSubPlanItem.self,
-                        PersistedDailySubPlanItem.self,
-                        PersistedAttendanceRecord.self,
-                        PersistedScheduleProfile.self,
-                        PersistedDayOverride.self,
-                        PersistedSubPlanProfile.self,
-                    configurations: cloudConfiguration
-                )
-                activeContainerMode = .cloudKit
-                lastContainerStatusMessage = "Using CloudKit container \(cloudKitContainerIdentifier)."
+                let container = try makeModelContainer(configuration: localConfiguration)
+                activeContainerMode = .localFallback
+                lastContainerStatusMessage = cloudFailureMessage
                 return container
             } catch {
-                let message = "CloudKit-backed SwiftData container unavailable. Falling back to local store: \(describe(error: error))"
-                NSLog("%@", message)
+                let localFailureMessage = "Local SwiftData store unavailable. Starting in-memory recovery container: \(describe(error: error))"
+                NSLog("%@", localFailureMessage)
 
-                let localConfiguration = ModelConfiguration(
-                    "ClassTrax",
-                    cloudKitDatabase: .none
-                )
-                let container = try ModelContainer(
-                    for:
-                        PersistedAlarmItem.self,
-                        PersistedStudentSupportProfile.self,
-                        PersistedClassDefinitionItem.self,
-                        PersistedSupportStaffMember.self,
-                        PersistedCommitmentItem.self,
-                        PersistedTodoItem.self,
-                        PersistedFollowUpNoteItem.self,
-                        PersistedSubPlanItem.self,
-                        PersistedDailySubPlanItem.self,
-                        PersistedAttendanceRecord.self,
-                        PersistedScheduleProfile.self,
-                        PersistedDayOverride.self,
-                        PersistedSubPlanProfile.self,
-                    configurations: localConfiguration
-                )
-                activeContainerMode = .localFallback
-                lastContainerStatusMessage = message
-                return container
+                do {
+                    let recoveryConfiguration = ModelConfiguration(
+                        "ClassTrax Recovery",
+                        isStoredInMemoryOnly: true,
+                        cloudKitDatabase: .none
+                    )
+                    let container = try makeModelContainer(configuration: recoveryConfiguration)
+                    activeContainerMode = .inMemoryRecovery
+                    lastContainerStatusMessage = "\(cloudFailureMessage) \(localFailureMessage)"
+                    return container
+                } catch {
+                    fatalError("Unable to create any SwiftData container, including in-memory recovery: \(error)")
+                }
             }
-        } catch {
-            fatalError("Unable to create SwiftData container: \(error)")
         }
     }()
+
+    private static func makeModelContainer(configuration: ModelConfiguration) throws -> ModelContainer {
+        try ModelContainer(
+            for:
+                PersistedAlarmItem.self,
+                PersistedStudentSupportProfile.self,
+                PersistedClassDefinitionItem.self,
+                PersistedSupportStaffMember.self,
+                PersistedCommitmentItem.self,
+                PersistedTodoItem.self,
+                PersistedFollowUpNoteItem.self,
+                PersistedSubPlanItem.self,
+                PersistedDailySubPlanItem.self,
+                PersistedAttendanceRecord.self,
+                PersistedScheduleProfile.self,
+                PersistedDayOverride.self,
+                PersistedSubPlanProfile.self,
+            configurations: configuration
+        )
+    }
 
     static func initializeCloudKitDevelopmentSchemaIfNeeded() {
 #if DEBUG

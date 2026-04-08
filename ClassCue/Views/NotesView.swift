@@ -270,7 +270,7 @@ struct NotesView: View {
             HStack(alignment: .top, spacing: 12) {
                 VStack(alignment: .leading, spacing: 4) {
                     Text("Notes")
-                        .font(.headline.weight(.semibold))
+                        .font(.title3.weight(.bold))
 
                     Text(notesHeaderSummary)
                         .font(.caption)
