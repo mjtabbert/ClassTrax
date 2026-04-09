@@ -18,6 +18,7 @@ final class PersistedAlarmItem: PersistedUUIDModel {
     var dayOfWeekValue: Int?
     var gradeLevelValue: String = ""
     var classDefinitionID: UUID?
+    var classDefinitionIDsRawValue: String = ""
     var linkedStudentIDsRawValue: String = ""
     var warningLeadTimesRawValue: String = "5,2,1"
 
@@ -35,6 +36,9 @@ final class PersistedAlarmItem: PersistedUUIDModel {
         self.dayOfWeekValue = item.dayOfWeekValue
         self.gradeLevelValue = item.gradeLevel
         self.classDefinitionID = item.classDefinitionID
+        self.classDefinitionIDsRawValue = item.linkedClassDefinitionIDs
+            .map(\.uuidString)
+            .joined(separator: ",")
         self.linkedStudentIDsRawValue = item.linkedStudentIDs
             .map(\.uuidString)
             .joined(separator: ",")
@@ -54,6 +58,9 @@ final class PersistedAlarmItem: PersistedUUIDModel {
             dayOfWeek: dayOfWeekValue,
             gradeLevel: gradeLevelValue,
             classDefinitionID: classDefinitionID,
+            classDefinitionIDs: classDefinitionIDsRawValue
+                .split(separator: ",")
+                .compactMap { UUID(uuidString: String($0)) },
             linkedStudentIDs: linkedStudentIDsRawValue
                 .split(separator: ",")
                 .compactMap { UUID(uuidString: String($0)) }

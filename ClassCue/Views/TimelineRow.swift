@@ -11,6 +11,8 @@ import SwiftUI
 struct TimelineRow: View {
     
     let item: AlarmItem
+    var classDefinitions: [ClassDefinitionItem] = []
+    var workflowMode: TeacherWorkflowMode = .classroom
     let now: Date
     let isHero: Bool
     
@@ -21,6 +23,10 @@ struct TimelineRow: View {
         let isCurrent = now >= start && now < end
         let isTransition = item.type == .transition
         let countdownText = timeUntilStartText()
+        let context = item.instructionalContextSummary(using: classDefinitions, workflowMode: workflowMode)
+        let linkedContextNames = item.linkedInstructionalContextNames(using: classDefinitions, workflowMode: workflowMode)
+        let hasMultipleContexts = linkedContextNames.count > 1
+        let linkedContextSummary = hasMultipleContexts ? linkedContextNames.joined(separator: " • ") : ""
 
         HStack(alignment: .top, spacing: 12) {
             ZStack {
@@ -33,9 +39,9 @@ struct TimelineRow: View {
                     .foregroundStyle(item.type == .blank ? .secondary : item.type.themeColor)
             }
 
-            VStack(alignment: .leading, spacing: 6) {
-                HStack(alignment: .firstTextBaseline, spacing: 8) {
-                    Text(item.displayClassName)
+                VStack(alignment: .leading, spacing: 6) {
+                    HStack(alignment: .firstTextBaseline, spacing: 8) {
+                    Text(context.displayTitle)
                         .font(isHero ? .headline : .subheadline)
                         .fontWeight(isCurrent ? .black : .bold)
                         .italic(isTransition)
@@ -57,6 +63,42 @@ struct TimelineRow: View {
                     TypeBadge(type: item.type)
                 }
 
+                if workflowMode != .classroom {
+                    HStack(spacing: 6) {
+                        Text(context.kind.displayName)
+                            .font(.caption2.weight(.bold))
+                            .foregroundStyle(item.type == .blank ? .secondary : item.type.themeColor)
+                            .padding(.horizontal, 8)
+                            .padding(.vertical, 3)
+                            .background(
+                                Capsule(style: .continuous)
+                                    .fill((item.type == .blank ? Color.secondary : item.type.themeColor).opacity(0.12))
+                            )
+
+                        if hasMultipleContexts {
+                            Text("\(linkedContextNames.count) contexts")
+                                .font(.caption2.weight(.bold))
+                                .foregroundStyle(.secondary)
+                                .padding(.horizontal, 8)
+                                .padding(.vertical, 3)
+                                .background(
+                                    Capsule(style: .continuous)
+                                        .fill(Color.secondary.opacity(0.12))
+                                )
+                        }
+                    }
+                } else if hasMultipleContexts {
+                    Text("\(linkedContextNames.count) contexts")
+                        .font(.caption2.weight(.bold))
+                        .foregroundStyle(.secondary)
+                        .padding(.horizontal, 8)
+                        .padding(.vertical, 3)
+                        .background(
+                            Capsule(style: .continuous)
+                                .fill(Color.secondary.opacity(0.12))
+                        )
+                }
+
                 HStack(spacing: 10) {
                     Text(timeRangeText(start: start, end: end))
                         .font(.caption.weight(.semibold))
@@ -68,6 +110,13 @@ struct TimelineRow: View {
                             .foregroundColor(.secondary)
                             .lineLimit(1)
                     }
+                }
+
+                if hasMultipleContexts {
+                    Text(linkedContextSummary)
+                        .font(.caption2)
+                        .foregroundStyle(.secondary)
+                        .lineLimit(2)
                 }
 
                 if isHero, let countdownText {

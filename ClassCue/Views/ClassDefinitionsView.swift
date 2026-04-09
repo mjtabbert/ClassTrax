@@ -3,9 +3,29 @@ import SwiftUI
 struct ClassDefinitionsView: View {
     @Binding var classDefinitions: [ClassDefinitionItem]
     @Binding var profiles: [StudentSupportProfile]
+    @AppStorage("teacher_workflow_mode_v1") private var teacherWorkflowModeRawValue = TeacherWorkflowMode.classroom.rawValue
 
     @State private var showingAdd = false
     @State private var editingDefinition: ClassDefinitionItem?
+
+    private var teacherWorkflowMode: TeacherWorkflowMode {
+        TeacherWorkflowMode(rawValue: teacherWorkflowModeRawValue) ?? .classroom
+    }
+
+    private var definitionsTitle: String {
+        switch teacherWorkflowMode {
+        case .classroom:
+            return "Saved Classes"
+        case .resourceSped:
+            return "Saved Groups"
+        case .hybrid:
+            return "Saved Classes & Groups"
+        }
+    }
+
+    private var addDefinitionTitle: String {
+        teacherWorkflowMode == .classroom ? "Add Class" : "Add Group"
+    }
 
     var body: some View {
         List {
@@ -17,16 +37,20 @@ struct ClassDefinitionsView: View {
             }
 
             if classDefinitions.isEmpty {
-                Section("Saved Classes") {
+                Section(definitionsTitle) {
                     ContentUnavailableView(
-                        "No Saved Classes Yet",
+                        teacherWorkflowMode == .classroom ? "No Saved Classes Yet" : "No Saved Groups Yet",
                         systemImage: "books.vertical",
-                        description: Text("Add your classes once, then reuse them in schedules and student supports.")
+                        description: Text(
+                            teacherWorkflowMode == .classroom
+                                ? "Add your classes once, then reuse them in schedules and student supports."
+                                : "Add reusable teaching groups once, then reuse them in schedules, supports, and service workflows."
+                        )
                     )
                     .listRowBackground(sectionCardBackground(accent: .blue))
                 }
             } else {
-                Section("Saved Classes") {
+                Section(definitionsTitle) {
                     ForEach(classDefinitions) { definition in
                         Button {
                             editingDefinition = definition
@@ -50,7 +74,7 @@ struct ClassDefinitionsView: View {
             }
         }
         .listStyle(.insetGrouped)
-        .navigationTitle("Saved Classes")
+        .navigationTitle(definitionsTitle)
         .scrollContentBackground(.hidden)
         .background(classDefinitionsBackground)
         .toolbar {
@@ -58,7 +82,7 @@ struct ClassDefinitionsView: View {
                 Button {
                     showingAdd = true
                 } label: {
-                    ToolbarMenuLabel(title: "Add", systemImage: "plus", expanded: false)
+                    ToolbarMenuLabel(title: addDefinitionTitle, systemImage: "plus", expanded: false)
                 }
             }
         }
@@ -131,6 +155,16 @@ struct ClassDefinitionsView: View {
                         .fontWeight(.semibold)
                         .foregroundStyle(.primary)
 
+                    Text(definition.instructionalContextKind(for: teacherWorkflowMode).displayName)
+                        .font(.caption2.weight(.bold))
+                        .foregroundStyle(accent)
+                        .padding(.horizontal, 8)
+                        .padding(.vertical, 4)
+                        .background(
+                            Capsule(style: .continuous)
+                                .fill(accent.opacity(0.10))
+                        )
+
                     Text("\(linkedCount) linked")
                         .font(.caption2.weight(.bold))
                         .foregroundStyle(accent)
@@ -158,10 +192,14 @@ struct ClassDefinitionsView: View {
         VStack(alignment: .leading, spacing: 14) {
             HStack(alignment: .top, spacing: 12) {
                 VStack(alignment: .leading, spacing: 4) {
-                    Text("Saved Classes")
+                    Text(definitionsTitle)
                         .font(.headline.weight(.semibold))
 
-                    Text("Reusable class definitions keep schedules and student links aligned without extra setup.")
+                    Text(
+                        teacherWorkflowMode == .classroom
+                            ? "Reusable class definitions keep schedules and student links aligned without extra setup."
+                            : "Reusable class and group definitions keep schedules and student links aligned without extra setup."
+                    )
                         .font(.caption)
                         .foregroundStyle(.secondary)
                         .lineLimit(2)
@@ -172,7 +210,7 @@ struct ClassDefinitionsView: View {
                 Button {
                     showingAdd = true
                 } label: {
-                    Label("Add Class", systemImage: "plus")
+                    Label(addDefinitionTitle, systemImage: "plus")
                         .font(.caption.weight(.semibold))
                 }
                 .buttonStyle(.borderedProminent)
@@ -181,7 +219,7 @@ struct ClassDefinitionsView: View {
 
             HStack(spacing: 12) {
                 summaryPill(
-                    title: "Classes",
+                    title: teacherWorkflowMode == .classroom ? "Classes" : "Groups",
                     value: "\(classDefinitions.count)",
                     accent: .blue
                 )

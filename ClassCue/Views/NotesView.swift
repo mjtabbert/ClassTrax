@@ -15,13 +15,13 @@ struct NotesView: View {
             case .all:
                 return "All"
             case .general:
-                return "School"
+                return "School Log"
             case .personal:
                 return "Personal"
             case .classNotes:
-                return "Class Notes"
+                return "Class Log"
             case .studentNotes:
-                return "Student"
+                return "Student Notes"
             }
         }
 
@@ -45,7 +45,7 @@ struct NotesView: View {
             case .all:
                 return "Class Trax Notes Overview Export"
             case .general:
-                return "Class Trax School Notes Export"
+                return "Class Trax School Log Export"
             case .personal:
                 return "Class Trax Personal Notes Export"
             case .classNotes:
@@ -153,7 +153,7 @@ struct NotesView: View {
                             onRefresh()
                         }
 
-                        Button("Daily Sub Plan", systemImage: "doc.text") {
+                        Button("Prep & Handoff", systemImage: "doc.text") {
                             openTodayTab()
                         }
                     } label: {
@@ -241,13 +241,13 @@ struct NotesView: View {
     private var notesHeaderSummary: String {
         switch notesMode {
         case .all:
-            return "Review school, personal, class, and student notes together."
+            return "Review school logs, personal notes, class notes, and student notes together."
         case .general:
-            return "Capture school-day reminders, meetings, and follow-up items."
+            return "Capture school-day reminders, meetings, and running school log entries."
         case .personal:
-            return "Keep personal notes available without mixing them into school context."
+            return "Keep personal notes available without mixing them into school notes."
         case .classNotes:
-            return "Group follow-up by class so the right context stays attached."
+            return "Keep class notes grouped so the right class or group stays attached."
         case .studentNotes:
             return "Track student-specific notes and next steps in one place."
         }
@@ -408,9 +408,9 @@ struct NotesView: View {
         case .general:
             basicNotesView(
                 notes: notes(for: .generalNote),
-                emptyTitle: "No School Notes Yet",
+                emptyTitle: "No School Log Yet",
                 emptySystemImage: "building.2.crop.circle",
-                emptyDescription: "Tap + to create a school note."
+                emptyDescription: "Tap + to create a school log entry."
             )
         case .personal:
             basicNotesView(
@@ -589,13 +589,13 @@ struct NotesView: View {
 
     private var allNotesOverviewView: some View {
         List {
-            Section("Quick Actions") {
+            Section("Add Notes") {
                 Button {
                     presentAddNote(kind: .generalNote)
                 } label: {
                     quickActionRow(
-                        title: "New School Note",
-                        detail: "Capture a building-wide or general follow-up",
+                        title: "New School Log Entry",
+                        detail: "Capture a building-wide reminder or general school note",
                         systemImage: "building.2"
                     )
                 }
@@ -605,7 +605,7 @@ struct NotesView: View {
                     presentAddNote(kind: .personalNote)
                 } label: {
                     quickActionRow(
-                        title: "New Personal Note",
+                        title: "New Personal Entry",
                         detail: "Save a private reminder that stays separate from school notes",
                         systemImage: "person"
                     )
@@ -617,7 +617,7 @@ struct NotesView: View {
                 } label: {
                     quickActionRow(
                         title: "New Class Note",
-                        detail: "Attach a note to one class period or section",
+                        detail: "Attach a note to one class period or group",
                         systemImage: "text.book.closed"
                     )
                 }
@@ -638,8 +638,8 @@ struct NotesView: View {
                     openTodayTab()
                 } label: {
                     quickActionRow(
-                        title: "Open Daily Sub Plan",
-                        detail: "Jump back to Today and continue building the sub packet",
+                        title: "Open Prep & Handoff",
+                        detail: "Jump back to Today and continue building the substitute packet",
                         systemImage: "doc.text"
                     )
                 }
@@ -684,7 +684,7 @@ struct NotesView: View {
                     ContentUnavailableView(
                         "No Notes Yet",
                         systemImage: "square.and.pencil",
-                        description: Text("Tap + to create a note, or submit a quick school note from Today.")
+                        description: Text("Tap + to create a note, or submit a quick note from Today.")
                     )
                 }
             } else {
@@ -807,7 +807,7 @@ struct NotesView: View {
                     systemImage: "building.2"
                 )
                 noteOverviewRow(
-                    title: "Visible Notes",
+                    title: "Visible Entries",
                     value: "\(groups.reduce(0) { $0 + $1.notes.count })",
                     systemImage: "square.and.pencil"
                 )
@@ -847,7 +847,7 @@ struct NotesView: View {
                     let activeFilter = selectedContextFilter.trimmingCharacters(in: .whitespacesAndNewlines)
 
                     if let densestGroup {
-                        LabeledContent("Most Notes") {
+                        LabeledContent("Most Entries") {
                             Text(densestGroup.context)
                                 .font(.subheadline.weight(.semibold))
                         }
@@ -864,8 +864,8 @@ struct NotesView: View {
 
             if !suggestedContexts.isEmpty {
                 Section("Filter") {
-                    Picker("Class or Commitment", selection: $selectedContextFilter) {
-                        Text("All Classes").tag("")
+                    Picker("Class / Group", selection: $selectedContextFilter) {
+                        Text("All Classes / Groups").tag("")
                         ForEach(suggestedContexts, id: \.self) { context in
                             Text(context).tag(context)
                         }
@@ -916,7 +916,7 @@ struct NotesView: View {
                                 }
 
                                 if let latest = group.notes.first?.createdAt {
-                                    Text("Latest note: \(latest.formatted(date: .abbreviated, time: .shortened))")
+                                    Text("Latest entry: \(latest.formatted(date: .abbreviated, time: .shortened))")
                                         .font(.caption)
                                         .foregroundStyle(.secondary)
                                 }
@@ -954,7 +954,7 @@ struct NotesView: View {
                     systemImage: "person.2"
                 )
                 noteOverviewRow(
-                    title: "Visible Notes",
+                    title: "Visible Entries",
                     value: "\(groups.reduce(0) { $0 + $1.notes.count })",
                     systemImage: "text.bubble"
                 )
@@ -992,7 +992,7 @@ struct NotesView: View {
                     let activeFilter = selectedStudentFilter.trimmingCharacters(in: .whitespacesAndNewlines)
 
                     if let densestGroup {
-                        LabeledContent("Most Notes") {
+                        LabeledContent("Most Entries") {
                             Text(densestGroup.student)
                                 .font(.subheadline.weight(.semibold))
                         }
@@ -1071,7 +1071,7 @@ struct NotesView: View {
                                 }
 
                                 if let latest = group.notes.first?.createdAt {
-                                    Text("Latest note: \(latest.formatted(date: .abbreviated, time: .shortened))")
+                                    Text("Latest entry: \(latest.formatted(date: .abbreviated, time: .shortened))")
                                         .font(.caption)
                                         .foregroundStyle(.secondary)
                                 }
@@ -1563,7 +1563,7 @@ func notesExportBody(for notes: [FollowUpNoteItem]) -> String {
 
         let context = note.context.trimmingCharacters(in: .whitespacesAndNewlines)
         if !context.isEmpty {
-            lines.append("Context: \(context)")
+            lines.append("Class / Group: \(context)")
         }
 
         let student = note.studentOrGroup.trimmingCharacters(in: .whitespacesAndNewlines)

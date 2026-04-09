@@ -1,6 +1,98 @@
 import Foundation
 import SwiftUI
 
+enum TeacherWorkflowMode: String, CaseIterable, Identifiable, Codable {
+    case classroom
+    case resourceSped = "resource_sped"
+    case hybrid
+
+    var id: String { rawValue }
+
+    var displayName: String {
+        switch self {
+        case .classroom:
+            return "Classroom"
+        case .resourceSped:
+            return "Resource / SPED"
+        case .hybrid:
+            return "Hybrid"
+        }
+    }
+
+    var shortLabel: String {
+        switch self {
+        case .classroom:
+            return "Classroom"
+        case .resourceSped:
+            return "Resource"
+        case .hybrid:
+            return "Hybrid"
+        }
+    }
+
+    var settingsSummary: String {
+        switch self {
+        case .classroom:
+            return "Best for one primary class at a time, whole-group attendance, and class-first flow."
+        case .resourceSped:
+            return "Best for overlapping groups, support sessions, and student-first service workflows."
+        case .hybrid:
+            return "Balances class-first and student-first workflows for mixed teaching days."
+        }
+    }
+
+    var todayModeDescription: String {
+        switch self {
+        case .classroom:
+            return "Today is tuned for class-first teaching flow."
+        case .resourceSped:
+            return "Today is tuned for support groups and service sessions."
+        case .hybrid:
+            return "Today stays flexible for mixed classroom and support work."
+        }
+    }
+}
+
+enum InstructionalContextKind: String, Codable, CaseIterable, Identifiable, Hashable {
+    case classroom
+    case supportGroup
+    case intervention
+    case serviceSession
+    case individualSupport
+
+    var id: String { rawValue }
+
+    var displayName: String {
+        switch self {
+        case .classroom:
+            return "Class"
+        case .supportGroup:
+            return "Support Group"
+        case .intervention:
+            return "Intervention"
+        case .serviceSession:
+            return "Service Session"
+        case .individualSupport:
+            return "Individual Support"
+        }
+    }
+}
+
+struct InstructionalContextSummary: Identifiable, Codable, Hashable {
+    var id: UUID
+    var title: String
+    var kind: InstructionalContextKind
+    var gradeLevel: String
+    var location: String
+    var linkedStudentIDs: [UUID]
+    var sourceClassDefinitionID: UUID?
+
+    var displayTitle: String {
+        let trimmed = title.trimmingCharacters(in: .whitespacesAndNewlines)
+        return trimmed.isEmpty ? kind.displayName : trimmed
+    }
+}
+
 struct ClassStaffContact: Identifiable, Codable, Equatable, Hashable {
     var id: UUID = UUID()
     var name: String = ""
@@ -65,6 +157,12 @@ struct ClassDefinitionItem: Identifiable, Codable, Equatable, Hashable {
             case .transition: return "Transition"
             case .other: return "Other"
             case .blank: return "Blank"
+            }
+        }
+
+        static var alphabetizedCases: [ScheduleKind] {
+            allCases.sorted {
+                $0.displayName.localizedCaseInsensitiveCompare($1.displayName) == .orderedAscending
             }
         }
     }
@@ -144,5 +242,45 @@ struct ClassDefinitionItem: Identifiable, Codable, Equatable, Hashable {
         let progress = Double(clampedIndex) / 25.0
         let hue = 0.0 + (0.78 - 0.0) * progress
         return Color(hue: hue, saturation: 0.84, brightness: 0.92)
+    }
+
+    func instructionalContextKind(for workflowMode: TeacherWorkflowMode) -> InstructionalContextKind {
+        switch workflowMode {
+        case .classroom:
+            return .classroom
+        case .resourceSped:
+            switch scheduleKind {
+            case .studyTime:
+                return .intervention
+            case .prep, .transition, .blank:
+                return .serviceSession
+            default:
+                return .supportGroup
+            }
+        case .hybrid:
+            switch scheduleKind {
+            case .studyTime:
+                return .intervention
+            case .prep, .transition:
+                return .serviceSession
+            default:
+                return .classroom
+            }
+        }
+    }
+
+    func instructionalContextSummary(
+        for workflowMode: TeacherWorkflowMode,
+        linkedStudentIDs: [UUID] = []
+    ) -> InstructionalContextSummary {
+        InstructionalContextSummary(
+            id: id,
+            title: name,
+            kind: instructionalContextKind(for: workflowMode),
+            gradeLevel: gradeLevel,
+            location: defaultLocation,
+            linkedStudentIDs: linkedStudentIDs,
+            sourceClassDefinitionID: id
+        )
     }
 }

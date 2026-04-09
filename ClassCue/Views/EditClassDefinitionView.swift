@@ -4,6 +4,7 @@ struct EditClassDefinitionView: View {
     @Binding var classDefinitions: [ClassDefinitionItem]
     @Binding var studentProfiles: [StudentSupportProfile]
     let existing: ClassDefinitionItem?
+    @AppStorage("teacher_workflow_mode_v1") private var teacherWorkflowModeRawValue = TeacherWorkflowMode.classroom.rawValue
 
     @Environment(\.dismiss) private var dismiss
 
@@ -12,15 +13,43 @@ struct EditClassDefinitionView: View {
     @State private var gradeLevel = ""
     @State private var defaultLocation = ""
     @State private var selectedStudentIDs = Set<UUID>()
+    @State private var showLinkedStudents = false
+
+    private var teacherWorkflowMode: TeacherWorkflowMode {
+        TeacherWorkflowMode(rawValue: teacherWorkflowModeRawValue) ?? .classroom
+    }
+
+    private var detailsSectionTitle: String {
+        teacherWorkflowMode == .classroom ? "Class Details" : "Group Details"
+    }
+
+    private var namePlaceholder: String {
+        teacherWorkflowMode == .classroom ? "Class Name" : "Group Name"
+    }
+
+    private var editorTitle: String {
+        if existing == nil {
+            return teacherWorkflowMode == .classroom ? "Add Class" : "Add Group"
+        }
+        return teacherWorkflowMode == .classroom ? "Edit Class" : "Edit Group"
+    }
 
     var body: some View {
         NavigationStack {
             Form {
-                Section("Class Details") {
-                    TextField("Class Name", text: $name)
+                Section {
+                    Text(existing == nil
+                         ? "Start with the basics. You can save now and link students later."
+                         : "Update the basics here. Student links are optional and can be changed anytime.")
+                        .font(.subheadline)
+                        .foregroundStyle(.secondary)
+                }
+
+                Section(detailsSectionTitle) {
+                    TextField(namePlaceholder, text: $name)
 
                     Picker("Type", selection: $scheduleType) {
-                        ForEach(ClassDefinitionItem.ScheduleKind.allCases, id: \.self) { type in
+                        ForEach(ClassDefinitionItem.ScheduleKind.alphabetizedCases, id: \.self) { type in
                             Text(type.displayName).tag(type)
                         }
                     }
@@ -34,18 +63,25 @@ struct EditClassDefinitionView: View {
 
                     TextField("Default Room / Location", text: $defaultLocation)
                 }
-                Section("Linked Students") {
-                    if sortedStudentProfiles.isEmpty {
-                        Text("No students saved yet. Add students in Class List, then link them here.")
-                            .foregroundStyle(.secondary)
-                    } else {
-                        ForEach(sortedStudentProfiles) { profile in
-                            linkedStudentRow(profile)
+                Section {
+                    DisclosureGroup(isExpanded: $showLinkedStudents) {
+                        if sortedStudentProfiles.isEmpty {
+                            Text("No students saved yet. Add students in Class List, then link them here.")
+                                .foregroundStyle(.secondary)
+                        } else {
+                            ForEach(sortedStudentProfiles) { profile in
+                                linkedStudentRow(profile)
+                            }
+                        }
+                    } label: {
+                        LabeledContent("Link Students Now") {
+                            Text("\(selectedStudentIDs.count)")
+                                .foregroundStyle(selectedStudentIDs.isEmpty ? .secondary : .primary)
                         }
                     }
                 }
             }
-            .navigationTitle(existing == nil ? "Add Class" : "Edit Class")
+            .navigationTitle(editorTitle)
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .navigationBarLeading) {
@@ -67,6 +103,7 @@ struct EditClassDefinitionView: View {
                 scheduleType = existing.scheduleKind
                 gradeLevel = GradeLevelOption.normalized(existing.gradeLevel)
                 defaultLocation = existing.defaultLocation
+                showLinkedStudents = true
                 selectedStudentIDs = Set(
                     studentProfiles
                         .filter { profileMatches(classDefinitionID: existing.id, profile: $0) }

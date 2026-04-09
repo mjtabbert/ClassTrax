@@ -59,7 +59,7 @@ struct AddFollowUpNoteView: View {
     var body: some View {
         NavigationStack {
             Form {
-                Section("Follow-Up") {
+                Section("Note") {
                     if preferredKind == nil {
                         Picker("Type", selection: $kind) {
                             ForEach(FollowUpNoteItem.Kind.allCases, id: \.self) { kind in
@@ -107,7 +107,7 @@ struct AddFollowUpNoteView: View {
                     )
                 }
             }
-            .navigationTitle(existing == nil ? "Add Follow-Up" : "Edit Follow-Up")
+            .navigationTitle(existing == nil ? "Add Note" : "Edit Note")
             .toolbar {
                 ToolbarItem(placement: .navigationBarLeading) {
                     Button("Cancel") {

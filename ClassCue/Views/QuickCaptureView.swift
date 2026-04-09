@@ -12,6 +12,42 @@ import SwiftData
 struct QuickCaptureView: View {
     @Environment(\.modelContext) private var modelContext
 
+    enum CapturePreset: String, CaseIterable, Identifiable {
+        case planner
+        case missingWork
+        case studentIssue
+        case parentContact
+
+        var id: String { rawValue }
+
+        var title: String {
+            switch self {
+            case .planner: return "Planner"
+            case .missingWork: return "Missing Work"
+            case .studentIssue: return "Student Issue"
+            case .parentContact: return "Parent Contact"
+            }
+        }
+
+        var systemImage: String {
+            switch self {
+            case .planner: return "checklist"
+            case .missingWork: return "text.book.closed"
+            case .studentIssue: return "person.fill.questionmark"
+            case .parentContact: return "phone.fill"
+            }
+        }
+
+        var tint: Color {
+            switch self {
+            case .planner: return .orange
+            case .missingWork: return .teal
+            case .studentIssue: return .indigo
+            case .parentContact: return .pink
+            }
+        }
+    }
+
 
     enum CaptureTarget: String, CaseIterable {
         case task
@@ -19,7 +55,7 @@ struct QuickCaptureView: View {
 
         var title: String {
             switch self {
-            case .task: return "Task"
+            case .task: return "Planner Item"
             case .note: return "Note"
             }
         }
@@ -122,7 +158,31 @@ struct QuickCaptureView: View {
                     .pickerStyle(.segmented)
                 }
 
-                Section(target == .task ? "Task" : "Note") {
+                Section("Start With") {
+                    ScrollView(.horizontal, showsIndicators: false) {
+                        HStack(spacing: 8) {
+                            ForEach(CapturePreset.allCases) { preset in
+                                Button {
+                                    applyPreset(preset)
+                                } label: {
+                                    Label(preset.title, systemImage: preset.systemImage)
+                                        .font(.caption.weight(.semibold))
+                                        .foregroundStyle(preset.tint)
+                                        .padding(.horizontal, 10)
+                                        .padding(.vertical, 8)
+                                        .background(
+                                            Capsule(style: .continuous)
+                                                .fill(preset.tint.opacity(0.12))
+                                        )
+                                }
+                                .buttonStyle(.plain)
+                            }
+                        }
+                        .padding(.vertical, 2)
+                    }
+                }
+
+                Section(target == .task ? "Planner Item" : "Note") {
                     TextField(
                         target == .task ? "What needs to happen?" : "Quick note",
                         text: $text,
@@ -151,7 +211,7 @@ struct QuickCaptureView: View {
                 }
 
                 if target == .task {
-                    Section("Teacher Context") {
+                    Section("Teacher Focus") {
                         Picker("Workspace", selection: $workspace) {
                             ForEach(TodoItem.Workspace.allCases, id: \.self) { workspace in
                                 Label(workspace.displayName, systemImage: workspace.systemImage)
@@ -322,6 +382,36 @@ struct QuickCaptureView: View {
         dismiss()
     }
 
+    private func applyPreset(_ preset: CapturePreset) {
+        switch preset {
+        case .planner:
+            target = .task
+            workspace = .school
+            category = preferredCategory ?? .prep
+            reminder = .none
+            if linkedContext.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                linkedContext = preferredContext ?? linkedContext
+            }
+        case .missingWork:
+            target = .note
+            workspace = .school
+            noteDestination = .classFollowUp
+            if linkedContext.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                linkedContext = preferredContext ?? linkedContext
+            }
+        case .studentIssue:
+            target = .note
+            workspace = .school
+            noteDestination = .studentFollowUp
+            category = .classroom
+        case .parentContact:
+            target = .note
+            workspace = .school
+            noteDestination = .parentContact
+            category = .parentContact
+        }
+    }
+
     private func saveNote() {
         let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmed.isEmpty else { return }
@@ -378,9 +468,9 @@ struct QuickCaptureView: View {
     private var captureStatusTitle: String {
         switch (target, workspace) {
         case (.task, .school):
-            return "School task capture"
+            return "School planner capture"
         case (.task, .personal):
-            return "Personal task capture"
+            return "Personal planner capture"
         case (.note, .school):
             return "School note capture"
         case (.note, .personal):
@@ -405,6 +495,8 @@ struct QuickCaptureView: View {
             parts.append(noteDestination.title)
         } else if reminder != .none {
             parts.append(reminder.displayName)
+        } else {
+            parts.append(category.displayName)
         }
 
         if parts.isEmpty {

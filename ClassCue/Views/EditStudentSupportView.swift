@@ -45,6 +45,7 @@ struct EditStudentSupportView: View {
     @State private var accommodations = ""
     @State private var prompts = ""
     @State private var expandedSections: Set<FormSection> = [.student]
+    @State private var showOptionalDetails = false
 
     init(
         profiles: Binding<[StudentSupportProfile]>,
@@ -71,13 +72,21 @@ struct EditStudentSupportView: View {
     var body: some View {
         NavigationStack {
             Form {
-                collapsibleSection(.student, title: "Student or Group", systemImage: "person.text.rectangle") {
+                Section {
+                    Text(existing == nil
+                         ? "Start with the basics. You can save with just a name and class, then add support details later."
+                         : "Update the student first, then expand any support details that need attention.")
+                        .font(.subheadline)
+                        .foregroundStyle(.secondary)
+                }
+
+                collapsibleSection(.student, title: "Student", systemImage: "person.text.rectangle") {
                     TextField("Name", text: $name)
 
                     TextField("Class", text: $className)
 
                     if !classDefinitions.isEmpty {
-                        DisclosureGroup("Linked Saved Classes") {
+                        DisclosureGroup("Choose Saved Classes (Optional)") {
                             if !candidateClassDefinitions.isEmpty {
                                 VStack(alignment: .leading, spacing: 8) {
                                     Text("Suggested matches")
@@ -114,18 +123,29 @@ struct EditStudentSupportView: View {
                     Toggle("Additional Supports", isOn: $isSped)
                 }
 
-                collapsibleSection(.contacts, title: "Contacts", systemImage: "person.crop.circle.badge") {
-                    TextField("Parent / Guardian Names", text: $parentNames)
-                    TextField("Parent Phone Numbers", text: $parentPhoneNumbers)
-                    TextField("Parent Emails", text: $parentEmails)
-                        .textInputAutocapitalization(.never)
-                        .keyboardType(.emailAddress)
-                    TextField("Student Email", text: $studentEmail)
-                        .textInputAutocapitalization(.never)
-                        .keyboardType(.emailAddress)
+                if existing == nil && !hasOptionalDetails {
+                    Section {
+                        Button("Add Contact or Support Details") {
+                            showOptionalDetails = true
+                            expandedSections.formUnion([.contacts, .supports, .accommodations, .prompts])
+                        }
+                    }
                 }
 
-                if isSped {
+                if showOptionalDetails || existing != nil || hasOptionalDetails {
+                    collapsibleSection(.contacts, title: "Contacts", systemImage: "person.crop.circle.badge") {
+                        TextField("Parent / Guardian Names", text: $parentNames)
+                        TextField("Parent Phone Numbers", text: $parentPhoneNumbers)
+                        TextField("Parent Emails", text: $parentEmails)
+                            .textInputAutocapitalization(.never)
+                            .keyboardType(.emailAddress)
+                        TextField("Student Email", text: $studentEmail)
+                            .textInputAutocapitalization(.never)
+                            .keyboardType(.emailAddress)
+                    }
+                }
+
+                if isSped && (showOptionalDetails || existing != nil || hasOptionalDetails) {
                     collapsibleSection(.supports, title: "Supports", systemImage: "figure.2.and.child.holdinghands") {
                         Text("Assign classroom teachers and paras for this student’s additional supports.")
                             .font(.caption)
@@ -167,17 +187,19 @@ struct EditStudentSupportView: View {
                     }
                 }
 
-                collapsibleSection(.accommodations, title: "Accommodations", systemImage: "list.clipboard") {
-                    TextField("Supports, accommodations, or reminders", text: $accommodations, axis: .vertical)
-                        .lineLimit(3...8)
-                }
+                if showOptionalDetails || existing != nil || hasOptionalDetails {
+                    collapsibleSection(.accommodations, title: "Accommodations", systemImage: "list.clipboard") {
+                        TextField("Supports, accommodations, or reminders", text: $accommodations, axis: .vertical)
+                            .lineLimit(3...8)
+                    }
 
-                collapsibleSection(.prompts, title: "Instructional Prompts", systemImage: "lightbulb") {
-                    TextField("What to remember during class", text: $prompts, axis: .vertical)
-                        .lineLimit(2...6)
+                    collapsibleSection(.prompts, title: "Instructional Prompts", systemImage: "lightbulb") {
+                        TextField("What to remember during class", text: $prompts, axis: .vertical)
+                            .lineLimit(2...6)
+                    }
                 }
             }
-            .navigationTitle(existing == nil ? "Add Student Support" : "Edit Support")
+            .navigationTitle(existing == nil ? "Add Student" : "Edit Student")
             .toolbar {
                 ToolbarItem(placement: .navigationBarLeading) {
                     Button("Cancel") {
@@ -194,6 +216,7 @@ struct EditStudentSupportView: View {
             }
             .onAppear {
                 configureInitialValues()
+                showOptionalDetails = existing != nil || hasOptionalDetails
                 reconcileSupportAssignments()
             }
             .onChange(of: selectedClassDefinitionIDs) { _, _ in
@@ -324,6 +347,21 @@ struct EditStudentSupportView: View {
             accommodations: accommodations,
             prompts: prompts
         )
+    }
+
+    private var hasOptionalDetails: Bool {
+        !graduationYear.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ||
+        !parentNames.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ||
+        !parentPhoneNumbers.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ||
+        !parentEmails.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ||
+        !studentEmail.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ||
+        isSped ||
+        !supportRooms.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ||
+        !supportScheduleNotes.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ||
+        !accommodations.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ||
+        !prompts.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ||
+        !selectedSupportTeacherIDs.isEmpty ||
+        !selectedSupportParaIDs.isEmpty
     }
 
     private var availableTeacherContacts: [ClassStaffContact] {

@@ -224,7 +224,7 @@ struct TodoListView: View {
             .refreshable {
                 onRefresh()
             }
-            .navigationTitle("To Do")
+            .navigationTitle("Planner")
             .navigationBarTitleDisplayMode(.inline)
             .scrollContentBackground(.hidden)
             .background(todoBackground)
@@ -255,7 +255,7 @@ struct TodoListView: View {
                                 onRefresh()
                             }
 
-                            Button("Daily Sub Plan", systemImage: "doc.text") {
+                            Button("Prep & Handoff", systemImage: "doc.text") {
                                 openTodayTab()
                             }
 
@@ -289,7 +289,7 @@ struct TodoListView: View {
                                 Divider()
 
                                 Toggle("Needs Follow-Up", isOn: $showOnlyFollowUp)
-                                Toggle("Student / Group Context", isOn: $showOnlyStudentContext)
+                                Toggle("Student / Group Link", isOn: $showOnlyStudentContext)
 
                                 if !suggestedStudents.isEmpty {
                                     Divider()
@@ -305,8 +305,8 @@ struct TodoListView: View {
                                 if !suggestedContexts.isEmpty {
                                     Divider()
 
-                                    Picker("Class / Commitment", selection: $linkedContextFilter) {
-                                        Text("All Classes").tag("")
+                                    Picker("Class / Group", selection: $linkedContextFilter) {
+                                        Text("All Classes / Groups").tag("")
                                         ForEach(suggestedContexts, id: \.self) { context in
                                             Text(context).tag(context)
                                         }
@@ -398,7 +398,7 @@ struct TodoListView: View {
         VStack(alignment: .leading, spacing: 14) {
             HStack(alignment: .top, spacing: 12) {
                 VStack(alignment: .leading, spacing: 4) {
-                    Text("Tasks")
+                    Text("Planner")
                         .font(.title3.weight(.bold))
 
                     Text(todoHeaderSummary)
@@ -412,7 +412,7 @@ struct TodoListView: View {
                 Button {
                     showAdd = true
                 } label: {
-                    Label("New Task", systemImage: "plus")
+                    Label("New Item", systemImage: "plus")
                         .font(.caption.weight(.semibold))
                 }
                 .buttonStyle(.borderedProminent)
@@ -462,15 +462,15 @@ struct TodoListView: View {
 
     private var todoHeaderSummary: String {
         if activeFilterCount > 0 {
-            return "\(filteredTaskCount) tasks match the current filters."
+            return "\(filteredTaskCount) planner items match the current filters."
         }
         if workspaceFilter == .school {
-            return "School tasks with linked class and student context."
+            return "School planner items with linked class / group and student detail."
         }
         if workspaceFilter == .personal {
-            return "Personal tasks separated from classroom workflow."
+            return "Personal planner items separated from classroom workflow."
         }
-        return "One place for school and personal tasks without the visual clutter."
+        return "One place for school and personal planning without the visual clutter."
     }
 
     private func toolbarCapsuleLabel(title: String, systemImage: String) -> some View {

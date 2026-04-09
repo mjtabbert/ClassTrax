@@ -33,6 +33,7 @@ struct ScheduleView: View {
 
     @AppStorage("profiles_v1_data") private var savedProfiles: Data = Data()
     @AppStorage("day_overrides_v1_data") private var savedOverrides: Data = Data()
+    @AppStorage("teacher_workflow_mode_v1") private var teacherWorkflowModeRawValue = TeacherWorkflowMode.classroom.rawValue
 
     @State private var showingAddSheet = false
     @State private var editingItem: AlarmItem?
@@ -75,6 +76,10 @@ struct ScheduleView: View {
 
     private var isSelectedDayToday: Bool {
         selectedDay.rawValue == Calendar.current.component(.weekday, from: Date())
+    }
+
+    private var teacherWorkflowMode: TeacherWorkflowMode {
+        TeacherWorkflowMode(rawValue: teacherWorkflowModeRawValue) ?? .classroom
     }
 
     var body: some View {
@@ -155,7 +160,7 @@ struct ScheduleView: View {
                             onRefresh()
                         }
 
-                        Button("Sub Plan", systemImage: "doc.text") {
+                        Button("Prep & Handoff", systemImage: "doc.text") {
                             selectedDay = .today
                             openTodayTab()
                         }
@@ -364,10 +369,40 @@ struct ScheduleView: View {
                 ? "The active override is replacing your normal \(selectedDay.title) schedule."
                 : hasAnySchedule
                 ? "Choose another day or tap + to add a block for \(selectedDay.title)."
-                : "Tap + to add your first class block for \(selectedDay.title)."
+                : "Tap + to add your first block for \(selectedDay.title)."
             )
             .font(.subheadline)
             .foregroundColor(.secondary)
+
+            VStack(spacing: 10) {
+                Button {
+                    showingAddSheet = true
+                } label: {
+                    Label(hasAnySchedule ? "Add Block for \(selectedDay.title)" : "Add First Block", systemImage: "plus")
+                        .frame(maxWidth: .infinity)
+                }
+                .buttonStyle(.borderedProminent)
+                .disabled(isViewingActiveOverride)
+
+                HStack(spacing: 10) {
+                    Button {
+                        openTodoTab()
+                    } label: {
+                        Label("Planner", systemImage: "checklist")
+                            .frame(maxWidth: .infinity)
+                    }
+                    .buttonStyle(.bordered)
+
+                    Button {
+                        openNotesTab()
+                    } label: {
+                        Label("Notes", systemImage: "square.and.pencil")
+                            .frame(maxWidth: .infinity)
+                    }
+                    .buttonStyle(.bordered)
+                }
+            }
+            .padding(.top, 6)
         }
         .frame(maxWidth: .infinity, alignment: .leading)
         .padding()
@@ -434,7 +469,7 @@ struct ScheduleView: View {
                 Button {
                     openTodayTab()
                 } label: {
-                    Label("Daily Sub Plan", systemImage: "doc.text")
+                    Label("Prep & Handoff", systemImage: "doc.text")
                         .frame(maxWidth: .infinity)
                 }
                 .buttonStyle(.borderedProminent)
@@ -443,7 +478,7 @@ struct ScheduleView: View {
                     Button {
                         openTodoTab()
                     } label: {
-                        Label("Tasks", systemImage: "checklist")
+                        Label("Planner", systemImage: "checklist")
                             .frame(maxWidth: .infinity)
                     }
                     .buttonStyle(.bordered)
@@ -631,6 +666,8 @@ struct ScheduleView: View {
         if isViewingActiveOverride {
             TimelineRow(
                 item: item,
+                classDefinitions: classDefinitions,
+                workflowMode: teacherWorkflowMode,
                 now: Date(),
                 isHero: false
             )
@@ -640,6 +677,8 @@ struct ScheduleView: View {
             } label: {
                 TimelineRow(
                     item: item,
+                    classDefinitions: classDefinitions,
+                    workflowMode: teacherWorkflowMode,
                     now: Date(),
                     isHero: false
                 )
@@ -719,11 +758,11 @@ struct ScheduleView: View {
 
     private var planningSummaryText: String {
         if filteredSchedule.isEmpty {
-            return "No schedule blocks yet. Add classes first, then use tasks, notes, and sub plans from the same day context."
+            return "No schedule blocks yet. Add your first block, then keep planning and notes tied to the same day."
         }
 
         let classCount = selectedDayContexts.count
-        return "\(classCount) class context\(classCount == 1 ? "" : "s"), \(linkedTaskCount) linked task\(linkedTaskCount == 1 ? "" : "s"), and \(selectedDayPlanCount) saved plan item\(selectedDayPlanCount == 1 ? "" : "s")."
+        return "\(classCount) class\(classCount == 1 ? "" : "es") / group\(classCount == 1 ? "" : "s"), \(linkedTaskCount) planner item\(linkedTaskCount == 1 ? "" : "s"), \(selectedDayPlanCount) prep item\(selectedDayPlanCount == 1 ? "" : "s"), and \(selectedDayCommitmentCount) scheduled commitment\(selectedDayCommitmentCount == 1 ? "" : "s")."
     }
 
     private var defaultWeekProfileName: String {

@@ -18,8 +18,8 @@ struct SettingsView: View {
         case alerts = "Alerts"
         case boundaries = "After Hours"
         case todayLayout = "Today Layout"
-        case classroomSetup = "Classroom Setup"
-        case subPlans = "Sub Plans"
+        case classroomSetup = "Core Setup"
+        case subPlans = "Prep & Handoff"
         case integrations = "Integrations"
         case cloudSync = "Cloud Sync"
         case liveActivities = "Live Activities"
@@ -92,6 +92,60 @@ struct SettingsView: View {
         }
     }
 
+    private enum DeleteDataTarget: String, Identifiable {
+        case savedContexts
+        case studentDirectory
+        case teachers
+        case paras
+        case scheduleProfiles
+        case dayOverrides
+        case scheduleBlocks
+
+        var id: String { rawValue }
+
+        var title: String {
+            switch self {
+            case .savedContexts:
+                return "Saved Classes / Groups"
+            case .studentDirectory:
+                return "Student Directory"
+            case .teachers:
+                return "Teachers"
+            case .paras:
+                return "Paras"
+            case .scheduleProfiles:
+                return "Schedule Profiles"
+            case .dayOverrides:
+                return "Day Overrides"
+            case .scheduleBlocks:
+                return "Schedule Blocks"
+            }
+        }
+
+        var buttonTitle: String {
+            "Delete \(title)"
+        }
+
+        var confirmationMessage: String {
+            switch self {
+            case .savedContexts:
+                return "This permanently removes all saved classes and groups."
+            case .studentDirectory:
+                return "This permanently removes every saved student profile."
+            case .teachers:
+                return "This permanently removes every saved teacher contact."
+            case .paras:
+                return "This permanently removes every saved para contact."
+            case .scheduleProfiles:
+                return "This permanently removes every saved schedule profile."
+            case .dayOverrides:
+                return "This permanently removes every saved day override."
+            case .scheduleBlocks:
+                return "This permanently removes every scheduled block from the live schedule."
+            }
+        }
+    }
+
     @Environment(\.modelContext) private var modelContext
     @AppStorage("pref_haptic") private var selectedHapticRawValue: String = HapticPattern.doubleThump.rawValue
     @AppStorage("pref_sound") private var selectedSoundRawValue: String = SoundPattern.classicAlarm.rawValue
@@ -121,6 +175,8 @@ struct SettingsView: View {
     @AppStorage("live_activities_enabled") private var liveActivitiesEnabledPreference = true
     @AppStorage("today_dashboard_card_order_v1") private var storedDashboardCardOrder = ""
     @AppStorage("today_dashboard_hidden_cards_v1") private var storedHiddenDashboardCards = ""
+    @AppStorage("teacher_workflow_mode_v1") private var teacherWorkflowModeRawValue = TeacherWorkflowMode.classroom.rawValue
+    @AppStorage("guided_setup_autolaunch_seen_v2") private var hasSeenGuidedSetupAutolaunch = false
 
     @State private var holidayModeEnabled = false
     @State private var holidayResumeDate = Date().addingTimeInterval(60 * 60 * 24)
@@ -146,8 +202,21 @@ struct SettingsView: View {
     @State private var hiddenDashboardCards = Set<TodayDashboardCard>()
     @State private var isLoadingInitialState = false
     @State private var hasLoadedInitialState = false
+    @State private var showingWorkspaceSetupWizard = false
+    @State private var diagnosticsStatusMessage = ""
+    @State private var pendingDeleteTarget: DeleteDataTarget?
+    @State private var selectedDiagnosticsTool: DiagnosticsTool?
+    @State private var showingQuickAddClassDefinition = false
+    @State private var showingQuickAddStudent = false
+    @State private var showingTeacherDirectory = false
+    @State private var showingParaDirectory = false
 
     private let diagnosticsToolsEnabled = true
+
+    private var teacherWorkflowMode: TeacherWorkflowMode {
+        get { TeacherWorkflowMode(rawValue: teacherWorkflowModeRawValue) ?? .classroom }
+        nonmutating set { teacherWorkflowModeRawValue = newValue.rawValue }
+    }
 
     init(
         studentProfiles: Binding<[StudentSupportProfile]>,
@@ -166,6 +235,93 @@ struct SettingsView: View {
             .navigationDestination(for: SettingsDestination.self) { destination in
                 settingsDestinationView(destination)
             }
+            .sheet(isPresented: $showingWorkspaceSetupWizard) {
+                NavigationStack {
+                    WorkspaceSetupWizardView(
+                        teacherWorkflowMode: Binding(
+                            get: { teacherWorkflowMode },
+                            set: { teacherWorkflowMode = $0 }
+                        ),
+                        contextCount: classDefinitions.count,
+                        studentCount: studentProfiles.count,
+                        hasSchedule: !alarms.isEmpty,
+                        contextsDestination: AnyView(classDefinitionsDestinationView),
+                        studentsDestination: AnyView(studentDirectoryDestinationView),
+                        layoutDestination: AnyView(
+                            TodayLayoutCustomizationView(
+                                cards: $dashboardCardOrder,
+                                hiddenCards: $hiddenDashboardCards
+                            )
+                        ),
+                        alertsDestination: AnyView(alertsWizardDestinationView)
+                    )
+                }
+            }
+            .sheet(item: $selectedDiagnosticsTool) { tool in
+                NavigationStack {
+                    tool.destinationView
+                }
+            }
+            .sheet(isPresented: $showingQuickAddClassDefinition) {
+                NavigationStack {
+                    EditClassDefinitionView(
+                        classDefinitions: $classDefinitions,
+                        studentProfiles: $studentProfiles,
+                        existing: nil
+                    )
+                }
+            }
+            .sheet(isPresented: $showingQuickAddStudent) {
+                EditStudentSupportView(
+                    profiles: $studentProfiles,
+                    classDefinitions: $classDefinitions,
+                    teacherContacts: $teacherContacts,
+                    paraContacts: $paraContacts,
+                    existing: nil
+                )
+            }
+            .sheet(isPresented: $showingTeacherDirectory) {
+                NavigationStack {
+                    SupportStaffDirectoryView(
+                        title: "Teachers",
+                        role: .teacher,
+                        contacts: $teacherContacts,
+                        onCommitContacts: { updatedContacts in
+                            teacherContacts = updatedContacts
+                            ClassTraxPersistence.saveFirstSlice(
+                                alarms: alarms,
+                                studentProfiles: studentProfiles,
+                                classDefinitions: classDefinitions,
+                                teacherContacts: updatedContacts,
+                                paraContacts: paraContacts,
+                                commitments: commitments,
+                                into: modelContext
+                            )
+                        }
+                    )
+                }
+            }
+            .sheet(isPresented: $showingParaDirectory) {
+                NavigationStack {
+                    SupportStaffDirectoryView(
+                        title: "Paras",
+                        role: .para,
+                        contacts: $paraContacts,
+                        onCommitContacts: { updatedContacts in
+                            paraContacts = updatedContacts
+                            ClassTraxPersistence.saveFirstSlice(
+                                alarms: alarms,
+                                studentProfiles: studentProfiles,
+                                classDefinitions: classDefinitions,
+                                teacherContacts: teacherContacts,
+                                paraContacts: updatedContacts,
+                                commitments: commitments,
+                                into: modelContext
+                            )
+                        }
+                    )
+                }
+            }
     }
 
     private var settingsListContent: some View {
@@ -175,6 +331,30 @@ struct SettingsView: View {
                     .listRowInsets(EdgeInsets(top: 8, leading: 16, bottom: 8, trailing: 16))
                     .listRowBackground(Color.clear)
                     .listRowSeparator(.hidden)
+            }
+
+            Section("Start Here") {
+                Button {
+                    showingWorkspaceSetupWizard = true
+                } label: {
+                    settingsRowLabel(
+                        title: "Guided Setup",
+                        systemImage: "wand.and.stars",
+                        detail: "Best first stop for new teachers: mode, classes or groups, students, Today defaults, and alerts"
+                    )
+                }
+
+                NavigationLink(value: SettingsDestination.classroomSetup) {
+                    settingsRowLabel(.classroomSetup, detail: "Use after Guided Setup for saved classes or groups, roster tools, and staff setup")
+                }
+
+                NavigationLink(value: SettingsDestination.todayLayout) {
+                    settingsRowLabel(.todayLayout, detail: "Set the default Today workflow before fine-tuning anything else")
+                }
+
+                NavigationLink(value: SettingsDestination.alerts) {
+                    settingsRowLabel(.alerts, detail: "Finish setup with bell sounds, warning cues, and haptics")
+                }
             }
 
             Section("Daily Use") {
@@ -191,37 +371,27 @@ struct SettingsView: View {
                 }
 
                 NavigationLink(value: SettingsDestination.classroomSetup) {
-                    settingsRowLabel(.classroomSetup, detail: "Saved classes, roster tools, and staff setup")
+                    settingsRowLabel(.classroomSetup, detail: "Saved contexts, roster tools, and staff setup")
                 }
 
                 NavigationLink(value: SettingsDestination.subPlans) {
-                    settingsRowLabel(.subPlans, detail: "Reusable sub plans and daily prep")
+                    settingsRowLabel(.subPlans, detail: "Reusable prep templates and daily handoff tools")
                 }
 
                 NavigationLink(value: SettingsDestination.data) {
                     settingsRowLabel(.data, detail: "Import, export, and local data utilities")
                 }
 
-                NavigationLink(value: SettingsDestination.liveActivities) {
-                    settingsRowLabel(.liveActivities, detail: "Live Activity and lock screen controls")
-                }
-
-                NavigationLink(value: SettingsDestination.cloudSync) {
-                    settingsRowLabel(.cloudSync, detail: "CloudKit status and sync diagnostics")
-                }
-
                 NavigationLink(value: SettingsDestination.integrations) {
                     settingsRowLabel(.integrations, detail: "Widgets, watch, and related integrations")
-                }
-
-                NavigationLink(value: SettingsDestination.diagnostics) {
-                    settingsRowLabel(.diagnostics, detail: "Debug details, logs, and troubleshooting")
                 }
 
                 NavigationLink(value: SettingsDestination.about) {
                     settingsRowLabel(.about, detail: "App details and version information")
                 }
             }
+
+            diagnosticsMenuSection
         }
         .listStyle(.insetGrouped)
         .sheet(isPresented: $showingShareSheet) {
@@ -233,6 +403,7 @@ struct SettingsView: View {
             ignoreUntil = ScheduleSnoozeStore.synchronize()
             loadTodayLayoutSettings()
             configureHolidayMode()
+            autolaunchGuidedSetupIfNeeded()
         }
         .navigationTitle("Settings")
         .navigationBarTitleDisplayMode(.inline)
@@ -246,17 +417,21 @@ struct SettingsView: View {
                 Text("Settings")
                     .font(.title3.weight(.bold))
 
-                Text("System preferences, sync controls, and classroom setup tools live here now.")
+                Text("Start with Guided Setup, then add your first real schedule. System controls live here too.")
                     .font(.caption)
                     .foregroundStyle(.secondary)
                     .lineLimit(2)
             }
 
             HStack(spacing: 12) {
-                settingsMetric(title: "Classes", value: "\(classDefinitions.count)", accent: .blue)
+                settingsMetric(title: teacherWorkflowMode == .classroom ? "Classes" : "Groups", value: "\(classDefinitions.count)", accent: .blue)
                 settingsMetric(title: "Students", value: "\(studentProfiles.count)", accent: .green)
-                settingsMetric(title: "Tasks", value: "\(todos.count)", accent: .orange)
+                settingsMetric(title: "Mode", value: teacherWorkflowMode.shortLabel, accent: .orange)
             }
+
+                Text("Best first run: Guided Setup, then Schedule, then Alerts.")
+                .font(.caption.weight(.semibold))
+                .foregroundStyle(.secondary)
         }
         .padding(16)
         .background(
@@ -294,18 +469,27 @@ struct SettingsView: View {
 
     @ViewBuilder
     private func settingsRowLabel(_ destination: SettingsDestination, detail: String) -> some View {
+        settingsRowLabel(
+            title: settingsDestinationTitle(destination),
+            systemImage: destination.systemImage,
+            detail: detail
+        )
+    }
+
+    @ViewBuilder
+    private func settingsRowLabel(title: String, systemImage: String, detail: String) -> some View {
         HStack(spacing: 12) {
             RoundedRectangle(cornerRadius: 12, style: .continuous)
                 .fill(Color.accentColor.opacity(0.10))
                 .frame(width: 36, height: 36)
                 .overlay {
-                    Image(systemName: destination.systemImage)
+                    Image(systemName: systemImage)
                         .font(.subheadline.weight(.bold))
                         .foregroundStyle(Color.accentColor)
                 }
 
             VStack(alignment: .leading, spacing: 2) {
-                Text(destination.rawValue)
+                Text(title)
                     .font(.subheadline.weight(.semibold))
                     .foregroundStyle(.primary)
                 Text(detail)
@@ -385,6 +569,16 @@ struct SettingsView: View {
                     into: modelContext
                 )
             }
+            .alert(item: $pendingDeleteTarget) { target in
+                Alert(
+                    title: Text(target.buttonTitle),
+                    message: Text(target.confirmationMessage),
+                    primaryButton: .destructive(Text("Delete")) {
+                        performDelete(target)
+                    },
+                    secondaryButton: .cancel()
+                )
+            }
     }
 
     private var settingsList: some View {
@@ -440,7 +634,7 @@ struct SettingsView: View {
             settingsLink(.alerts, detail: "Bell sounds, haptics, and snooze")
             settingsLink(.boundaries, detail: "After-hours behavior and focus")
             settingsLink(.todayLayout, detail: "\(visibleTodayCardCount) cards visible")
-            settingsLink(.classroomSetup, detail: "Classes, students, profiles, and overrides")
+            settingsLink(.classroomSetup, detail: workspaceSetupNavigationSummary)
             settingsLink(.subPlans, detail: "Profiles and substitute prep")
         }
     }
@@ -468,8 +662,8 @@ struct SettingsView: View {
 
                 VStack(alignment: .leading, spacing: 4) {
                     Text(destination.rawValue)
-                        .fontWeight(.semibold)
-                        .foregroundStyle(.primary)
+                    .fontWeight(.semibold)
+                    .foregroundStyle(.primary)
 
                     Text(detail)
                         .font(.caption)
@@ -613,7 +807,7 @@ struct SettingsView: View {
                 cards: $dashboardCardOrder,
                 hiddenCards: $hiddenDashboardCards
             )
-            .navigationTitle(destination.rawValue)
+            .navigationTitle(settingsDestinationTitle(destination))
             .scrollContentBackground(.hidden)
             .background(settingsBackground)
             .onChange(of: dashboardCardOrder) { _, _ in
@@ -656,7 +850,7 @@ struct SettingsView: View {
                 aboutSection
             }
         }
-        .navigationTitle(destination.rawValue)
+        .navigationTitle(settingsDestinationTitle(destination))
         .scrollContentBackground(.hidden)
         .background(settingsBackground)
         .task {
@@ -702,9 +896,11 @@ struct SettingsView: View {
         case .todayLayout:
             return "Choose which cards appear on Today, reorder them, and reset the dashboard when you want a cleaner home screen."
         case .classroomSetup:
-            return "Manage saved classes, student supports, and the reusable classroom context that powers rosters and notes."
+            return teacherWorkflowMode == .classroom
+                ? "Manage saved classes, student supports, and the reusable class setup that powers rosters and notes."
+                : "Manage reusable classes and groups, students, supports, and staff details that power rosters, notes, and live-day workflows."
         case .subPlans:
-            return "Keep substitute handoff details and reusable teacher profile information together."
+            return "Keep substitute handoff details, daily prep packets, and reusable handoff profile information together."
         case .integrations:
             return "Send schedule and task information into other systems without turning ClassTrax into a dependency hub."
         case .cloudSync:
@@ -712,7 +908,7 @@ struct SettingsView: View {
         case .liveActivities:
             return "Control live activity behavior and review the current activity state."
         case .data:
-            return "Import and export the schedule CSV. Student and class roster CSV tools live in Class List."
+            return "Import and export the schedule CSV. Student and roster CSV tools live in Student Directory data tools."
         case .diagnostics:
             return diagnosticsToolsEnabled
                 ? "Open removable troubleshooting tools when you need to inspect startup behavior or internal app state."
@@ -720,6 +916,52 @@ struct SettingsView: View {
         case .about:
             return "View app information and general project details."
         }
+    }
+
+    private func settingsDestinationTitle(_ destination: SettingsDestination) -> String {
+        switch destination {
+        case .classroomSetup:
+            switch teacherWorkflowMode {
+            case .classroom:
+                return "Core Setup"
+            case .resourceSped:
+                return "Support Setup"
+            case .hybrid:
+                return "Core Setup"
+            }
+        default:
+            return destination.rawValue
+        }
+    }
+
+    private var workspaceSetupNavigationSummary: String {
+        switch teacherWorkflowMode {
+        case .classroom:
+            return "Classes, students, profiles, and overrides"
+        case .resourceSped:
+            return "Groups, students, supports, and staff"
+        case .hybrid:
+            return "Classes, groups, students, and supports"
+        }
+    }
+
+    private var savedDefinitionsLabel: String {
+        switch teacherWorkflowMode {
+        case .classroom:
+            return "Saved Classes"
+        case .resourceSped:
+            return "Saved Groups"
+        case .hybrid:
+            return "Saved Classes & Groups"
+        }
+    }
+
+    private var workspaceSetupChecklistSummary: String {
+        var steps: [String] = []
+        steps.append(classDefinitions.isEmpty ? "Add at least one saved class or group" : "Classes / groups ready")
+        steps.append(studentProfiles.isEmpty ? "Add students or support profiles" : "Students ready")
+        steps.append(alarms.isEmpty ? "Build today’s schedule in Schedule" : "Schedule ready")
+        return steps.joined(separator: " • ")
     }
 
     private var settingsBackground: some View {
@@ -1054,64 +1296,50 @@ struct SettingsView: View {
     }
 
     private var workspaceSetupSection: some View {
-        Section("Classroom Setup") {
-            NavigationLink {
-                StudentDirectoryView(
-                    profiles: $studentProfiles,
-                    classDefinitions: $classDefinitions,
-                    teacherContacts: $teacherContacts,
-                    paraContacts: $paraContacts,
-                    onSavedProfiles: { updatedProfiles in
-                        studentProfiles = updatedProfiles
-                        ClassTraxPersistence.saveFirstSlice(
-                            alarms: alarms,
-                            studentProfiles: updatedProfiles,
-                            classDefinitions: classDefinitions,
-                            teacherContacts: teacherContacts,
-                            paraContacts: paraContacts,
-                            commitments: commitments,
-                            into: modelContext
-                        )
-                    },
-                    onSavedTeacherContacts: { updatedContacts in
-                        teacherContacts = updatedContacts
-                        ClassTraxPersistence.saveFirstSlice(
-                            alarms: alarms,
-                            studentProfiles: studentProfiles,
-                            classDefinitions: classDefinitions,
-                            teacherContacts: updatedContacts,
-                            paraContacts: paraContacts,
-                            commitments: commitments,
-                            into: modelContext
-                        )
-                    },
-                    onSavedParaContacts: { updatedContacts in
-                        paraContacts = updatedContacts
-                        ClassTraxPersistence.saveFirstSlice(
-                            alarms: alarms,
-                            studentProfiles: studentProfiles,
-                            classDefinitions: classDefinitions,
-                            teacherContacts: teacherContacts,
-                            paraContacts: updatedContacts,
-                            commitments: commitments,
-                            into: modelContext
-                        )
-                    },
-                    onPrepareStudentEditor: {}
-                )
+        Section(settingsDestinationTitle(.classroomSetup)) {
+            workspaceSetupProgressCard
+
+            Picker("Workflow Mode", selection: Binding(
+                get: { teacherWorkflowMode },
+                set: { teacherWorkflowMode = $0 }
+            )) {
+                ForEach(TeacherWorkflowMode.allCases) { mode in
+                    Text(mode.displayName).tag(mode)
+                }
+            }
+
+            Text(teacherWorkflowMode.settingsSummary)
+                .font(.footnote)
+                .foregroundColor(.secondary)
+
+            Button {
+                showingWorkspaceSetupWizard = true
             } label: {
-                LabeledContent("Student Directory") {
-                    Text(studentProfiles.isEmpty ? "Not Set" : "\(studentProfiles.count)")
-                        .foregroundColor(studentProfiles.isEmpty ? .secondary : .primary)
+                HStack {
+                    Label("Guided Setup", systemImage: "wand.and.stars")
+                    Spacer()
+                    Text(workspaceSetupCompletionLabel)
+                        .foregroundStyle(.secondary)
+                }
+            }
+
+            quickAddSetupRow
+
+            NavigationLink {
+                classDefinitionsDestinationView
+            } label: {
+                LabeledContent(savedDefinitionsLabel) {
+                    Text(classDefinitions.isEmpty ? "Start Here" : "\(classDefinitions.count)")
+                        .foregroundColor(classDefinitions.isEmpty ? .orange : .primary)
                 }
             }
 
             NavigationLink {
-                ClassDefinitionsView(classDefinitions: $classDefinitions, profiles: $studentProfiles)
+                studentDirectoryDestinationView
             } label: {
-                LabeledContent("Saved Classes") {
-                    Text(classDefinitions.isEmpty ? "Not Set" : "\(classDefinitions.count)")
-                        .foregroundColor(classDefinitions.isEmpty ? .secondary : .primary)
+                LabeledContent("Student Directory") {
+                    Text(studentProfiles.isEmpty ? "Next Step" : "\(studentProfiles.count)")
+                        .foregroundColor(studentProfiles.isEmpty ? .orange : .primary)
                 }
             }
 
@@ -1173,19 +1401,178 @@ struct SettingsView: View {
                 DayOverridesView(overrides: $overrides, profiles: $profiles)
             }
 
+            if hasWorkspaceDataToDelete {
+                deleteSectionDataControls
+            }
+
             Text(workspaceSetupSummary)
                 .font(.footnote)
                 .foregroundColor(.secondary)
         }
     }
 
+    private var quickAddSetupRow: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            Text("Quick Add")
+                .font(.caption.weight(.semibold))
+                .foregroundStyle(.secondary)
+
+            HStack(spacing: 10) {
+                setupQuickAddButton(
+                    title: teacherWorkflowMode == .classroom ? "Class" : "Group",
+                    systemImage: "books.vertical",
+                    accent: .blue
+                ) {
+                    showingQuickAddClassDefinition = true
+                }
+
+                setupQuickAddButton(
+                    title: "Student",
+                    systemImage: "person.badge.plus",
+                    accent: .green
+                ) {
+                    showingQuickAddStudent = true
+                }
+
+                setupQuickAddButton(
+                    title: "Teacher",
+                    systemImage: "person.crop.circle.badge.plus",
+                    accent: .teal
+                ) {
+                    showingTeacherDirectory = true
+                }
+
+                setupQuickAddButton(
+                    title: "Para",
+                    systemImage: "person.2.badge.plus",
+                    accent: .orange
+                ) {
+                    showingParaDirectory = true
+                }
+            }
+        }
+        .padding(.vertical, 4)
+    }
+
+    private func setupQuickAddButton(
+        title: String,
+        systemImage: String,
+        accent: Color,
+        action: @escaping () -> Void
+    ) -> some View {
+        Button(action: action) {
+            VStack(alignment: .leading, spacing: 4) {
+                Image(systemName: systemImage)
+                    .font(.subheadline.weight(.bold))
+                Text(title)
+                    .font(.caption.weight(.semibold))
+                    .lineLimit(1)
+            }
+            .foregroundStyle(accent)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .padding(.horizontal, 10)
+            .padding(.vertical, 10)
+            .background(
+                RoundedRectangle(cornerRadius: 14, style: .continuous)
+                    .fill(accent.opacity(0.10))
+            )
+        }
+        .buttonStyle(.plain)
+    }
+
+    private var workspaceSetupProgressCard: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            Text("Build the workspace in this order so Today feels useful immediately.")
+                .font(.subheadline.weight(.semibold))
+
+            HStack(spacing: 12) {
+                settingsMetric(
+                    title: teacherWorkflowMode == .classroom ? "Classes" : "Groups",
+                    value: classDefinitions.isEmpty ? "0" : "\(classDefinitions.count)",
+                    accent: classDefinitions.isEmpty ? .orange : .blue
+                )
+                settingsMetric(
+                    title: "Students",
+                    value: studentProfiles.isEmpty ? "0" : "\(studentProfiles.count)",
+                    accent: studentProfiles.isEmpty ? .orange : .green
+                )
+                settingsMetric(
+                    title: "Schedule",
+                    value: alarms.isEmpty ? "Next" : "Ready",
+                    accent: alarms.isEmpty ? .orange : .indigo
+                )
+            }
+
+            Text(workspaceSetupChecklistSummary)
+                .font(.caption)
+                .foregroundStyle(.secondary)
+
+            Button("Open Guided Setup") {
+                showingWorkspaceSetupWizard = true
+            }
+            .buttonStyle(.borderedProminent)
+        }
+        .padding(.vertical, 4)
+    }
+
+    private var hasWorkspaceDataToDelete: Bool {
+        !classDefinitions.isEmpty ||
+        !studentProfiles.isEmpty ||
+        !teacherContacts.isEmpty ||
+        !paraContacts.isEmpty ||
+        !profiles.isEmpty ||
+        !overrides.isEmpty
+    }
+
+    @ViewBuilder
+    private var deleteSectionDataControls: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            Text("Delete Section Data")
+                .font(.footnote.weight(.semibold))
+                .foregroundStyle(.secondary)
+
+            if !classDefinitions.isEmpty {
+                deleteSectionButton(for: .savedContexts)
+            }
+
+            if !studentProfiles.isEmpty {
+                deleteSectionButton(for: .studentDirectory)
+            }
+
+            if !teacherContacts.isEmpty {
+                deleteSectionButton(for: .teachers)
+            }
+
+            if !paraContacts.isEmpty {
+                deleteSectionButton(for: .paras)
+            }
+
+            if !profiles.isEmpty {
+                deleteSectionButton(for: .scheduleProfiles)
+            }
+
+            if !overrides.isEmpty {
+                deleteSectionButton(for: .dayOverrides)
+            }
+        }
+        .padding(.top, 4)
+    }
+
+    private func deleteSectionButton(for target: DeleteDataTarget) -> some View {
+        Button(role: .destructive) {
+            pendingDeleteTarget = target
+        } label: {
+            Label(target.buttonTitle, systemImage: "trash")
+        }
+    }
+
     private var scheduleToolsSection: some View {
-        Section("Sub Plans") {
-            NavigationLink("Sub Plan Profile") {
+        Section("Prep & Handoff") {
+            NavigationLink("Prep & Handoff Profile") {
                 SubPlanProfileSettingsView()
             }
 
-            Text("Keep substitute guidance and reusable classroom handoff details together here.")
+            Text("Keep substitute guidance and reusable handoff details together here.")
                 .font(.footnote)
                 .foregroundColor(.secondary)
         }
@@ -1254,7 +1641,15 @@ struct SettingsView: View {
                 Text("Student Roster Data")
             }
 
-            Text("Schedule CSV tools stay here, and student roster CSV import/export now lives here too. Class List stays focused on managing students and saved classes.")
+            if !alarms.isEmpty {
+                Button(role: .destructive) {
+                    pendingDeleteTarget = .scheduleBlocks
+                } label: {
+                    Label("Delete Schedule Blocks", systemImage: "trash")
+                }
+            }
+
+            Text("Schedule CSV tools stay here, and student roster CSV import/export now lives here too. Core Setup stays focused on managing students and saved classes / groups.")
                 .font(.footnote)
                 .foregroundColor(.secondary)
         }
@@ -1274,10 +1669,68 @@ struct SettingsView: View {
                         }
                     }
                 }
+
+                Button {
+                    insertDiagnosticsTestWorkspace()
+                } label: {
+                    LabeledContent("Load Sample Teacher Day") {
+                        Text("Seed")
+                            .font(.caption.weight(.semibold))
+                            .foregroundStyle(.orange)
+                    }
+                }
+
+                Text("Loads sample classes or groups, students, planner items, commitments, staff, and evening test blocks for the current weekday.")
+                    .font(.footnote)
+                    .foregroundStyle(.secondary)
+
+                if !diagnosticsStatusMessage.isEmpty {
+                    Text(diagnosticsStatusMessage)
+                        .font(.footnote.weight(.semibold))
+                        .foregroundStyle(.secondary)
+                }
             } else {
                 Text("Diagnostics tools are disabled for this build.")
                     .font(.footnote)
                     .foregroundStyle(.secondary)
+            }
+        }
+    }
+
+    private var diagnosticsMenuSection: some View {
+        Section("Diagnostics") {
+            if diagnosticsToolsEnabled {
+                Menu {
+                    ForEach(diagnosticsTools) { tool in
+                        Button(tool.title, systemImage: "wrench.and.screwdriver") {
+                            selectedDiagnosticsTool = tool
+                        }
+                    }
+
+                    Divider()
+
+                    NavigationLink(value: SettingsDestination.liveActivities) {
+                        Label("Live Activities", systemImage: SettingsDestination.liveActivities.systemImage)
+                    }
+
+                    NavigationLink(value: SettingsDestination.cloudSync) {
+                        Label("Cloud Sync", systemImage: SettingsDestination.cloudSync.systemImage)
+                    }
+
+                    Divider()
+
+                    Button("Load Sample Teacher Day", systemImage: "shippingbox") {
+                        insertDiagnosticsTestWorkspace()
+                    }
+                } label: {
+                    settingsRowLabel(.diagnostics, detail: "Hidden testing tools and sample-day actions for demos and QA")
+                }
+
+                if !diagnosticsStatusMessage.isEmpty {
+                    Text(diagnosticsStatusMessage)
+                        .font(.footnote.weight(.semibold))
+                        .foregroundStyle(.secondary)
+                }
             }
         }
     }
@@ -1302,10 +1755,90 @@ struct SettingsView: View {
 
     private var workspaceSetupSummary: String {
         if studentProfiles.isEmpty && classDefinitions.isEmpty {
-            return "Open Student Directory and Saved Classes to build the reusable classroom context that powers rosters, tasks, and quick capture."
+            return "Use Guided Setup first, then build reusable classes and groups before spending time on advanced controls."
         }
 
-        return "ClassTrax currently has \(classDefinitions.count) saved classes and \(studentProfiles.count) students ready to reuse across schedules, rosters, and notes."
+        return "\(teacherWorkflowMode.displayName) mode is active. ClassTrax currently has \(classDefinitions.count) saved classes / groups and \(studentProfiles.count) students ready to reuse across schedules, planner items, and notes."
+    }
+
+    private var workspaceSetupCompletionLabel: String {
+        switch (classDefinitions.isEmpty, studentProfiles.isEmpty, alarms.isEmpty) {
+        case (true, _, _):
+            return "Step 1"
+        case (false, true, _):
+            return "Step 2"
+        case (false, false, true):
+            return "Step 3"
+        case (false, false, false):
+            return "Ready"
+        }
+    }
+
+    @ViewBuilder
+    private var classDefinitionsDestinationView: some View {
+        ClassDefinitionsView(classDefinitions: $classDefinitions, profiles: $studentProfiles)
+    }
+
+    @ViewBuilder
+    private var studentDirectoryDestinationView: some View {
+        StudentDirectoryView(
+            profiles: $studentProfiles,
+            classDefinitions: $classDefinitions,
+            teacherContacts: $teacherContacts,
+            paraContacts: $paraContacts,
+            onSavedProfiles: { updatedProfiles in
+                studentProfiles = updatedProfiles
+                ClassTraxPersistence.saveFirstSlice(
+                    alarms: alarms,
+                    studentProfiles: updatedProfiles,
+                    classDefinitions: classDefinitions,
+                    teacherContacts: teacherContacts,
+                    paraContacts: paraContacts,
+                    commitments: commitments,
+                    into: modelContext
+                )
+            },
+            onSavedTeacherContacts: { updatedContacts in
+                teacherContacts = updatedContacts
+                ClassTraxPersistence.saveFirstSlice(
+                    alarms: alarms,
+                    studentProfiles: studentProfiles,
+                    classDefinitions: classDefinitions,
+                    teacherContacts: updatedContacts,
+                    paraContacts: paraContacts,
+                    commitments: commitments,
+                    into: modelContext
+                )
+            },
+            onSavedParaContacts: { updatedContacts in
+                paraContacts = updatedContacts
+                ClassTraxPersistence.saveFirstSlice(
+                    alarms: alarms,
+                    studentProfiles: studentProfiles,
+                    classDefinitions: classDefinitions,
+                    teacherContacts: teacherContacts,
+                    paraContacts: updatedContacts,
+                    commitments: commitments,
+                    into: modelContext
+                )
+            },
+            onPrepareStudentEditor: {}
+        )
+    }
+
+    private var alertsWizardDestinationView: some View {
+        Form {
+            Section {
+                Text(destinationDescription(.alerts))
+                    .font(.footnote)
+                    .foregroundStyle(.secondary)
+            }
+
+            alertsSection
+        }
+        .navigationTitle("Alerts")
+        .scrollContentBackground(.hidden)
+        .background(settingsBackground)
     }
 
     private var syncSnapshotSummary: String {
@@ -1406,6 +1939,14 @@ struct SettingsView: View {
         overrides = thirdSlice.overrides
     }
 
+    private func autolaunchGuidedSetupIfNeeded() {
+        guard !showingWorkspaceSetupWizard else { return }
+        guard !hasSeenGuidedSetupAutolaunch else { return }
+        guard classDefinitions.isEmpty, studentProfiles.isEmpty, alarms.isEmpty else { return }
+        hasSeenGuidedSetupAutolaunch = true
+        showingWorkspaceSetupWizard = true
+    }
+
     private func saveAlarms(_ alarms: [AlarmItem]) {
         if let encoded = try? JSONEncoder().encode(alarms) {
             savedAlarms = encoded
@@ -1435,6 +1976,474 @@ struct SettingsView: View {
         )
         if let encoded = try? JSONEncoder().encode(overrides) {
             savedOverrides = encoded
+        }
+    }
+
+    private func performDelete(_ target: DeleteDataTarget) {
+        switch target {
+        case .savedContexts:
+            classDefinitions = []
+        case .studentDirectory:
+            studentProfiles = []
+        case .teachers:
+            teacherContacts = []
+        case .paras:
+            paraContacts = []
+        case .scheduleProfiles:
+            profiles = []
+        case .dayOverrides:
+            overrides = []
+        case .scheduleBlocks:
+            alarms = []
+        }
+    }
+
+    private func insertDiagnosticsTestWorkspace() {
+        let prefix = "[Diagnostics]"
+        let currentWeekday = Calendar.current.component(.weekday, from: Date())
+
+        let seededTeachers: [ClassStaffContact] = [
+            ClassStaffContact(
+                name: "\(prefix) Teacher Redwood",
+                room: "Room 201",
+                cell: "555-0101",
+                extensionNumber: "201",
+                emailAddress: "redwood.teacher@test.local",
+                subject: "Math / Intervention"
+            ),
+            ClassStaffContact(
+                name: "\(prefix) Teacher Bluebird",
+                room: "Room 204",
+                cell: "555-0102",
+                extensionNumber: "204",
+                emailAddress: "bluebird.teacher@test.local",
+                subject: "ELA / Support"
+            )
+        ]
+
+        let seededParas: [ClassStaffContact] = [
+            ClassStaffContact(
+                name: "\(prefix) Para North",
+                room: "Room 201",
+                cell: "555-0201",
+                extensionNumber: "221",
+                emailAddress: "north.para@test.local",
+                subject: "Push-In Support"
+            ),
+            ClassStaffContact(
+                name: "\(prefix) Para South",
+                room: "Room 204",
+                cell: "555-0202",
+                extensionNumber: "224",
+                emailAddress: "south.para@test.local",
+                subject: "Small Group Support"
+            )
+        ]
+
+        let redwoodContext = ClassDefinitionItem(
+            name: "\(prefix) Redwood Lab",
+            scheduleType: .math,
+            gradeLevel: "5",
+            defaultLocation: "Room 201",
+            teacherContacts: [seededTeachers[0]],
+            paraContacts: [seededParas[0]]
+        )
+
+        let bluebirdContext = ClassDefinitionItem(
+            name: "\(prefix) Bluebird Studio",
+            scheduleType: .ela,
+            gradeLevel: "6",
+            defaultLocation: "Room 204",
+            teacherContacts: [seededTeachers[1]],
+            paraContacts: [seededParas[1]]
+        )
+
+        let seededDefinitions = [redwoodContext, bluebirdContext]
+
+        let redwoodStudents = [
+            "Avery Moss",
+            "Jordan Hale",
+            "Micah Stone",
+            "Rowan Price"
+        ].map { studentName in
+            StudentSupportProfile(
+                name: "\(prefix) \(studentName)",
+                className: redwoodContext.name,
+                gradeLevel: redwoodContext.gradeLevel,
+                classDefinitionID: redwoodContext.id,
+                classDefinitionIDs: [redwoodContext.id],
+                classContexts: [
+                    StudentSupportProfile.ClassContext(classDefinitionID: redwoodContext.id)
+                ],
+                supportTeacherIDs: [seededTeachers[0].id],
+                supportParaIDs: [seededParas[0].id],
+                supportRooms: redwoodContext.defaultLocation,
+                accommodations: "Extended directions, frequent check-ins",
+                prompts: "Prompt to start quickly and confirm final answer."
+            )
+        }
+
+        let bluebirdStudents = [
+            "Casey Brook",
+            "Elliot Shore",
+            "Harper Lane",
+            "Parker Wren"
+        ].map { studentName in
+            StudentSupportProfile(
+                name: "\(prefix) \(studentName)",
+                className: bluebirdContext.name,
+                gradeLevel: bluebirdContext.gradeLevel,
+                classDefinitionID: bluebirdContext.id,
+                classDefinitionIDs: [bluebirdContext.id],
+                classContexts: [
+                    StudentSupportProfile.ClassContext(classDefinitionID: bluebirdContext.id)
+                ],
+                supportTeacherIDs: [seededTeachers[1].id],
+                supportParaIDs: [seededParas[1].id],
+                supportRooms: bluebirdContext.defaultLocation,
+                accommodations: "Chunked reading tasks, small-group prompting",
+                prompts: "Preview expectations and redirect after each transition."
+            )
+        }
+
+        let seededStudents = redwoodStudents + bluebirdStudents
+        let redwoodStudentIDs = redwoodStudents.map(\.id)
+        let bluebirdStudentIDs = bluebirdStudents.map(\.id)
+
+        let seededBlocks: [AlarmItem] = [
+            makeDiagnosticsBlock(
+                title: "\(prefix) Redwood Session 1",
+                location: redwoodContext.defaultLocation,
+                type: .math,
+                weekday: currentWeekday,
+                gradeLevel: redwoodContext.gradeLevel,
+                startHour: 17,
+                startMinute: 0,
+                endHour: 17,
+                endMinute: 45,
+                definition: redwoodContext,
+                linkedStudentIDs: redwoodStudentIDs
+            ),
+            makeDiagnosticsBlock(
+                title: "\(prefix) Bluebird Session 1",
+                location: bluebirdContext.defaultLocation,
+                type: .ela,
+                weekday: currentWeekday,
+                gradeLevel: bluebirdContext.gradeLevel,
+                startHour: 17,
+                startMinute: 50,
+                endHour: 18,
+                endMinute: 35,
+                definition: bluebirdContext,
+                linkedStudentIDs: bluebirdStudentIDs
+            ),
+            makeDiagnosticsBlock(
+                title: "\(prefix) Redwood Session 2",
+                location: redwoodContext.defaultLocation,
+                type: .studyTime,
+                weekday: currentWeekday,
+                gradeLevel: redwoodContext.gradeLevel,
+                startHour: 18,
+                startMinute: 40,
+                endHour: 19,
+                endMinute: 25,
+                definition: redwoodContext,
+                linkedStudentIDs: redwoodStudentIDs
+            ),
+            makeDiagnosticsBlock(
+                title: "\(prefix) Bluebird Session 2",
+                location: bluebirdContext.defaultLocation,
+                type: .ela,
+                weekday: currentWeekday,
+                gradeLevel: bluebirdContext.gradeLevel,
+                startHour: 19,
+                startMinute: 30,
+                endHour: 20,
+                endMinute: 15,
+                definition: bluebirdContext,
+                linkedStudentIDs: bluebirdStudentIDs
+            ),
+            makeDiagnosticsBlock(
+                title: "\(prefix) Redwood Session 3",
+                location: redwoodContext.defaultLocation,
+                type: .math,
+                weekday: currentWeekday,
+                gradeLevel: redwoodContext.gradeLevel,
+                startHour: 20,
+                startMinute: 20,
+                endHour: 21,
+                endMinute: 5,
+                definition: redwoodContext,
+                linkedStudentIDs: redwoodStudentIDs
+            ),
+            makeDiagnosticsBlock(
+                title: "\(prefix) Bluebird Session 3",
+                location: bluebirdContext.defaultLocation,
+                type: .studyTime,
+                weekday: currentWeekday,
+                gradeLevel: bluebirdContext.gradeLevel,
+                startHour: 21,
+                startMinute: 10,
+                endHour: 21,
+                endMinute: 55,
+                definition: bluebirdContext,
+                linkedStudentIDs: bluebirdStudentIDs
+            ),
+            makeDiagnosticsBlock(
+                title: "\(prefix) Redwood Session 4",
+                location: redwoodContext.defaultLocation,
+                type: .math,
+                weekday: currentWeekday,
+                gradeLevel: redwoodContext.gradeLevel,
+                startHour: 22,
+                startMinute: 0,
+                endHour: 22,
+                endMinute: 45,
+                definition: redwoodContext,
+                linkedStudentIDs: redwoodStudentIDs
+            ),
+            makeDiagnosticsBlock(
+                title: "\(prefix) Bluebird Session 4",
+                location: bluebirdContext.defaultLocation,
+                type: .ela,
+                weekday: currentWeekday,
+                gradeLevel: bluebirdContext.gradeLevel,
+                startHour: 22,
+                startMinute: 50,
+                endHour: 23,
+                endMinute: 59,
+                definition: bluebirdContext,
+                linkedStudentIDs: bluebirdStudentIDs
+            )
+        ]
+
+        let seededTodos: [TodoItem] = [
+            TodoItem(
+                task: "\(prefix) Prep Redwood warm-up",
+                priority: .high,
+                dueDate: seededBlocks.first?.startTime,
+                category: .prep,
+                bucket: .today,
+                linkedContext: redwoodContext.name,
+                classLink: redwoodContext.id.uuidString
+            ),
+            TodoItem(
+                task: "\(prefix) Check Bluebird reading notes",
+                priority: .med,
+                dueDate: seededBlocks.dropFirst().first?.startTime,
+                category: .grading,
+                bucket: .today,
+                linkedContext: bluebirdContext.name,
+                classLink: bluebirdContext.id.uuidString
+            ),
+            TodoItem(
+                task: "\(prefix) Call Avery Moss family",
+                priority: .high,
+                dueDate: seededBlocks.last?.endTime,
+                category: .parentContact,
+                bucket: .today,
+                linkedContext: redwoodContext.name,
+                studentOrGroup: redwoodStudents[0].name,
+                classLink: redwoodContext.id.uuidString,
+                studentLink: redwoodStudents[0].id.uuidString
+            ),
+            TodoItem(
+                task: "\(prefix) Prep Bluebird exit ticket copies",
+                priority: .low,
+                dueDate: seededBlocks.last?.startTime,
+                category: .copies,
+                bucket: .tomorrow,
+                linkedContext: bluebirdContext.name,
+                classLink: bluebirdContext.id.uuidString
+            )
+        ]
+
+        let seededCommitments: [CommitmentItem] = [
+            CommitmentItem(
+                title: "\(prefix) Team check-in",
+                kind: .meeting,
+                dayOfWeek: currentWeekday,
+                startTime: Calendar.current.date(bySettingHour: 17, minute: 35, second: 0, of: Date()) ?? Date(),
+                endTime: Calendar.current.date(bySettingHour: 17, minute: 50, second: 0, of: Date()) ?? Date(),
+                location: "Room 201",
+                notes: "Quick sample meeting for Planner and Today testing."
+            ),
+            CommitmentItem(
+                title: "\(prefix) Parent follow-up window",
+                kind: .reminder,
+                dayOfWeek: currentWeekday,
+                startTime: Calendar.current.date(bySettingHour: 22, minute: 50, second: 0, of: Date()) ?? Date(),
+                endTime: Calendar.current.date(bySettingHour: 23, minute: 10, second: 0, of: Date()) ?? Date(),
+                location: "Office",
+                notes: "Sample reminder block for end-of-day planning."
+            )
+        ]
+
+        let updatedTeachers = mergeDiagnosticsContacts(existing: teacherContacts, seeded: seededTeachers, prefix: prefix)
+        let updatedParas = mergeDiagnosticsContacts(existing: paraContacts, seeded: seededParas, prefix: prefix)
+        let updatedDefinitions = mergeDiagnosticsDefinitions(existing: classDefinitions, seeded: seededDefinitions, prefix: prefix)
+        let updatedStudents = mergeDiagnosticsStudents(existing: studentProfiles, seeded: seededStudents, prefix: prefix)
+        let updatedAlarms = mergeDiagnosticsAlarms(existing: alarms, seeded: seededBlocks, prefix: prefix)
+        let updatedTodos = mergeDiagnosticsTodos(existing: todos, seeded: seededTodos, prefix: prefix)
+        let updatedCommitments = mergeDiagnosticsCommitments(existing: commitments, seeded: seededCommitments, prefix: prefix)
+
+        isLoadingInitialState = true
+        teacherContacts = updatedTeachers
+        paraContacts = updatedParas
+        classDefinitions = updatedDefinitions
+        studentProfiles = updatedStudents
+        alarms = updatedAlarms
+        todos = updatedTodos
+        commitments = updatedCommitments
+
+        ClassTraxPersistence.saveFirstSlice(
+            alarms: updatedAlarms,
+            studentProfiles: updatedStudents,
+            classDefinitions: updatedDefinitions,
+            teacherContacts: updatedTeachers,
+            paraContacts: updatedParas,
+            commitments: updatedCommitments,
+            into: modelContext
+        )
+        ClassTraxPersistence.saveSecondSlice(
+            todos: updatedTodos,
+            followUpNotes: ClassTraxPersistence.loadSecondSlice(from: modelContext).followUpNotes,
+            subPlans: ClassTraxPersistence.loadSecondSlice(from: modelContext).subPlans,
+            dailySubPlans: ClassTraxPersistence.loadSecondSlice(from: modelContext).dailySubPlans,
+            into: modelContext
+        )
+
+        savedAlarms = (try? JSONEncoder().encode(updatedAlarms)) ?? Data()
+        savedCommitments = (try? JSONEncoder().encode(updatedCommitments)) ?? Data()
+        savedTodos = (try? JSONEncoder().encode(updatedTodos)) ?? Data()
+        savedStudentProfiles = (try? JSONEncoder().encode(updatedStudents)) ?? Data()
+        savedClassDefinitions = (try? JSONEncoder().encode(updatedDefinitions)) ?? Data()
+        isLoadingInitialState = false
+        refreshNotifications()
+
+        diagnosticsStatusMessage = "Loaded a sample teacher day with 2 classes or groups, 8 students, planner items, commitments, staff, and 8 evening test blocks."
+    }
+
+    private func makeDiagnosticsBlock(
+        title: String,
+        location: String,
+        type: AlarmItem.ScheduleType,
+        weekday: Int,
+        gradeLevel: String,
+        startHour: Int,
+        startMinute: Int,
+        endHour: Int,
+        endMinute: Int,
+        definition: ClassDefinitionItem,
+        linkedStudentIDs: [UUID]
+    ) -> AlarmItem {
+        let calendar = Calendar.current
+        let referenceDate = Date()
+        let start = calendar.date(
+            bySettingHour: startHour,
+            minute: startMinute,
+            second: 0,
+            of: referenceDate
+        ) ?? referenceDate
+        let end = calendar.date(
+            bySettingHour: endHour,
+            minute: endMinute,
+            second: 0,
+            of: referenceDate
+        ) ?? referenceDate
+
+        return AlarmItem(
+            dayOfWeek: weekday,
+            className: title,
+            location: location,
+            gradeLevel: gradeLevel,
+            startTime: start,
+            endTime: end,
+            type: type,
+            classDefinitionID: definition.id,
+            classDefinitionIDs: [definition.id],
+            linkedStudentIDs: linkedStudentIDs,
+            warningLeadTimes: []
+        )
+    }
+
+    private func mergeDiagnosticsContacts(
+        existing: [ClassStaffContact],
+        seeded: [ClassStaffContact],
+        prefix: String
+    ) -> [ClassStaffContact] {
+        let retained = existing.filter { !$0.name.hasPrefix(prefix) }
+        return (retained + seeded).sorted {
+            $0.trimmedName.localizedCaseInsensitiveCompare($1.trimmedName) == .orderedAscending
+        }
+    }
+
+    private func mergeDiagnosticsDefinitions(
+        existing: [ClassDefinitionItem],
+        seeded: [ClassDefinitionItem],
+        prefix: String
+    ) -> [ClassDefinitionItem] {
+        let retained = existing.filter { !$0.name.hasPrefix(prefix) }
+        return (retained + seeded).sorted {
+            $0.displayName.localizedCaseInsensitiveCompare($1.displayName) == .orderedAscending
+        }
+    }
+
+    private func mergeDiagnosticsStudents(
+        existing: [StudentSupportProfile],
+        seeded: [StudentSupportProfile],
+        prefix: String
+    ) -> [StudentSupportProfile] {
+        let retained = existing.filter {
+            !$0.name.hasPrefix(prefix) &&
+            !$0.className.hasPrefix(prefix)
+        }
+        return (retained + seeded).sorted {
+            $0.name.localizedCaseInsensitiveCompare($1.name) == .orderedAscending
+        }
+    }
+
+    private func mergeDiagnosticsAlarms(
+        existing: [AlarmItem],
+        seeded: [AlarmItem],
+        prefix: String
+    ) -> [AlarmItem] {
+        let retained = existing.filter { !$0.className.hasPrefix(prefix) }
+        return (retained + seeded).sorted {
+            if $0.dayOfWeek != $1.dayOfWeek {
+                return $0.dayOfWeek < $1.dayOfWeek
+            }
+            return $0.startTime < $1.startTime
+        }
+    }
+
+    private func mergeDiagnosticsTodos(
+        existing: [TodoItem],
+        seeded: [TodoItem],
+        prefix: String
+    ) -> [TodoItem] {
+        let retained = existing.filter { !$0.task.hasPrefix(prefix) }
+        return (retained + seeded).sorted {
+            let leftDate = $0.dueDate ?? .distantFuture
+            let rightDate = $1.dueDate ?? .distantFuture
+            if leftDate != rightDate {
+                return leftDate < rightDate
+            }
+            return $0.task.localizedCaseInsensitiveCompare($1.task) == .orderedAscending
+        }
+    }
+
+    private func mergeDiagnosticsCommitments(
+        existing: [CommitmentItem],
+        seeded: [CommitmentItem],
+        prefix: String
+    ) -> [CommitmentItem] {
+        let retained = existing.filter { !$0.title.hasPrefix(prefix) }
+        return (retained + seeded).sorted {
+            if $0.dayOfWeek != $1.dayOfWeek {
+                return $0.dayOfWeek < $1.dayOfWeek
+            }
+            return $0.startTime < $1.startTime
         }
     }
 
@@ -1724,7 +2733,7 @@ struct SubPlanProfileSettingsView: View {
                 }
             }
         }
-        .navigationTitle("Sub Plan Profile")
+        .navigationTitle("Prep & Handoff Profile")
         .navigationBarTitleDisplayMode(.inline)
         .toolbar {
             ToolbarItem(placement: .topBarTrailing) {
@@ -1755,5 +2764,223 @@ struct SubPlanProfileSettingsView: View {
         var cleaned = profile
         cleaned.appCredentials = profile.appCredentials.filter(\.hasContent)
         return cleaned
+    }
+}
+
+private struct WorkspaceSetupWizardView: View {
+    @Environment(\.dismiss) private var dismiss
+
+    @Binding var teacherWorkflowMode: TeacherWorkflowMode
+    let contextCount: Int
+    let studentCount: Int
+    let hasSchedule: Bool
+    let contextsDestination: AnyView
+    let studentsDestination: AnyView
+    let layoutDestination: AnyView
+    let alertsDestination: AnyView
+
+    @State private var currentStep = 0
+
+    private let totalSteps = 4
+
+    var body: some View {
+        ScrollView {
+            VStack(alignment: .leading, spacing: 20) {
+                VStack(alignment: .leading, spacing: 6) {
+                    Text("Guided Setup")
+                        .font(.title2.weight(.bold))
+
+                    Text("Move through the core teacher setup in order so Today, Planner, and Notes feel coherent from the start.")
+                        .font(.subheadline)
+                        .foregroundStyle(.secondary)
+                }
+
+                progressHeader
+
+                Group {
+                    switch currentStep {
+                    case 0:
+                        workflowStep
+                    case 1:
+                        contextsStep
+                    case 2:
+                        studentsStep
+                    default:
+                        finishStep
+                    }
+                }
+                .padding(18)
+                .background(
+                    RoundedRectangle(cornerRadius: 20, style: .continuous)
+                        .fill(Color(.secondarySystemGroupedBackground))
+                )
+
+                wizardControls
+            }
+            .padding()
+        }
+        .navigationTitle("Guided Setup")
+        .navigationBarTitleDisplayMode(.inline)
+        .toolbar {
+            ToolbarItem(placement: .topBarTrailing) {
+                Button("Done") {
+                    dismiss()
+                }
+            }
+        }
+    }
+
+    private var progressHeader: some View {
+        HStack(spacing: 10) {
+            ForEach(0..<totalSteps, id: \.self) { step in
+                Capsule(style: .continuous)
+                    .fill(step <= currentStep ? Color.accentColor : Color(.systemGray5))
+                    .frame(height: 8)
+            }
+        }
+    }
+
+    private var workflowStep: some View {
+        VStack(alignment: .leading, spacing: 14) {
+            Text("1. Choose Your Workflow")
+                .font(.headline)
+
+            Text("This shapes labels and defaults throughout the app, but it does not lock you in.")
+                .font(.subheadline)
+                .foregroundStyle(.secondary)
+
+            Picker("Workflow Mode", selection: $teacherWorkflowMode) {
+                ForEach(TeacherWorkflowMode.allCases) { mode in
+                    Text(mode.displayName).tag(mode)
+                }
+            }
+            .pickerStyle(.inline)
+
+            Text(teacherWorkflowMode.settingsSummary)
+                .font(.footnote)
+                .foregroundStyle(.secondary)
+        }
+    }
+
+    private var contextsStep: some View {
+        VStack(alignment: .leading, spacing: 14) {
+            Text("2. Save Your Classes / Groups")
+                .font(.headline)
+
+            Text("Add the classes, groups, or support sessions you reuse. Schedule blocks, attendance, homework, and notes all depend on these.")
+                .font(.subheadline)
+                .foregroundStyle(.secondary)
+
+            wizardMetricRow(
+                title: teacherWorkflowMode == .classroom ? "Saved Classes" : "Saved Groups",
+                value: "\(contextCount)",
+                accent: contextCount == 0 ? .orange : .blue
+            )
+
+            NavigationLink(destination: contextsDestination) {
+                Label(contextCount == 0 ? "Open Saved Classes / Groups" : "Review Saved Classes / Groups", systemImage: "books.vertical")
+                    .frame(maxWidth: .infinity)
+            }
+            .buttonStyle(.borderedProminent)
+        }
+    }
+
+    private var studentsStep: some View {
+        VStack(alignment: .leading, spacing: 14) {
+            Text("3. Add Students")
+                .font(.headline)
+
+            Text("Build the student directory next so roster tools, support profiles, and in-class quick actions have real data to work with.")
+                .font(.subheadline)
+                .foregroundStyle(.secondary)
+
+            wizardMetricRow(
+                title: "Students",
+                value: "\(studentCount)",
+                accent: studentCount == 0 ? .orange : .green
+            )
+
+            NavigationLink(destination: studentsDestination) {
+                Label(studentCount == 0 ? "Open Student Directory" : "Review Student Directory", systemImage: "person.3")
+                    .frame(maxWidth: .infinity)
+            }
+            .buttonStyle(.borderedProminent)
+        }
+    }
+
+    private var finishStep: some View {
+        VStack(alignment: .leading, spacing: 14) {
+            Text("4. Tune Today and Alerts")
+                .font(.headline)
+
+            Text("Once classes, groups, and students are in place, tighten the default dashboard and alert behavior. Then switch to Schedule to add your first real block.")
+                .font(.subheadline)
+                .foregroundStyle(.secondary)
+
+            wizardMetricRow(
+                title: "Schedule",
+                value: hasSchedule ? "Ready" : "Next",
+                accent: hasSchedule ? .indigo : .orange
+            )
+
+            NavigationLink(destination: layoutDestination) {
+                Label("Set Today Defaults", systemImage: "rectangle.grid.1x2")
+                    .frame(maxWidth: .infinity)
+            }
+            .buttonStyle(.borderedProminent)
+
+            NavigationLink(destination: alertsDestination) {
+                Label("Tune Alerts", systemImage: "bell.badge")
+                    .frame(maxWidth: .infinity)
+            }
+            .buttonStyle(.bordered)
+
+            Text(hasSchedule ? "Your workspace is ready. Keep refining from the live day flow." : "Next stop: open the Schedule tab and add your first block.")
+                .font(.footnote.weight(.semibold))
+                .foregroundStyle(.secondary)
+        }
+    }
+
+    private var wizardControls: some View {
+        HStack {
+            if currentStep > 0 {
+                Button("Back") {
+                    currentStep -= 1
+                }
+            }
+
+            Spacer()
+
+            if currentStep < totalSteps - 1 {
+                Button("Next") {
+                    currentStep += 1
+                }
+                .buttonStyle(.borderedProminent)
+            } else {
+                Button("Finish") {
+                    dismiss()
+                }
+                .buttonStyle(.borderedProminent)
+            }
+        }
+    }
+
+    private func wizardMetricRow(title: String, value: String, accent: Color) -> some View {
+        HStack {
+            Text(title)
+                .font(.subheadline.weight(.semibold))
+            Spacer()
+            Text(value)
+                .font(.caption.weight(.bold))
+                .foregroundStyle(accent)
+                .padding(.horizontal, 10)
+                .padding(.vertical, 6)
+                .background(accent.opacity(0.12), in: Capsule(style: .continuous))
+        }
+        .padding(12)
+        .background(
+            RoundedRectangle(cornerRadius: 14, style: .continuous)
+                .fill(Color(.tertiarySystemGroupedBackground))
+        )
     }
 }

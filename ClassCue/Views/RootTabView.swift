@@ -22,11 +22,18 @@ enum AppTab: Hashable {
     case todo
     case notes
     case settings
+    case manage
 }
 
 // MARK: - Root Tab View
 
 struct RootTabView: View {
+
+    private enum ManageDestination: Hashable {
+        case rollCall
+        case students
+        case settings
+    }
 
     private struct FirstSliceDomain: OptionSet {
         let rawValue: Int
@@ -49,6 +56,8 @@ struct RootTabView: View {
     @Environment(\.horizontalSizeClass) private var horizontalSizeClass
     @State private var selectedTab: AppTab = .today
     @State private var selectedScheduleDay: WeekdayTab = .today
+    @State private var managePath = NavigationPath()
+    @State private var requestedManageDestination: ManageDestination?
     @AppStorage("timer_v6_data") private var savedAlarms: Data = Data()
     @AppStorage("todo_v6_data") private var savedTodos: Data = Data()
     @AppStorage("commitments_v1_data") private var savedCommitments: Data = Data()
@@ -139,12 +148,10 @@ struct RootTabView: View {
     private var baseTabView: some View {
         TabView(selection: $selectedTab) {
             todayTab
-            attendanceTab
             scheduleTab
-            studentsTab
             todoTab
             notesTab
-            settingsTab
+            manageTab
         }
     }
 
@@ -527,18 +534,24 @@ struct RootTabView: View {
                     manuallyRefreshSyncedData()
                 },
                 openAttendanceTab: {
-                    selectedTab = .attendance
+                    managePath = NavigationPath()
+                    requestedManageDestination = .rollCall
+                    selectedTab = .manage
                 },
                 openScheduleTab: {
                     selectedTab = .schedule
                 }, openStudentsTab: {
-                    selectedTab = .students
+                    managePath = NavigationPath()
+                    requestedManageDestination = .students
+                    selectedTab = .manage
                 }, openTodoTab: {
                     selectedTab = .todo
                 }, openNotesTab: {
                     selectedTab = .notes
                 }, openSettingsTab: {
-                    selectedTab = .settings
+                    managePath = NavigationPath()
+                    requestedManageDestination = .settings
+                    selectedTab = .manage
                 })
             .toolbar(.hidden, for: .tabBar)
         }
@@ -577,57 +590,43 @@ struct RootTabView: View {
         .tag(AppTab.schedule)
     }
 
-    private var attendanceTab: some View {
-        NavigationStack {
-            AttendanceWorkspaceView(
-                alarms: $alarms,
-                studentProfiles: $studentProfiles,
-                attendanceRecords: $attendanceRecords,
-                overrideSchedule: activeDayOverride?.alarms
-            )
-        }
-        .tabItem {
-            tabLabel(title: "Attendance", systemImage: "checklist.checked")
-        }
-        .accessibilityLabel("Attendance")
-        .tag(AppTab.attendance)
+    private var attendanceWorkspace: some View {
+        AttendanceWorkspaceView(
+            alarms: $alarms,
+            studentProfiles: $studentProfiles,
+            attendanceRecords: $attendanceRecords,
+            overrideSchedule: activeDayOverride?.alarms
+        )
     }
 
-    private var studentsTab: some View {
-        NavigationStack {
-            StudentsHubView(
-                profiles: $studentProfiles,
-                classDefinitions: $classDefinitions,
-                teacherContacts: $teacherContacts,
-                paraContacts: $paraContacts,
-                onImportedStudents: { importedProfiles in
-                    persistStudentProfilesImmediately(importedProfiles)
-                },
-                onSavedProfiles: { updatedProfiles in
-                    persistStudentProfilesImmediately(updatedProfiles)
-                },
-                onSavedTeacherContacts: { updatedContacts in
-                    persistSupportStaffImmediately(
-                        teacherContacts: updatedContacts,
-                        paraContacts: paraContacts
-                    )
-                },
-                onSavedParaContacts: { updatedContacts in
-                    persistSupportStaffImmediately(
-                        teacherContacts: teacherContacts,
-                        paraContacts: updatedContacts
-                    )
-                },
-                onPrepareStudentEditor: {
-                    flushPendingPersistenceSaves()
-                }
-            )
-        }
-        .tabItem {
-            tabLabel(title: "Students", systemImage: "person.3")
-        }
-        .accessibilityLabel("Classes and Students")
-        .tag(AppTab.students)
+    private var studentsWorkspace: some View {
+        StudentsHubView(
+            profiles: $studentProfiles,
+            classDefinitions: $classDefinitions,
+            teacherContacts: $teacherContacts,
+            paraContacts: $paraContacts,
+            onImportedStudents: { importedProfiles in
+                persistStudentProfilesImmediately(importedProfiles)
+            },
+            onSavedProfiles: { updatedProfiles in
+                persistStudentProfilesImmediately(updatedProfiles)
+            },
+            onSavedTeacherContacts: { updatedContacts in
+                persistSupportStaffImmediately(
+                    teacherContacts: updatedContacts,
+                    paraContacts: paraContacts
+                )
+            },
+            onSavedParaContacts: { updatedContacts in
+                persistSupportStaffImmediately(
+                    teacherContacts: teacherContacts,
+                    paraContacts: updatedContacts
+                )
+            },
+            onPrepareStudentEditor: {
+                flushPendingPersistenceSaves()
+            }
+        )
     }
 
     private var todoTab: some View {
@@ -648,9 +647,9 @@ struct RootTabView: View {
             )
         }
         .tabItem {
-            tabLabel(title: "Tasks", systemImage: "checkmark.rectangle.stack")
+            tabLabel(title: "Planner", systemImage: "calendar.badge.checkmark")
         }
-        .accessibilityLabel("To Do")
+        .accessibilityLabel("Planner")
         .tag(AppTab.todo)
     }
 
@@ -676,25 +675,87 @@ struct RootTabView: View {
         .tag(AppTab.notes)
     }
 
-    private var settingsTab: some View {
-        NavigationStack {
-            SettingsView(
-                studentProfiles: $studentProfiles,
-                classDefinitions: $classDefinitions,
-                teacherContacts: $teacherContacts,
-                paraContacts: $paraContacts
-            )
-                .navigationBarTitleDisplayMode(.inline)
+    private var settingsWorkspace: some View {
+        SettingsView(
+            studentProfiles: $studentProfiles,
+            classDefinitions: $classDefinitions,
+            teacherContacts: $teacherContacts,
+            paraContacts: $paraContacts
+        )
+        .navigationBarTitleDisplayMode(.inline)
+    }
+
+    private var manageTab: some View {
+        NavigationStack(path: $managePath) {
+            List {
+                Section("Daily Tools") {
+                    NavigationLink(value: ManageDestination.rollCall) {
+                        manageRow(
+                            title: "Attendance",
+                            detail: "Open the dedicated attendance workspace and catch up any missed blocks.",
+                            systemImage: "checklist.checked"
+                        )
+                    }
+                }
+
+                Section("Workspace") {
+                    NavigationLink(value: ManageDestination.students) {
+                        manageRow(
+                            title: "Students & Supports",
+                            detail: "Open the student directory, class rosters, and support profiles.",
+                            systemImage: "person.3"
+                        )
+                    }
+
+                    NavigationLink(value: ManageDestination.settings) {
+                        manageRow(
+                            title: "Settings",
+                            detail: "Open setup, alerts, layout defaults, integrations, and data tools.",
+                            systemImage: "gearshape"
+                        )
+                    }
+                }
+            }
+            .navigationTitle("More")
+            .navigationBarTitleDisplayMode(.inline)
+            .navigationDestination(for: ManageDestination.self) { destination in
+                switch destination {
+                case .rollCall:
+                    attendanceWorkspace
+                case .students:
+                    studentsWorkspace
+                case .settings:
+                    settingsWorkspace
+                }
+            }
+        }
+        .onChange(of: requestedManageDestination) { _, destination in
+            guard let destination else { return }
+            managePath = NavigationPath()
+            managePath.append(destination)
+            requestedManageDestination = nil
         }
         .tabItem {
-            tabLabel(title: "Settings", systemImage: "gearshape")
+            tabLabel(title: "More", systemImage: "ellipsis.circle")
         }
-        .accessibilityLabel("Settings")
-        .tag(AppTab.settings)
+        .accessibilityLabel("More")
+        .tag(AppTab.manage)
     }
 
     private func tabLabel(title: String, systemImage: String) -> some View {
         Label(title, systemImage: systemImage)
+    }
+
+    @ViewBuilder
+    private func manageRow(title: String, detail: String, systemImage: String) -> some View {
+        VStack(alignment: .leading, spacing: 3) {
+            Label(title, systemImage: systemImage)
+                .font(.subheadline.weight(.semibold))
+            Text(detail)
+                .font(.caption)
+                .foregroundStyle(.secondary)
+        }
+        .padding(.vertical, 2)
     }
 
     // MARK: - Data Loading
@@ -1384,9 +1445,9 @@ struct RootTabView: View {
 
     private var shouldRunRuntimeHeartbeat: Bool {
         switch selectedTab {
-        case .today, .schedule, .attendance:
+        case .today, .schedule:
             return true
-        case .students, .todo, .notes, .settings:
+        case .attendance, .students, .todo, .notes, .settings, .manage:
             return false
         }
     }
@@ -1403,6 +1464,7 @@ struct AttendanceWorkspaceView: View {
     let overrideSchedule: [AlarmItem]?
 
     @State private var selectedBlock: AttendanceBlockSession?
+    @State private var groupActionSession: TodayGroupActionSession?
 
     private var now: Date { Date() }
 
@@ -1431,18 +1493,18 @@ struct AttendanceWorkspaceView: View {
                 VStack(alignment: .leading, spacing: 4) {
                     Text(now.formatted(date: .complete, time: .omitted))
                         .font(.headline)
-                    Text("Attendance is now a dedicated workspace. Open a class, mark students quickly, and add missing work only when needed.")
+                    Text("Attendance is a focused workspace. Open a class or group, mark students quickly, and only drop into notes when you need them.")
                         .font(.subheadline)
                         .foregroundStyle(.secondary)
                 }
                 .padding(.vertical, 4)
             }
 
-            Section("Current Block") {
+            Section("Current Class / Group") {
                 if let activeBlock {
                     blockButton(for: activeBlock)
                 } else {
-                    Text("No class is active right now.")
+                    Text("No class or group is active right now.")
                         .foregroundStyle(.secondary)
                 }
             }
@@ -1471,8 +1533,21 @@ struct AttendanceWorkspaceView: View {
                     item: session.item,
                     date: session.date,
                     students: session.students,
+                    targetClassDefinitionID: session.targetClassDefinitionID,
+                    targetTitle: session.targetTitle,
                     records: attendanceRecords,
                     onCommit: { attendanceRecords = $0 }
+                )
+            }
+        }
+        .sheet(item: $groupActionSession) { session in
+            NavigationStack {
+                TodayGroupActionPickerView(
+                    session: session,
+                    onChoose: { selection in
+                        groupActionSession = nil
+                        handleGroupSelection(selection)
+                    }
                 )
             }
         }
@@ -1483,11 +1558,17 @@ struct AttendanceWorkspaceView: View {
         let completion = attendanceCompletion(for: block, students: students)
 
         return Button {
-            selectedBlock = AttendanceBlockSession(
-                item: block,
-                date: now,
-                students: students
-            )
+            if let session = makeGroupActionSession(for: block) {
+                groupActionSession = session
+            } else {
+                selectedBlock = AttendanceBlockSession(
+                    item: block,
+                    date: now,
+                    students: students,
+                    targetClassDefinitionID: nil,
+                    targetTitle: nil
+                )
+            }
         } label: {
             VStack(alignment: .leading, spacing: 4) {
                 HStack {
@@ -1523,6 +1604,17 @@ struct AttendanceWorkspaceView: View {
             return ("No Roster", "Link students to this block before taking attendance.", .secondary)
         }
 
+        let selectableLinkedGroups = block.linkedClassDefinitionIDs.filter {
+            !rosterStudents(for: block, targetClassDefinitionID: $0).isEmpty
+        }
+        if selectableLinkedGroups.count > 1 {
+            return (
+                "\(selectableLinkedGroups.count) Groups",
+                "Choose one linked group to take attendance.",
+                .blue
+            )
+        }
+
         let dateKey = AttendanceRecord.dateKey(for: now)
         let markedKeys = Set(
             attendanceRecords
@@ -1543,7 +1635,7 @@ struct AttendanceWorkspaceView: View {
 
         return (
             isComplete ? "Done" : "\(markedCount)/\(students.count)",
-            isComplete ? "Attendance completed for this block." : "\(students.count - markedCount) student\(students.count - markedCount == 1 ? "" : "s") still unmarked.",
+            isComplete ? "Roll call completed for this block." : "\(students.count - markedCount) student\(students.count - markedCount == 1 ? "" : "s") still unmarked.",
             isComplete ? .green : .orange
         )
     }
@@ -1557,8 +1649,8 @@ struct AttendanceWorkspaceView: View {
             return true
         }
 
-        if let classDefinitionID = block.classDefinitionID, let recordClassDefinitionID = record.classDefinitionID {
-            return classDefinitionID == recordClassDefinitionID
+        if block.matchesLinkedClassDefinition(record.classDefinitionID) {
+            return true
         }
 
         return record.dateKey == AttendanceRecord.dateKey(for: now) &&
@@ -1597,10 +1689,18 @@ struct AttendanceWorkspaceView: View {
     }
 
     private func rosterStudents(for item: AlarmItem) -> [StudentSupportProfile] {
+        rosterStudents(for: item, targetClassDefinitionID: nil)
+    }
+
+    private func rosterStudents(for item: AlarmItem, targetClassDefinitionID: UUID?) -> [StudentSupportProfile] {
         if !item.linkedStudentIDs.isEmpty {
             let linkedIDs = Set(item.linkedStudentIDs)
             let linkedProfiles = studentProfiles
                 .filter { linkedIDs.contains($0.id) }
+                .filter { profile in
+                    guard let targetClassDefinitionID else { return true }
+                    return profileMatches(classDefinitionID: targetClassDefinitionID, profile: profile)
+                }
                 .sorted { $0.name.localizedCaseInsensitiveCompare($1.name) == .orderedAscending }
 
             if !linkedProfiles.isEmpty {
@@ -1612,8 +1712,16 @@ struct AttendanceWorkspaceView: View {
 
         return studentProfiles
             .filter { profile in
-                if let classDefinitionID = item.classDefinitionID {
-                    guard profileMatches(classDefinitionID: classDefinitionID, profile: profile) else { return false }
+                if !item.linkedClassDefinitionIDs.isEmpty {
+                    let matchesLinkedContext: Bool
+                    if let targetClassDefinitionID {
+                        matchesLinkedContext = profileMatches(classDefinitionID: targetClassDefinitionID, profile: profile)
+                    } else {
+                        matchesLinkedContext = item.linkedClassDefinitionIDs.contains { linkedID in
+                            profileMatches(classDefinitionID: linkedID, profile: profile)
+                        }
+                    }
+                    guard matchesLinkedContext else { return false }
                     if gradeKey.isEmpty { return true }
                     let profileGradeKey = normalizedStudentKey(GradeLevelOption.normalized(profile.gradeLevel))
                     return profileGradeKey.isEmpty || profileGradeKey == gradeKey
@@ -1624,6 +1732,51 @@ struct AttendanceWorkspaceView: View {
                 return gradeKey.isEmpty || profileGradeKey.isEmpty || profileGradeKey == gradeKey
             }
             .sorted { $0.name.localizedCaseInsensitiveCompare($1.name) == .orderedAscending }
+    }
+
+    private func makeGroupActionSession(for item: AlarmItem) -> TodayGroupActionSession? {
+        let linkedDefinitions = item.linkedClassDefinitionIDs
+            .filter { !rosterStudents(for: item, targetClassDefinitionID: $0).isEmpty }
+
+        guard linkedDefinitions.count > 1 else { return nil }
+
+        let choices = linkedDefinitions.map { linkedID in
+            TodayGroupActionSession.Selection(
+                itemID: item.id,
+                action: .rollCall,
+                classDefinitionID: linkedID,
+                title: resolveGroupTitle(for: linkedID, item: item),
+                studentCount: rosterStudents(for: item, targetClassDefinitionID: linkedID).count
+            )
+        }
+
+        return TodayGroupActionSession(action: .rollCall, choices: choices)
+    }
+
+    private func handleGroupSelection(_ selection: TodayGroupActionSession.Selection) {
+        guard let item = alarms.first(where: { $0.id == selection.itemID }) ?? todaySchedule.first(where: { $0.id == selection.itemID }) else {
+            return
+        }
+
+        selectedBlock = AttendanceBlockSession(
+            item: item,
+            date: now,
+            students: rosterStudents(for: item, targetClassDefinitionID: selection.classDefinitionID),
+            targetClassDefinitionID: selection.classDefinitionID,
+            targetTitle: selection.title
+        )
+    }
+
+    private func resolveGroupTitle(for classDefinitionID: UUID, item: AlarmItem) -> String {
+        let matchedProfiles = studentProfiles.filter { profileMatches(classDefinitionID: classDefinitionID, profile: $0) }
+        if let title = matchedProfiles
+            .map(\.className)
+            .map({ $0.trimmingCharacters(in: .whitespacesAndNewlines) })
+            .first(where: { !$0.isEmpty }) {
+            return title
+        }
+
+        return item.className
     }
 
     private func startDate(for item: AlarmItem) -> Date {
@@ -1651,8 +1804,10 @@ private struct AttendanceBlockSession: Identifiable {
     let item: AlarmItem
     let date: Date
     let students: [StudentSupportProfile]
+    let targetClassDefinitionID: UUID?
+    let targetTitle: String?
 
-    var id: UUID { item.id }
+    var id: String { "\(item.id.uuidString)-\(targetClassDefinitionID?.uuidString ?? "all")" }
 }
 
 private struct RootLiveActivitySnapshot: Equatable {

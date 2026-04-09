@@ -104,6 +104,7 @@ struct StudentDirectoryView: View {
     @State private var showingHomeworkClassPicker = false
     @State private var selectedHomeworkClass = ""
     @State private var duplicateReviewSession: DuplicateReviewSession?
+    @State private var quickViewProfile: StudentSupportProfile?
 
     init(
         profiles: Binding<[StudentSupportProfile]>,
@@ -222,6 +223,27 @@ struct StudentDirectoryView: View {
                     existing: profile,
                     onSaveProfiles: onSavedProfiles
                 )
+            }
+            .sheet(item: $quickViewProfile) { profile in
+                NavigationStack {
+                    StudentQuickView(
+                        profile: latestProfile(for: profile),
+                        classDefinitions: classDefinitions,
+                        teacherContacts: teacherContacts,
+                        paraContacts: paraContacts,
+                        onEdit: {
+                            quickViewProfile = nil
+                            onPrepareStudentEditor?()
+                            editingProfile = latestProfile(for: profile)
+                        },
+                        onOpenStudents: {
+                            quickViewProfile = nil
+                        },
+                        onOpenRecord: {
+                            quickViewProfile = nil
+                        }
+                    )
+                }
             }
             .sheet(isPresented: $showingTeacherList) {
                 NavigationStack {
@@ -576,6 +598,14 @@ struct StudentDirectoryView: View {
 
             if !showsRosterDataTools {
                 HStack(spacing: 10) {
+                    overviewActionPill(
+                        title: classDefinitions.isEmpty ? "Class" : "Classes",
+                        systemImage: "books.vertical",
+                        accent: .indigo
+                    ) {
+                        showingSavedClasses = true
+                    }
+
                     overviewActionPill(title: "Student", systemImage: "plus", accent: .blue) {
                         onPrepareStudentEditor?()
                         addStudentSeed = .blank
@@ -833,6 +863,11 @@ struct StudentDirectoryView: View {
         }
         .buttonStyle(.plain)
         .swipeActions(edge: .leading, allowsFullSwipe: false) {
+            Button("Quick View") {
+                quickViewProfile = profile
+            }
+            .tint(.mint)
+
             Button(selection.contains(profile.id) ? "Deselect" : "Select") {
                 toggleSelection(for: profile)
             }
@@ -1378,6 +1413,10 @@ struct StudentDirectoryView: View {
     private func deleteProfile(_ profile: StudentSupportProfile) {
         profiles.removeAll { $0.id == profile.id }
         selection.remove(profile.id)
+    }
+
+    private func latestProfile(for profile: StudentSupportProfile) -> StudentSupportProfile {
+        profiles.first(where: { $0.id == profile.id }) ?? profile
     }
 
     private func mergeDuplicates(_ group: [StudentSupportProfile]) {

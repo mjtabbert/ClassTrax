@@ -22,21 +22,21 @@ struct AddEditView: View {
     @Environment(\.dismiss) private var dismiss
     @Environment(\.scenePhase) private var scenePhase
     @AppStorage("add_edit_block_draft_v1") private var savedDraftData: Data = Data()
+    @AppStorage("teacher_workflow_mode_v1") private var teacherWorkflowModeRawValue: String = TeacherWorkflowMode.classroom.rawValue
 
     @State private var name = ""
     @State private var room = ""
     @State private var grade = ""
     @State private var type = AlarmItem.ScheduleType.other
     @State private var selectedClassDefinitionID: UUID?
+    @State private var selectedAdditionalClassDefinitionIDs: Set<UUID> = []
     @State private var availableClassDefinitions: [ClassDefinitionItem] = []
 
     @State private var start = Date()
     @State private var end = Date().addingTimeInterval(60 * 30)
     @State private var linkedStudentIDs: Set<UUID> = []
     @State private var selectedDays: Set<Int> = []
-    @State private var firstWarningMinutes = 5
-    @State private var secondWarningMinutes = 2
-    @State private var thirdWarningMinutes = 1
+    @State private var warningLeadTimes: [Int] = [5, 2, 1]
     @State private var draftSaveTask: Task<Void, Never>?
     @State private var showingSuggestedRosterGroups = true
     @State private var showingAllRosterGroups = false
@@ -53,13 +53,100 @@ struct AddEditView: View {
         var grade: String
         var type: AlarmItem.ScheduleType
         var selectedClassDefinitionID: UUID?
+        var selectedAdditionalClassDefinitionIDs: [UUID]
         var start: Date
         var end: Date
         var linkedStudentIDs: [UUID]
         var selectedDays: [Int]
-        var firstWarningMinutes: Int
-        var secondWarningMinutes: Int
-        var thirdWarningMinutes: Int
+        var warningLeadTimes: [Int]
+
+        private enum CodingKeys: String, CodingKey {
+            case existingID
+            case name
+            case room
+            case grade
+            case type
+            case selectedClassDefinitionID
+            case selectedAdditionalClassDefinitionIDs
+            case start
+            case end
+            case linkedStudentIDs
+            case selectedDays
+            case warningLeadTimes
+            case firstWarningMinutes
+            case secondWarningMinutes
+            case thirdWarningMinutes
+        }
+
+        init(
+            existingID: UUID?,
+            name: String,
+            room: String,
+            grade: String,
+            type: AlarmItem.ScheduleType,
+            selectedClassDefinitionID: UUID?,
+            selectedAdditionalClassDefinitionIDs: [UUID],
+            start: Date,
+            end: Date,
+            linkedStudentIDs: [UUID],
+            selectedDays: [Int],
+            warningLeadTimes: [Int]
+        ) {
+            self.existingID = existingID
+            self.name = name
+            self.room = room
+            self.grade = grade
+            self.type = type
+            self.selectedClassDefinitionID = selectedClassDefinitionID
+            self.selectedAdditionalClassDefinitionIDs = selectedAdditionalClassDefinitionIDs
+            self.start = start
+            self.end = end
+            self.linkedStudentIDs = linkedStudentIDs
+            self.selectedDays = selectedDays
+            self.warningLeadTimes = warningLeadTimes
+        }
+
+        init(from decoder: Decoder) throws {
+            let container = try decoder.container(keyedBy: CodingKeys.self)
+            existingID = try container.decodeIfPresent(UUID.self, forKey: .existingID)
+            name = try container.decode(String.self, forKey: .name)
+            room = try container.decode(String.self, forKey: .room)
+            grade = try container.decode(String.self, forKey: .grade)
+            type = try container.decode(AlarmItem.ScheduleType.self, forKey: .type)
+            selectedClassDefinitionID = try container.decodeIfPresent(UUID.self, forKey: .selectedClassDefinitionID)
+            selectedAdditionalClassDefinitionIDs = try container.decodeIfPresent([UUID].self, forKey: .selectedAdditionalClassDefinitionIDs) ?? []
+            start = try container.decode(Date.self, forKey: .start)
+            end = try container.decode(Date.self, forKey: .end)
+            linkedStudentIDs = try container.decode([UUID].self, forKey: .linkedStudentIDs)
+            selectedDays = try container.decode([Int].self, forKey: .selectedDays)
+
+            if let values = try container.decodeIfPresent([Int].self, forKey: .warningLeadTimes) {
+                warningLeadTimes = values
+            } else {
+                let legacyValues = [
+                    try container.decodeIfPresent(Int.self, forKey: .firstWarningMinutes) ?? 5,
+                    try container.decodeIfPresent(Int.self, forKey: .secondWarningMinutes) ?? 2,
+                    try container.decodeIfPresent(Int.self, forKey: .thirdWarningMinutes) ?? 1,
+                ]
+                warningLeadTimes = legacyValues
+            }
+        }
+
+        func encode(to encoder: Encoder) throws {
+            var container = encoder.container(keyedBy: CodingKeys.self)
+            try container.encodeIfPresent(existingID, forKey: .existingID)
+            try container.encode(name, forKey: .name)
+            try container.encode(room, forKey: .room)
+            try container.encode(grade, forKey: .grade)
+            try container.encode(type, forKey: .type)
+            try container.encodeIfPresent(selectedClassDefinitionID, forKey: .selectedClassDefinitionID)
+            try container.encode(selectedAdditionalClassDefinitionIDs, forKey: .selectedAdditionalClassDefinitionIDs)
+            try container.encode(start, forKey: .start)
+            try container.encode(end, forKey: .end)
+            try container.encode(linkedStudentIDs, forKey: .linkedStudentIDs)
+            try container.encode(selectedDays, forKey: .selectedDays)
+            try container.encode(warningLeadTimes, forKey: .warningLeadTimes)
+        }
     }
 
     private struct StudentRosterGroup: Identifiable {
@@ -86,6 +173,10 @@ struct AddEditView: View {
         isEditing ? "Save Changes" : "Save Block"
     }
 
+    private var teacherWorkflowMode: TeacherWorkflowMode {
+        TeacherWorkflowMode(rawValue: teacherWorkflowModeRawValue) ?? .classroom
+    }
+
     private var previewItem: AlarmItem {
         AlarmItem(
             id: existing?.id ?? UUID(),
@@ -97,6 +188,7 @@ struct AddEditView: View {
             endTime: end,
             type: type,
             classDefinitionID: selectedClassDefinitionID,
+            classDefinitionIDs: selectedClassDefinitionIDs,
             linkedStudentIDs: Array(linkedStudentIDs),
             warningLeadTimes: currentWarningLeadTimes
         )
@@ -119,8 +211,19 @@ struct AddEditView: View {
 
                     TextField("Class Name", text: $name)
 
+                    if !availableClassDefinitions.isEmpty {
+                        DisclosureGroup("Additional Linked Classes / Groups (\(selectedAdditionalClassDefinitionIDs.count))") {
+                            VStack(alignment: .leading, spacing: 8) {
+                                ForEach(additionalContextCandidates) { definition in
+                                    additionalContextRow(for: definition)
+                                }
+                            }
+                            .padding(.top, 8)
+                        }
+                    }
+
                     Picker("Type", selection: $type) {
-                        ForEach(AlarmItem.ScheduleType.allCases, id: \.self) { itemType in
+                        ForEach(AlarmItem.ScheduleType.alphabetizedCases, id: \.self) { itemType in
                             HStack(spacing: 10) {
                                 Circle()
                                     .fill(itemType.themeColor)
@@ -141,7 +244,7 @@ struct AddEditView: View {
 
                     TextField("Room / Location", text: $room)
 
-                    Text("Choose the class roster manually when you want this block linked to a saved roster.")
+                    Text("Choose a primary roster when one class or group should drive the block, then add extra linked classes or groups when the block covers multiple groups or services.")
                         .font(.caption)
                         .foregroundStyle(.secondary)
                 }
@@ -175,11 +278,38 @@ struct AddEditView: View {
                 }
 
                 Section("Alerts") {
-                    Stepper("First warning: \(warningLabel(for: firstWarningMinutes))", value: $firstWarningMinutes, in: 0...120)
-                    Stepper("Second warning: \(warningLabel(for: secondWarningMinutes))", value: $secondWarningMinutes, in: 0...120)
-                    Stepper("Third warning: \(warningLabel(for: thirdWarningMinutes))", value: $thirdWarningMinutes, in: 0...120)
+                    if warningLeadTimes.isEmpty {
+                        Text("No warning alarms for this block.")
+                            .font(.footnote)
+                            .foregroundStyle(.secondary)
+                    } else {
+                        ForEach(Array(warningLeadTimes.enumerated()), id: \.offset) { index, minutes in
+                            HStack(spacing: 12) {
+                                Stepper(
+                                    "Warning \(index + 1): \(warningLabel(for: minutes))",
+                                    value: warningBinding(for: index),
+                                    in: 1...120
+                                )
 
-                    Text("Set a warning to 0 to disable it for this block. Defaults are 5, 2, and 1 minutes.")
+                                Button(role: .destructive) {
+                                    removeWarning(at: index)
+                                } label: {
+                                    Image(systemName: "minus.circle.fill")
+                                        .foregroundStyle(.red)
+                                }
+                                .buttonStyle(.plain)
+                                .accessibilityLabel("Remove warning \(index + 1)")
+                            }
+                        }
+                    }
+
+                    Button {
+                        addWarning()
+                    } label: {
+                        Label("Add Warning", systemImage: "plus.circle")
+                    }
+
+                    Text("Add as many warnings as you want, or leave the list empty for none.")
                         .font(.footnote)
                         .foregroundStyle(.secondary)
                 }
@@ -293,6 +423,9 @@ struct AddEditView: View {
             .onChange(of: selectedClassDefinitionID) { _, newValue in
                 applySelectedClassDefinition(newValue)
             }
+            .onChange(of: selectedAdditionalClassDefinitionIDs) { _, _ in
+                selectedAdditionalClassDefinitionIDs.remove(selectedClassDefinitionID ?? UUID())
+            }
             .alert("Unable to Save", isPresented: $showValidationAlert) {
                 Button("OK", role: .cancel) { }
             } message: {
@@ -323,11 +456,13 @@ struct AddEditView: View {
             room = existing.location
             grade = GradeLevelOption.normalized(existing.gradeLevel)
             type = existing.type
-            selectedClassDefinitionID = existing.classDefinitionID ?? exactClassDefinitionMatch(
+            let existingDefinitionIDs = existing.linkedClassDefinitionIDs
+            selectedClassDefinitionID = existingDefinitionIDs.first ?? existing.classDefinitionID ?? exactClassDefinitionMatch(
                 name: existing.className,
                 gradeLevel: existing.gradeLevel,
                 in: availableClassDefinitions
             )?.id
+            selectedAdditionalClassDefinitionIDs = Set(existingDefinitionIDs.dropFirst())
             start = existing.startTime
             end = existing.endTime
             linkedStudentIDs = Set(existing.linkedStudentIDs)
@@ -340,6 +475,7 @@ struct AddEditView: View {
             start = roundedStart
             end = defaultEnd
             selectedDays = [day]
+            selectedAdditionalClassDefinitionIDs = []
             applyWarningLeadTimes([5, 2, 1])
         }
     }
@@ -362,7 +498,8 @@ struct AddEditView: View {
         }
 
         let warningLeadTimes = currentWarningLeadTimes
-        let matchedClassDefinitionID = resolvedClassDefinitionID(trimmedName: trimmedName, trimmedGrade: trimmedGrade)
+        let matchedClassDefinitionIDs = resolvedClassDefinitionIDs(trimmedName: trimmedName, trimmedGrade: trimmedGrade)
+        let matchedClassDefinitionID = matchedClassDefinitionIDs.first
 
         guard !selectedDays.isEmpty || isEditing else {
             validationMessage = "Choose at least one day before saving."
@@ -382,6 +519,7 @@ struct AddEditView: View {
                 endTime: end,
                 type: type,
                 classDefinitionID: matchedClassDefinitionID,
+                classDefinitionIDs: matchedClassDefinitionIDs,
                 linkedStudentIDs: Array(linkedStudentIDs),
                 warningLeadTimes: warningLeadTimes
             )
@@ -398,10 +536,11 @@ struct AddEditView: View {
                     className: trimmedName,
                     location: trimmedRoom,
                     gradeLevel: trimmedGrade,
-                    startTime: current.startTime,
-                    endTime: current.endTime,
+                    startTime: current.id == existing.id ? start : current.startTime,
+                    endTime: current.id == existing.id ? end : current.endTime,
                     type: type,
                     classDefinitionID: matchedClassDefinitionID,
+                    classDefinitionIDs: matchedClassDefinitionIDs,
                     linkedStudentIDs: Array(linkedStudentIDs),
                     warningLeadTimes: warningLeadTimes
                 )
@@ -424,6 +563,7 @@ struct AddEditView: View {
                     endTime: end,
                     type: type,
                     classDefinitionID: matchedClassDefinitionID,
+                    classDefinitionIDs: matchedClassDefinitionIDs,
                     linkedStudentIDs: Array(linkedStudentIDs),
                     warningLeadTimes: warningLeadTimes
                 )
@@ -458,6 +598,7 @@ struct AddEditView: View {
             endTime: newEnd,
             type: existing.type,
             classDefinitionID: existing.classDefinitionID,
+            classDefinitionIDs: existing.linkedClassDefinitionIDs,
             linkedStudentIDs: existing.linkedStudentIDs,
             warningLeadTimes: existing.warningLeadTimes
         )
@@ -475,13 +616,12 @@ struct AddEditView: View {
             grade: grade,
             type: type,
             selectedClassDefinitionID: selectedClassDefinitionID,
+            selectedAdditionalClassDefinitionIDs: Array(selectedAdditionalClassDefinitionIDs).sorted { $0.uuidString < $1.uuidString },
             start: start,
             end: end,
             linkedStudentIDs: Array(linkedStudentIDs).sorted { $0.uuidString < $1.uuidString },
             selectedDays: Array(selectedDays).sorted(),
-            firstWarningMinutes: firstWarningMinutes,
-            secondWarningMinutes: secondWarningMinutes,
-            thirdWarningMinutes: thirdWarningMinutes
+            warningLeadTimes: normalizedWarningLeadTimes(warningLeadTimes)
         )
     }
 
@@ -494,13 +634,12 @@ struct AddEditView: View {
         grade = draft.grade
         type = draft.type
         selectedClassDefinitionID = draft.selectedClassDefinitionID
+        selectedAdditionalClassDefinitionIDs = Set(draft.selectedAdditionalClassDefinitionIDs)
         start = draft.start
         end = draft.end
         linkedStudentIDs = Set(draft.linkedStudentIDs)
         selectedDays = Set(draft.selectedDays)
-        firstWarningMinutes = draft.firstWarningMinutes
-        secondWarningMinutes = draft.secondWarningMinutes
-        thirdWarningMinutes = draft.thirdWarningMinutes
+        applyWarningLeadTimes(draft.warningLeadTimes)
     }
 
     private func persistDraft() {
@@ -543,20 +682,41 @@ struct AddEditView: View {
     }
 
     private var currentWarningLeadTimes: [Int] {
-        [firstWarningMinutes, secondWarningMinutes, thirdWarningMinutes]
-            .filter { $0 > 0 }
-            .sorted(by: >)
+        normalizedWarningLeadTimes(warningLeadTimes)
     }
 
     private func applyWarningLeadTimes(_ values: [Int]) {
-        let normalized = values.filter { $0 > 0 }.sorted(by: >)
-        firstWarningMinutes = normalized.indices.contains(0) ? normalized[0] : 5
-        secondWarningMinutes = normalized.indices.contains(1) ? normalized[1] : 2
-        thirdWarningMinutes = normalized.indices.contains(2) ? normalized[2] : 1
+        warningLeadTimes = normalizedWarningLeadTimes(values)
+    }
+
+    private func normalizedWarningLeadTimes(_ values: [Int]) -> [Int] {
+        Array(Set(values.filter { $0 > 0 }))
+            .sorted(by: >)
+    }
+
+    private func warningBinding(for index: Int) -> Binding<Int> {
+        Binding(
+            get: { warningLeadTimes[index] },
+            set: { newValue in
+                guard warningLeadTimes.indices.contains(index) else { return }
+                warningLeadTimes[index] = max(1, newValue)
+                warningLeadTimes = normalizedWarningLeadTimes(warningLeadTimes)
+            }
+        )
+    }
+
+    private func addWarning() {
+        let nextDefault = warningLeadTimes.isEmpty ? 5 : max(1, (warningLeadTimes.min() ?? 2) - 1)
+        warningLeadTimes = normalizedWarningLeadTimes(warningLeadTimes + [nextDefault])
+    }
+
+    private func removeWarning(at index: Int) {
+        guard warningLeadTimes.indices.contains(index) else { return }
+        warningLeadTimes.remove(at: index)
     }
 
     private func warningLabel(for minutes: Int) -> String {
-        minutes == 0 ? "Off" : "\(minutes) min"
+        "\(minutes) min"
     }
 
     private func roundedDate(from date: Date) -> Date {
@@ -581,13 +741,32 @@ struct AddEditView: View {
         studentProfiles.sorted { $0.name.localizedCaseInsensitiveCompare($1.name) == .orderedAscending }
     }
 
+    private var selectedClassDefinitionIDs: [UUID] {
+        var ordered = [UUID]()
+        if let selectedClassDefinitionID {
+            ordered.append(selectedClassDefinitionID)
+        }
+        ordered.append(contentsOf: selectedAdditionalClassDefinitionIDs.sorted { $0.uuidString < $1.uuidString })
+
+        var seen = Set<UUID>()
+        return ordered.filter { id in
+            guard !seen.contains(id) else { return false }
+            seen.insert(id)
+            return true
+        }
+    }
+
     private var selectedClassDefinition: ClassDefinitionItem? {
         guard let selectedClassDefinitionID else { return nil }
         return availableClassDefinitions.first { $0.id == selectedClassDefinitionID }
     }
 
+    private var additionalContextCandidates: [ClassDefinitionItem] {
+        availableClassDefinitions.filter { $0.id != selectedClassDefinitionID }
+    }
+
     private var candidateClassDefinitions: [ClassDefinitionItem] {
-        guard selectedClassDefinitionID == nil else { return [] }
+        guard selectedClassDefinitionIDs.isEmpty else { return [] }
         return classDefinitionCandidates(
             name: name.trimmingCharacters(in: .whitespacesAndNewlines),
             gradeLevel: grade,
@@ -736,6 +915,37 @@ struct AddEditView: View {
         .buttonStyle(.plain)
     }
 
+    @ViewBuilder
+    private func additionalContextRow(for definition: ClassDefinitionItem) -> some View {
+        let isSelected = selectedAdditionalClassDefinitionIDs.contains(definition.id)
+
+        Button {
+            if isSelected {
+                selectedAdditionalClassDefinitionIDs.remove(definition.id)
+            } else {
+                selectedAdditionalClassDefinitionIDs.insert(definition.id)
+            }
+        } label: {
+            HStack(spacing: 10) {
+                Image(systemName: isSelected ? "checkmark.circle.fill" : "circle")
+                    .foregroundStyle(isSelected ? .blue : .secondary)
+
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(savedClassLabel(for: definition))
+                        .foregroundStyle(.primary)
+
+                    Text(definition.instructionalContextKind(for: teacherWorkflowMode).displayName)
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
+
+                Spacer()
+            }
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+    }
+
     private func isRosterGroupFullySelected(_ group: StudentRosterGroup) -> Bool {
         let groupIDs = Set(group.students.map(\.id))
         return linkedStudentIDs.intersection(groupIDs).count == group.students.count
@@ -766,6 +976,7 @@ struct AddEditView: View {
     }
 
     private func applySelectedClassDefinition(_ id: UUID?) {
+        selectedAdditionalClassDefinitionIDs.remove(id ?? UUID())
         guard let id, let definition = availableClassDefinitions.first(where: { $0.id == id }) else { return }
 
         grade = GradeLevelOption.normalized(definition.gradeLevel)
@@ -779,29 +990,35 @@ struct AddEditView: View {
         return name.isEmpty ? "Untitled Class" : name
     }
 
-    private func resolvedClassDefinitionID(trimmedName: String, trimmedGrade: String) -> UUID? {
-        if let selectedClassDefinitionID {
-            return selectedClassDefinitionID
+    private func resolvedClassDefinitionIDs(trimmedName: String, trimmedGrade: String) -> [UUID] {
+        if !selectedClassDefinitionIDs.isEmpty {
+            return selectedClassDefinitionIDs
         }
 
-        return exactClassDefinitionMatch(
+        if let exactMatch = exactClassDefinitionMatch(
             name: trimmedName,
             gradeLevel: trimmedGrade,
             in: availableClassDefinitions
-        )?.id
+        )?.id {
+            return [exactMatch]
+        }
+
+        return []
     }
 
     private func matchesCurrentClassDefinition(profile: StudentSupportProfile, fallbackClassName: String) -> Bool {
-        if let selectedClassDefinitionID {
-            return profileMatches(classDefinitionID: selectedClassDefinitionID, profile: profile)
+        if !selectedClassDefinitionIDs.isEmpty {
+            return selectedClassDefinitionIDs.contains { profileMatches(classDefinitionID: $0, profile: profile) }
         }
 
         return classNamesMatch(scheduleClassName: fallbackClassName, profileClassName: profile.className)
     }
 
     private func matchesCurrentGroup(_ group: StudentRosterGroup, fallbackClassName: String) -> Bool {
-        if let selectedClassDefinitionID {
-            return group.students.contains { profileMatches(classDefinitionID: selectedClassDefinitionID, profile: $0) }
+        if !selectedClassDefinitionIDs.isEmpty {
+            return group.students.contains { profile in
+                selectedClassDefinitionIDs.contains { profileMatches(classDefinitionID: $0, profile: profile) }
+            }
         }
 
         return classNamesMatch(scheduleClassName: fallbackClassName, profileClassName: group.className)

@@ -67,6 +67,7 @@ struct TodayView: View {
     @AppStorage("live_activities_enabled") var liveActivitiesEnabled = true
     @AppStorage("today_dashboard_card_order_v1") var storedDashboardCardOrder = ""
     @AppStorage("today_dashboard_hidden_cards_v1") var storedHiddenDashboardCards = ""
+    @AppStorage("teacher_workflow_mode_v1") var teacherWorkflowModeRawValue = TeacherWorkflowMode.classroom.rawValue
 
     @State var activeWarning: InAppWarning?
     @State var lastWarningKey: String?
@@ -84,6 +85,10 @@ struct TodayView: View {
     @State var showingQuickCapture = false
     @State var editingAlarm: AlarmItem?
     @State var showingStudentDirectory = false
+    @State var studentLookupSession: TodayStudentLookupSession?
+    @State var groupActionSession: TodayGroupActionSession?
+    @State var quickViewStudent: StudentSupportProfile?
+    @State var editingStudentSupportProfile: StudentSupportProfile?
     @State var rosterItem: AlarmItem?
     @State var attendanceSession: AttendanceSession?
     @State var homeworkCaptureSession: HomeworkCaptureSession?
@@ -233,6 +238,59 @@ struct TodayView: View {
                 )
             }
         }
+        .sheet(item: $studentLookupSession) { session in
+            NavigationStack {
+                TodayStudentLookupView(
+                    session: session,
+                    onSelect: { profile in
+                        studentLookupSession = nil
+                        quickViewStudent = profile
+                    }
+                )
+            }
+        }
+        .sheet(item: $groupActionSession) { session in
+            NavigationStack {
+                TodayGroupActionPickerView(
+                    session: session,
+                    onChoose: { selection in
+                        groupActionSession = nil
+                        handleGroupActionSelection(selection, now: runtime.now, schedule: runtime.schedule)
+                    }
+                )
+            }
+        }
+        .sheet(item: $quickViewStudent) { profile in
+            NavigationStack {
+                StudentQuickView(
+                    profile: latestStudentProfile(for: profile),
+                    classDefinitions: classDefinitions,
+                    teacherContacts: teacherContacts,
+                    paraContacts: paraContacts,
+                    onEdit: {
+                        quickViewStudent = nil
+                        editingStudentSupportProfile = latestStudentProfile(for: profile)
+                    },
+                    onOpenStudents: {
+                        quickViewStudent = nil
+                        openStudentsTab()
+                    },
+                    onOpenRecord: {
+                        quickViewStudent = nil
+                        openNotesTab()
+                    }
+                )
+            }
+        }
+        .sheet(item: $editingStudentSupportProfile) { profile in
+            EditStudentSupportView(
+                profiles: $studentSupportProfiles,
+                classDefinitions: $classDefinitions,
+                teacherContacts: $teacherContacts,
+                paraContacts: $paraContacts,
+                existing: profile
+            )
+        }
         .sheet(item: $rosterItem) { item in
             NavigationStack {
                 TodayClassRosterView(
@@ -284,6 +342,8 @@ struct TodayView: View {
                     item: session.item,
                     date: session.date,
                     students: session.students,
+                    targetClassDefinitionID: session.targetClassDefinitionID,
+                    targetTitle: session.targetTitle,
                     records: attendanceRecords,
                     onCommit: { attendanceRecords = $0 }
                 )
@@ -292,10 +352,10 @@ struct TodayView: View {
         .sheet(item: $homeworkCaptureSession) { session in
             NavigationStack {
                 AttendanceNoteEditorView(
-                    title: session.item.className,
+                    title: session.targetTitle ?? session.item.className,
                     helperText: "This homework note is saved with today's class and included in attendance exports.",
-                    initialText: classHomeworkText(for: session.item, now: session.date),
-                    onSave: { saveClassHomework($0, for: session.item, now: session.date) }
+                    initialText: classHomeworkText(for: session.item, now: session.date, targetClassDefinitionID: session.targetClassDefinitionID),
+                    onSave: { saveClassHomework($0, for: session.item, now: session.date, targetClassDefinitionID: session.targetClassDefinitionID, targetTitle: session.targetTitle) }
                 )
             }
         }
