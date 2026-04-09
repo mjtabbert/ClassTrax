@@ -7,7 +7,6 @@
 	<key>com.apple.developer.icloud-container-identifiers</key>
 	<array>
 		<string>iCloud.com.mrmike.classtrax</string>
-		<string>iCloud.com.mrmike.classcue</string>
 	</array>
 	<key>com.apple.developer.icloud-services</key>
 	<array>

@@ -686,6 +686,11 @@ struct ScheduleView: View {
             }
             .buttonStyle(.plain)
             .swipeActions(edge: .trailing, allowsFullSwipe: false) {
+                Button("Edit") {
+                    editingItem = item
+                }
+                .tint(.orange)
+
                 Button("Delete", role: .destructive) {
                     pendingDeleteItem = item
                 }

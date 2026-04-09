@@ -773,26 +773,28 @@ struct RootTabView: View {
         let legacyProfiles = decodeLegacyProfiles()
         let legacyOverrides = decodeLegacyOverrides()
 
-        ClassTraxPersistence.importFirstSliceIfNeeded(
-            legacyAlarms: legacyAlarms,
-            legacyStudentProfiles: legacyStudentProfiles,
-            legacyClassDefinitions: legacyClassDefinitions,
-            legacyCommitments: legacyCommitments,
-            into: modelContext
-        )
-        ClassTraxPersistence.importSecondSliceIfNeeded(
-            legacyTodos: legacyTodos,
-            legacyFollowUpNotes: legacyFollowUpNotes,
-            legacySubPlans: legacySubPlans,
-            legacyDailySubPlans: legacyDailySubPlans,
-            into: modelContext
-        )
-        ClassTraxPersistence.importThirdSliceIfNeeded(
-            legacyAttendanceRecords: legacyAttendanceRecords,
-            legacyProfiles: legacyProfiles,
-            legacyOverrides: legacyOverrides,
-            into: modelContext
-        )
+        if ClassTraxPersistence.activeContainerMode != .cloudKit {
+            ClassTraxPersistence.importFirstSliceIfNeeded(
+                legacyAlarms: legacyAlarms,
+                legacyStudentProfiles: legacyStudentProfiles,
+                legacyClassDefinitions: legacyClassDefinitions,
+                legacyCommitments: legacyCommitments,
+                into: modelContext
+            )
+            ClassTraxPersistence.importSecondSliceIfNeeded(
+                legacyTodos: legacyTodos,
+                legacyFollowUpNotes: legacyFollowUpNotes,
+                legacySubPlans: legacySubPlans,
+                legacyDailySubPlans: legacyDailySubPlans,
+                into: modelContext
+            )
+            ClassTraxPersistence.importThirdSliceIfNeeded(
+                legacyAttendanceRecords: legacyAttendanceRecords,
+                legacyProfiles: legacyProfiles,
+                legacyOverrides: legacyOverrides,
+                into: modelContext
+            )
+        }
 
         refreshFromPersistence()
     }
@@ -865,6 +867,7 @@ struct RootTabView: View {
         let persistenceSnapshot = ClassTraxPersistence.loadFirstSlice(from: modelContext)
         let secondSliceSnapshot = ClassTraxPersistence.loadSecondSlice(from: modelContext)
         let thirdSliceSnapshot = ClassTraxPersistence.loadThirdSlice(from: modelContext)
+        let shouldPreferCloudBackedSnapshot = ClassTraxPersistence.activeContainerMode == .cloudKit
         let localStudentProfiles = decodeLegacyStudentProfiles()
         let localClassDefinitions = decodeLegacyClassDefinitions()
         let localTeacherContacts = decodeLegacyTeacherContacts()
@@ -885,23 +888,23 @@ struct RootTabView: View {
         }
         commitments = persistenceSnapshot.commitments
         studentProfiles = normalizedStudentProfiles(
-            from: (savedStudentProfiles.isEmpty && localStudentProfiles.isEmpty)
+            from: shouldPreferCloudBackedSnapshot || (savedStudentProfiles.isEmpty && localStudentProfiles.isEmpty)
                 ? persistenceSnapshot.studentProfiles
                 : localStudentProfiles
         )
-        classDefinitions = (savedClassDefinitions.isEmpty && localClassDefinitions.isEmpty
+        classDefinitions = (shouldPreferCloudBackedSnapshot || (savedClassDefinitions.isEmpty && localClassDefinitions.isEmpty)
             ? persistenceSnapshot.classDefinitions
             : localClassDefinitions
         ).sorted {
             $0.displayName.localizedCaseInsensitiveCompare($1.displayName) == .orderedAscending
         }
-        teacherContacts = (savedTeacherContacts.isEmpty && localTeacherContacts.isEmpty
+        teacherContacts = (shouldPreferCloudBackedSnapshot || (savedTeacherContacts.isEmpty && localTeacherContacts.isEmpty)
             ? persistenceSnapshot.teacherContacts
             : localTeacherContacts
         ).sorted {
             $0.trimmedName.localizedCaseInsensitiveCompare($1.trimmedName) == .orderedAscending
         }
-        paraContacts = (savedParaContacts.isEmpty && localParaContacts.isEmpty
+        paraContacts = (shouldPreferCloudBackedSnapshot || (savedParaContacts.isEmpty && localParaContacts.isEmpty)
             ? persistenceSnapshot.paraContacts
             : localParaContacts
         ).sorted {
@@ -915,6 +918,12 @@ struct RootTabView: View {
         dailySubPlans = secondSliceSnapshot.dailySubPlans
         profiles = thirdSliceSnapshot.profiles
         overrides = thirdSliceSnapshot.overrides
+        if shouldPreferCloudBackedSnapshot {
+            savedStudentProfiles = (try? JSONEncoder().encode(studentProfiles)) ?? Data()
+            savedClassDefinitions = (try? JSONEncoder().encode(classDefinitions)) ?? Data()
+            savedTeacherContacts = (try? JSONEncoder().encode(teacherContacts)) ?? Data()
+            savedParaContacts = (try? JSONEncoder().encode(paraContacts)) ?? Data()
+        }
         savedAttendance = (try? JSONEncoder().encode(attendanceRecords)) ?? Data()
         savedProfiles = (try? JSONEncoder().encode(thirdSliceSnapshot.profiles)) ?? Data()
         savedOverrides = (try? JSONEncoder().encode(thirdSliceSnapshot.overrides)) ?? Data()

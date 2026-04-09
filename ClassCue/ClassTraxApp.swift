@@ -12,9 +12,7 @@ struct ClassTraxApp: App {
 
         NotificationCategories.register()
         ClassTraxPersistence.registerCloudKitEventObserver()
-        Task {
-            ClassTraxPersistence.initializeCloudKitDevelopmentSchemaIfNeeded()
-        }
+        ClassTraxPersistence.refreshCloudKitDiagnosticsStatus()
         Task {
             NotificationManager.shared.requestAuthorization()
         }

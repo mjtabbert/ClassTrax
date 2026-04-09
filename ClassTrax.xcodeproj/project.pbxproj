@@ -65,6 +65,7 @@
 		2705502B2F7CC4730050F222 /* UserNotificationsUI.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = UserNotificationsUI.framework; path = System/Library/Frameworks/UserNotificationsUI.framework; sourceTree = SDKROOT; };
 		272BFA2F2F6BA9BB00245665 /* ClassTrax Watch App.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = "ClassTrax Watch App.app"; sourceTree = BUILT_PRODUCTS_DIR; };
 		27335DB52F5B700800889F92 /* ClassTrax.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = ClassTrax.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		2775AE132F87F88200C95EEE /* ClassTraxExtensionRelease.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = ClassTraxExtensionRelease.entitlements; sourceTree = "<group>"; };
 		27C273E02F64914E00078D37 /* CarPlay.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = CarPlay.framework; path = System/Library/Frameworks/CarPlay.framework; sourceTree = SDKROOT; };
 		27C273E22F64916800078D37 /* WatchKit.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = WatchKit.framework; path = Platforms/WatchOS.platform/Developer/SDKs/WatchOS26.2.sdk/System/Library/Frameworks/WatchKit.framework; sourceTree = DEVELOPER_DIR; };
 		27EC66D12F61EAE600D0870D /* ActivityKit.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = ActivityKit.framework; path = System/Library/Frameworks/ActivityKit.framework; sourceTree = SDKROOT; };
@@ -207,6 +208,7 @@
 		27335DAC2F5B700800889F92 = {
 			isa = PBXGroup;
 			children = (
+				2775AE132F87F88200C95EEE /* ClassTraxExtensionRelease.entitlements */,
 				27335DB72F5B700800889F92 /* ClassCue */,
 				27EC66DC2F61EB3D00D0870D /* Class Cue */,
 				272BFA302F6BA9BB00245665 /* Class Trax Watch App */,
@@ -739,7 +741,7 @@
 			buildSettings = {
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
 				ASSETCATALOG_COMPILER_WIDGET_BACKGROUND_COLOR_NAME = WidgetBackground;
-				CODE_SIGN_ENTITLEMENTS = "Class Cue/ClassTraxExtension.entitlements";
+				CODE_SIGN_ENTITLEMENTS = ClassTraxExtensionRelease.entitlements;
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 4;
 				DEVELOPMENT_TEAM = XJWF586LVS;

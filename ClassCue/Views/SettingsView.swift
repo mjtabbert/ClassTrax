@@ -100,6 +100,7 @@ struct SettingsView: View {
         case scheduleProfiles
         case dayOverrides
         case scheduleBlocks
+        case allUserData
 
         var id: String { rawValue }
 
@@ -119,6 +120,8 @@ struct SettingsView: View {
                 return "Day Overrides"
             case .scheduleBlocks:
                 return "Schedule Blocks"
+            case .allUserData:
+                return "All User Data"
             }
         }
 
@@ -142,6 +145,8 @@ struct SettingsView: View {
                 return "This permanently removes every saved day override."
             case .scheduleBlocks:
                 return "This permanently removes every scheduled block from the live schedule."
+            case .allUserData:
+                return "This permanently removes schedules, students, teachers, paras, planner items, notes, prep plans, attendance, overrides, and other saved user data so you can start over fresh."
             }
         }
     }
@@ -164,6 +169,10 @@ struct SettingsView: View {
     @AppStorage("cloud_sync_last_refresh_at") private var lastCloudRefreshTimestamp: Double = 0
     @AppStorage("cloudkit_last_event_summary_v1") private var lastCloudKitEventSummary: String = "No CloudKit sync events observed yet."
     @AppStorage("cloudkit_last_event_timestamp_v1") private var lastCloudKitEventTimestamp: Double = 0
+    @AppStorage("cloudkit_last_import_event_summary_v1") private var lastCloudKitImportEventSummary: String = "No CloudKit import events observed yet."
+    @AppStorage("cloudkit_last_import_event_timestamp_v1") private var lastCloudKitImportEventTimestamp: Double = 0
+    @AppStorage("cloudkit_last_export_event_summary_v1") private var lastCloudKitExportEventSummary: String = "No CloudKit export events observed yet."
+    @AppStorage("cloudkit_last_export_event_timestamp_v1") private var lastCloudKitExportEventTimestamp: Double = 0
     @AppStorage("school_quiet_hours_enabled") private var schoolQuietHoursEnabled = false
     @AppStorage("school_quiet_hour") private var schoolQuietHour = 16
     @AppStorage("school_quiet_minute") private var schoolQuietMinute = 0
@@ -404,6 +413,7 @@ struct SettingsView: View {
             loadTodayLayoutSettings()
             configureHolidayMode()
             autolaunchGuidedSetupIfNeeded()
+            ClassTraxPersistence.refreshCloudKitDiagnosticsStatus()
         }
         .navigationTitle("Settings")
         .navigationBarTitleDisplayMode(.inline)
@@ -1144,6 +1154,44 @@ struct SettingsView: View {
                     .foregroundColor(.secondary)
             }
 
+            LabeledContent("Last Import Event") {
+                Text(lastCloudKitImportEventSummary)
+                    .font(.footnote)
+                    .multilineTextAlignment(.trailing)
+                    .foregroundColor(.secondary)
+            }
+
+            LabeledContent("Import Event Time") {
+                Text(lastCloudKitImportEventTimestampSummary)
+                    .font(.footnote)
+                    .multilineTextAlignment(.trailing)
+                    .foregroundColor(.secondary)
+            }
+
+            LabeledContent("Last Export Event") {
+                Text(lastCloudKitExportEventSummary)
+                    .font(.footnote)
+                    .multilineTextAlignment(.trailing)
+                    .foregroundColor(.secondary)
+            }
+
+            LabeledContent("Export Event Time") {
+                Text(lastCloudKitExportEventTimestampSummary)
+                    .font(.footnote)
+                    .multilineTextAlignment(.trailing)
+                    .foregroundColor(.secondary)
+            }
+
+            LabeledContent("Debug Build") {
+                Text(isDebugBuild ? "Yes" : "No")
+                    .foregroundColor(isDebugBuild ? .green : .orange)
+            }
+
+            LabeledContent("Schema Init Available") {
+                Text(isCloudKitSchemaInitializationAvailable ? "Yes" : "No")
+                    .foregroundColor(isCloudKitSchemaInitializationAvailable ? .green : .orange)
+            }
+
             LabeledContent("Schema Init Status") {
                 Text(ClassTraxPersistence.lastSchemaInitializationMessage)
                     .font(.footnote)
@@ -1719,8 +1767,22 @@ struct SettingsView: View {
 
                     Divider()
 
+                    Button("Refresh Cloud Sync Status", systemImage: "arrow.clockwise") {
+                        refreshCloudKitDiagnostics()
+                    }
+
+                    Button("Initialize CloudKit Schema", systemImage: "icloud.and.arrow.up") {
+                        initializeCloudKitSchema()
+                    }
+
+                    Divider()
+
                     Button("Load Sample Teacher Day", systemImage: "shippingbox") {
                         insertDiagnosticsTestWorkspace()
+                    }
+
+                    Button("Reset All User Data", systemImage: "trash", role: .destructive) {
+                        pendingDeleteTarget = .allUserData
                     }
                 } label: {
                     settingsRowLabel(.diagnostics, detail: "Hidden testing tools and sample-day actions for demos and QA")
@@ -1861,6 +1923,30 @@ struct SettingsView: View {
         formattedSyncTimestamp(lastCloudKitEventTimestamp, empty: "No CloudKit event timestamp yet")
     }
 
+    private var lastCloudKitImportEventTimestampSummary: String {
+        formattedSyncTimestamp(lastCloudKitImportEventTimestamp, empty: "No CloudKit import timestamp yet")
+    }
+
+    private var lastCloudKitExportEventTimestampSummary: String {
+        formattedSyncTimestamp(lastCloudKitExportEventTimestamp, empty: "No CloudKit export timestamp yet")
+    }
+
+    private var isDebugBuild: Bool {
+#if DEBUG
+        true
+#else
+        false
+#endif
+    }
+
+    private var isCloudKitSchemaInitializationAvailable: Bool {
+#if DEBUG
+        true
+#else
+        false
+#endif
+    }
+
     private func formattedSyncTimestamp(_ timestamp: Double, empty: String) -> String {
         guard timestamp > 0 else { return empty }
         return Date(timeIntervalSince1970: timestamp).formatted(date: .abbreviated, time: .shortened)
@@ -1995,7 +2081,80 @@ struct SettingsView: View {
             overrides = []
         case .scheduleBlocks:
             alarms = []
+        case .allUserData:
+            resetAllUserData()
         }
+    }
+
+    private func resetAllUserData() {
+        isLoadingInitialState = true
+
+        alarms = []
+        todos = []
+        commitments = []
+        profiles = []
+        overrides = []
+        studentProfiles = []
+        classDefinitions = []
+        teacherContacts = []
+        paraContacts = []
+
+        ClassTraxPersistence.saveFirstSlice(
+            alarms: [],
+            studentProfiles: [],
+            classDefinitions: [],
+            teacherContacts: [],
+            paraContacts: [],
+            commitments: [],
+            into: modelContext
+        )
+        ClassTraxPersistence.saveSecondSlice(
+            todos: [],
+            followUpNotes: [],
+            subPlans: [],
+            dailySubPlans: [],
+            into: modelContext
+        )
+        ClassTraxPersistence.saveThirdSlice(
+            attendanceRecords: [],
+            profiles: [],
+            overrides: [],
+            into: modelContext
+        )
+
+        savedAlarms = Data()
+        savedCommitments = Data()
+        savedProfiles = Data()
+        savedOverrides = Data()
+        savedTodos = Data()
+        savedStudentProfiles = Data()
+        savedClassDefinitions = Data()
+
+        ignoreUntil = 0
+        lastLocalMutationTimestamp = 0
+        lastCloudRefreshTimestamp = 0
+        lastCloudKitEventSummary = "No CloudKit sync events observed yet."
+        lastCloudKitEventTimestamp = 0
+        lastCloudKitImportEventSummary = "No CloudKit import events observed yet."
+        lastCloudKitImportEventTimestamp = 0
+        lastCloudKitExportEventSummary = "No CloudKit export events observed yet."
+        lastCloudKitExportEventTimestamp = 0
+        storedDashboardCardOrder = ""
+        storedHiddenDashboardCards = ""
+        hasSeenGuidedSetupAutolaunch = false
+
+        let defaults = UserDefaults.standard
+        [
+            "attendance_v1_data",
+            "sub_plans_v1_data",
+            "daily_sub_plans_v1_data",
+            "follow_up_notes_v1_data",
+            "teacher_contacts_v1_data",
+            "para_contacts_v1_data"
+        ].forEach { defaults.removeObject(forKey: $0) }
+
+        isLoadingInitialState = false
+        diagnosticsStatusMessage = "All saved user data was cleared. Relaunch the app if any old screens are still showing cached data."
     }
 
     private func insertDiagnosticsTestWorkspace() {
@@ -2466,6 +2625,17 @@ struct SettingsView: View {
             overrides: overrides,
             profiles: profiles
         )
+    }
+
+    private func refreshCloudKitDiagnostics() {
+        ClassTraxPersistence.refreshCloudKitDiagnosticsStatus()
+        diagnosticsStatusMessage = ClassTraxPersistence.lastCloudKitEventSummary
+    }
+
+    private func initializeCloudKitSchema() {
+        ClassTraxPersistence.initializeCloudKitDevelopmentSchemaIfNeeded()
+        ClassTraxPersistence.refreshCloudKitDiagnosticsStatus()
+        diagnosticsStatusMessage = ClassTraxPersistence.lastSchemaInitializationMessage
     }
 
     private func activeOverrideForToday() -> (date: Date, alarms: [AlarmItem])? {

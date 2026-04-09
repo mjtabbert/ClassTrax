@@ -735,19 +735,29 @@ enum ClassTraxPersistence {
     static let thirdSliceMigrationKey = "swiftdata_third_slice_migration_v1"
     static let cloudKitContainerIdentifier = "iCloud.com.mrmike.classtrax"
     static let cloudKitSchemaInitializationKey = "swiftdata_cloudkit_schema_initialized_classtrax_v2"
+    static let cloudKitSchemaInitializationMessageKey = "swiftdata_cloudkit_schema_initialized_message_classtrax_v2"
     static let cloudKitLastEventSummaryKey = "cloudkit_last_event_summary_v1"
     static let cloudKitLastEventTimestampKey = "cloudkit_last_event_timestamp_v1"
+    static let cloudKitLastImportEventSummaryKey = "cloudkit_last_import_event_summary_v1"
+    static let cloudKitLastImportEventTimestampKey = "cloudkit_last_import_event_timestamp_v1"
+    static let cloudKitLastExportEventSummaryKey = "cloudkit_last_export_event_summary_v1"
+    static let cloudKitLastExportEventTimestampKey = "cloudkit_last_export_event_timestamp_v1"
     static private(set) var activeContainerMode: ContainerMode = .localFallback
     static private(set) var lastContainerStatusMessage = "Container not initialized yet."
-    static private(set) var lastSchemaInitializationMessage = "Schema initializer not run yet."
+    static private(set) var lastSchemaInitializationMessage = UserDefaults.standard.string(forKey: cloudKitSchemaInitializationMessageKey) ?? "CloudKit schema status has not been checked yet."
     static private(set) var lastCloudKitEventSummary = UserDefaults.standard.string(forKey: cloudKitLastEventSummaryKey) ?? "No CloudKit sync events observed yet."
     static private(set) var lastCloudKitEventTimestamp = UserDefaults.standard.double(forKey: cloudKitLastEventTimestampKey)
+    static private(set) var lastCloudKitImportEventSummary = UserDefaults.standard.string(forKey: cloudKitLastImportEventSummaryKey) ?? "No CloudKit import events observed yet."
+    static private(set) var lastCloudKitImportEventTimestamp = UserDefaults.standard.double(forKey: cloudKitLastImportEventTimestampKey)
+    static private(set) var lastCloudKitExportEventSummary = UserDefaults.standard.string(forKey: cloudKitLastExportEventSummaryKey) ?? "No CloudKit export events observed yet."
+    static private(set) var lastCloudKitExportEventTimestamp = UserDefaults.standard.double(forKey: cloudKitLastExportEventTimestampKey)
     static private var cloudKitEventObserver: NSObjectProtocol?
 
     static let persistedEntityTypes: [any PersistentModel.Type] = [
         PersistedAlarmItem.self,
         PersistedStudentSupportProfile.self,
         PersistedClassDefinitionItem.self,
+        PersistedSupportStaffMember.self,
         PersistedCommitmentItem.self,
         PersistedTodoItem.self,
         PersistedFollowUpNoteItem.self,
@@ -850,7 +860,56 @@ enum ClassTraxPersistence {
             lastCloudKitEventTimestamp = timestamp
             UserDefaults.standard.set(message, forKey: cloudKitLastEventSummaryKey)
             UserDefaults.standard.set(timestamp, forKey: cloudKitLastEventTimestampKey)
+
+            switch event.type {
+            case .import:
+                lastCloudKitImportEventSummary = message
+                lastCloudKitImportEventTimestamp = timestamp
+                UserDefaults.standard.set(message, forKey: cloudKitLastImportEventSummaryKey)
+                UserDefaults.standard.set(timestamp, forKey: cloudKitLastImportEventTimestampKey)
+            case .export:
+                lastCloudKitExportEventSummary = message
+                lastCloudKitExportEventTimestamp = timestamp
+                UserDefaults.standard.set(message, forKey: cloudKitLastExportEventSummaryKey)
+                UserDefaults.standard.set(timestamp, forKey: cloudKitLastExportEventTimestampKey)
+            case .setup:
+                break
+            @unknown default:
+                break
+            }
         }
+    }
+
+    static func refreshCloudKitDiagnosticsStatus() {
+        lastCloudKitEventSummary = UserDefaults.standard.string(forKey: cloudKitLastEventSummaryKey) ?? "No CloudKit sync events observed yet."
+        lastCloudKitEventTimestamp = UserDefaults.standard.double(forKey: cloudKitLastEventTimestampKey)
+        lastCloudKitImportEventSummary = UserDefaults.standard.string(forKey: cloudKitLastImportEventSummaryKey) ?? "No CloudKit import events observed yet."
+        lastCloudKitImportEventTimestamp = UserDefaults.standard.double(forKey: cloudKitLastImportEventTimestampKey)
+        lastCloudKitExportEventSummary = UserDefaults.standard.string(forKey: cloudKitLastExportEventSummaryKey) ?? "No CloudKit export events observed yet."
+        lastCloudKitExportEventTimestamp = UserDefaults.standard.double(forKey: cloudKitLastExportEventTimestampKey)
+        lastSchemaInitializationMessage = UserDefaults.standard.string(forKey: cloudKitSchemaInitializationMessageKey)
+            ?? defaultCloudKitSchemaInitializationMessage()
+    }
+
+    private static func defaultCloudKitSchemaInitializationMessage() -> String {
+#if DEBUG
+        if UserDefaults.standard.bool(forKey: cloudKitSchemaInitializationKey) {
+            return "CloudKit development schema was already initialized."
+        } else {
+            return "CloudKit development schema has not been initialized from this debug build yet."
+        }
+#else
+        if UserDefaults.standard.bool(forKey: cloudKitSchemaInitializationKey) {
+            return "CloudKit schema was initialized previously. Release builds do not create or update schemas."
+        } else {
+            return "CloudKit schema initialization only runs in debug builds. If TestFlight sync fails, initialize and deploy the schema from a development build first."
+        }
+#endif
+    }
+
+    private static func storeCloudKitSchemaInitializationMessage(_ message: String) {
+        lastSchemaInitializationMessage = message
+        UserDefaults.standard.set(message, forKey: cloudKitSchemaInitializationMessageKey)
     }
 
     static let sharedModelContainer: ModelContainer = {
@@ -922,18 +981,22 @@ enum ClassTraxPersistence {
     static func initializeCloudKitDevelopmentSchemaIfNeeded() {
 #if DEBUG
         if UserDefaults.standard.bool(forKey: cloudKitSchemaInitializationKey) {
-            lastSchemaInitializationMessage = "CloudKit development schema was already initialized."
+            storeCloudKitSchemaInitializationMessage("CloudKit development schema was already initialized.")
             return
         }
 
-        let configuration = ModelConfiguration(
-            "ClassTrax",
-            cloudKitDatabase: .private(cloudKitContainerIdentifier)
-        )
+        let schemaInitializationStoreURL = FileManager.default.temporaryDirectory
+            .appendingPathComponent("ClassTraxCloudKitSchemaInit", isDirectory: true)
+            .appendingPathComponent("ClassTraxCloudKitSchemaInit.sqlite")
 
         do {
             try autoreleasepool {
-                let description = NSPersistentStoreDescription(url: configuration.url)
+                try? FileManager.default.createDirectory(
+                    at: schemaInitializationStoreURL.deletingLastPathComponent(),
+                    withIntermediateDirectories: true
+                )
+
+                let description = NSPersistentStoreDescription(url: schemaInitializationStoreURL)
                 description.shouldAddStoreAsynchronously = false
                 description.cloudKitContainerOptions = NSPersistentCloudKitContainerOptions(
                     containerIdentifier: cloudKitContainerIdentifier
@@ -967,15 +1030,26 @@ enum ClassTraxPersistence {
                 if let store = container.persistentStoreCoordinator.persistentStores.first {
                     try container.persistentStoreCoordinator.remove(store)
                 }
+
+                let sidecarURLs = [
+                    schemaInitializationStoreURL,
+                    URL(fileURLWithPath: schemaInitializationStoreURL.path + "-shm"),
+                    URL(fileURLWithPath: schemaInitializationStoreURL.path + "-wal")
+                ]
+                sidecarURLs.forEach { url in
+                    try? FileManager.default.removeItem(at: url)
+                }
             }
 
             UserDefaults.standard.set(true, forKey: cloudKitSchemaInitializationKey)
-            lastSchemaInitializationMessage = "CloudKit development schema initialized successfully."
+            storeCloudKitSchemaInitializationMessage("CloudKit development schema initialized successfully.")
         } catch {
             let message = "CloudKit schema initialization failed: \(describe(error: error))"
             NSLog("%@", message)
-            lastSchemaInitializationMessage = message
+            storeCloudKitSchemaInitializationMessage(message)
         }
+#else
+        refreshCloudKitDiagnosticsStatus()
 #endif
     }
 
