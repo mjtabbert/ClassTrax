@@ -383,14 +383,32 @@ struct TodayStudentLookupView: View {
         .navigationBarTitleDisplayMode(.inline)
         .searchable(text: $searchText, prompt: "Search students")
         .safeAreaInset(edge: .top) {
-            if !session.subtitle.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
-                Text(session.subtitle)
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                    .padding(.horizontal, 20)
-                    .padding(.top, 4)
+            VStack(alignment: .leading, spacing: 8) {
+                if session.behaviorContext != nil {
+                    HStack(spacing: 8) {
+                        Image(systemName: "magnifyingglass")
+                            .foregroundStyle(.secondary)
+                        TextField("Search students", text: $searchText)
+                            .textInputAutocapitalization(.words)
+                            .autocorrectionDisabled()
+                    }
+                    .padding(.horizontal, 12)
+                    .padding(.vertical, 10)
+                    .background(
+                        RoundedRectangle(cornerRadius: 14, style: .continuous)
+                            .fill(Color(.secondarySystemBackground))
+                    )
+                }
+
+                if !session.subtitle.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                    Text(session.subtitle)
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                }
             }
+            .padding(.horizontal, 20)
+            .padding(.top, 4)
         }
         .toolbar {
             ToolbarItem(placement: .confirmationAction) {
@@ -619,6 +637,7 @@ struct StudentQuickView: View {
     let classDefinitions: [ClassDefinitionItem]
     let teacherContacts: [ClassStaffContact]
     let paraContacts: [ClassStaffContact]
+    let attendanceRecords: [AttendanceRecord]
     let behaviorLogs: [BehaviorLogItem]
     let behaviorSegments: [BehaviorSegmentOption]
     let preferredBehaviorSegmentID: UUID?
@@ -627,10 +646,14 @@ struct StudentQuickView: View {
     let onOpenStudents: () -> Void
     let onOpenRecord: () -> Void
     let onLogBehavior: ((BehaviorLogItem.BehaviorKind, BehaviorLogItem.Rating, UUID?) -> Void)?
+    let onLogBehaviorWithNote: ((BehaviorLogItem.BehaviorKind, BehaviorLogItem.Rating, UUID?, String, Date) -> Void)?
+    let onSaveBehaviorQuickNote: ((UUID?, BehaviorLogItem.BehaviorKind, String) -> Void)?
 
     @Environment(\.dismiss) private var dismiss
+    @Environment(\.openURL) private var openURL
     @State private var selectedBehaviorSegmentID: UUID?
     @State private var selectedBehaviorWindow: BehaviorWindow = .today
+    @State private var behaviorQuickNoteDrafts: [String: String] = [:]
 
     var body: some View {
         List {
@@ -698,19 +721,41 @@ struct StudentQuickView: View {
                 .classTraxCardChrome(accent: ClassTraxSemanticColor.primaryAction, cornerRadius: 20)
             }
 
-            if !behaviorLogs.isEmpty {
+            if !behaviorLogs.isEmpty || !studentAttendanceRecords.isEmpty {
                 Section("Daily Snapshot") {
-                    Picker("Behavior Range", selection: $selectedBehaviorWindow) {
-                        ForEach(BehaviorWindow.allCases) { window in
-                            Text(window.rawValue).tag(window)
-                        }
-                    }
-                    .pickerStyle(.segmented)
+                    if !studentAttendanceRecords.isEmpty || !behaviorLogs.isEmpty {
+                        VStack(alignment: .leading, spacing: 10) {
+                            Text("Conference Snapshot")
+                                .font(.caption.weight(.semibold))
+                                .foregroundStyle(.secondary)
 
-                    HStack(spacing: 10) {
-                        quickMetric(title: "Positive", value: "\(positiveBehaviorCount)", tint: ClassTraxSemanticColor.success)
-                        quickMetric(title: "Neutral", value: "\(neutralBehaviorCount)", tint: ClassTraxSemanticColor.secondaryAction)
-                        quickMetric(title: "Needs Support", value: "\(needsSupportBehaviorCount)", tint: ClassTraxSemanticColor.reviewWarning)
+                            HStack(spacing: 10) {
+                                quickMetric(title: "Week Present", value: weeklyAttendanceSummary, tint: ClassTraxSemanticColor.primaryAction)
+                                quickMetric(title: "Month Present", value: monthlyAttendanceSummary, tint: ClassTraxSemanticColor.secondaryAction)
+                            }
+
+                            HStack(spacing: 10) {
+                                quickMetric(title: "Week Support", value: "\(weeklyNeedsSupportCount)", tint: ClassTraxSemanticColor.reviewWarning)
+                                quickMetric(title: "Month Support", value: "\(monthlyNeedsSupportCount)", tint: .orange)
+                            }
+                        }
+                        .padding(12)
+                        .classTraxCardChrome(accent: ClassTraxSemanticColor.primaryAction, cornerRadius: 16)
+                    }
+
+                    if !behaviorLogs.isEmpty {
+                        Picker("Behavior Range", selection: $selectedBehaviorWindow) {
+                            ForEach(BehaviorWindow.allCases) { window in
+                                Text(window.rawValue).tag(window)
+                            }
+                        }
+                        .pickerStyle(.segmented)
+
+                        HStack(spacing: 10) {
+                            quickMetric(title: "Positive", value: "\(positiveBehaviorCount)", tint: ClassTraxSemanticColor.success)
+                            quickMetric(title: "Neutral", value: "\(neutralBehaviorCount)", tint: ClassTraxSemanticColor.secondaryAction)
+                            quickMetric(title: "Needs Support", value: "\(needsSupportBehaviorCount)", tint: ClassTraxSemanticColor.reviewWarning)
+                        }
                     }
 
                     if !behaviorSegmentSnapshots.isEmpty {
@@ -807,12 +852,36 @@ struct StudentQuickView: View {
                         .padding(12)
                         .classTraxCardChrome(accent: ClassTraxSemanticColor.reviewWarning, cornerRadius: 16)
                     }
+
+                    if commonTriggerInsight != nil || commonInterventionInsight != nil {
+                        HStack(spacing: 10) {
+                            if let commonTriggerInsight {
+                                behaviorContextCard(
+                                    title: "Common trigger",
+                                    symbol: "bolt.badge.clock",
+                                    detail: commonTriggerInsight.value,
+                                    count: commonTriggerInsight.count,
+                                    tint: .orange
+                                )
+                            }
+
+                            if let commonInterventionInsight {
+                                behaviorContextCard(
+                                    title: "Common intervention",
+                                    symbol: "wand.and.stars",
+                                    detail: commonInterventionInsight.value,
+                                    count: commonInterventionInsight.count,
+                                    tint: ClassTraxSemanticColor.primaryAction
+                                )
+                            }
+                        }
+                    }
                 }
             }
 
             if !filteredBehaviorLogs.isEmpty {
                 Section(selectedBehaviorSectionTitle) {
-                    ForEach(filteredBehaviorLogs.prefix(3)) { log in
+                    ForEach(filteredBehaviorLogs.prefix(6)) { log in
                         HStack(alignment: .top, spacing: 10) {
                             Text(log.rating.emoji)
                                 .font(.title3)
@@ -844,7 +913,7 @@ struct StudentQuickView: View {
                 }
             }
 
-            if let onLogBehavior {
+            if onLogBehavior != nil || onLogBehaviorWithNote != nil {
                 Section("Behavior Check-In") {
                     if !behaviorSegments.isEmpty {
                         ScrollView(.horizontal, showsIndicators: false) {
@@ -875,34 +944,21 @@ struct StudentQuickView: View {
                     }
 
                     ForEach(BehaviorLogItem.BehaviorKind.allCases) { behavior in
-                        HStack(spacing: 12) {
-                            Text(behavior.title)
-                                .font(.subheadline.weight(.semibold))
+                        VStack(alignment: .leading, spacing: 8) {
+                            HStack(spacing: 12) {
+                                Text(behavior.title)
+                                    .font(.subheadline.weight(.semibold))
 
-                            Spacer()
+                                Spacer()
 
-                            HStack(spacing: 8) {
-                                ForEach(BehaviorLogItem.Rating.allCases) { rating in
-                                    Button {
-                                        onLogBehavior(behavior, rating, selectedBehaviorSegmentID)
-                                    } label: {
-                                        Text(rating.emoji)
-                                            .font(.body.weight(.semibold))
-                                            .padding(.horizontal, 12)
-                                            .padding(.vertical, 7)
-                                            .background(
-                                                Capsule(style: .continuous)
-                                                    .fill(isSelected(behavior: behavior, rating: rating) ? rating.tint.opacity(0.22) : rating.tint.opacity(0.12))
-                                            )
-                                            .overlay(
-                                                Capsule(style: .continuous)
-                                                    .stroke(rating.tint.opacity(isSelected(behavior: behavior, rating: rating) ? 0.9 : 0.35), lineWidth: isSelected(behavior: behavior, rating: rating) ? 1.4 : 1)
-                                            )
-                                            .foregroundStyle(rating.tint)
+                                HStack(spacing: 8) {
+                                    ForEach(BehaviorLogItem.Rating.allCases) { rating in
+                                        behaviorRatingButton(behavior: behavior, rating: rating)
                                     }
-                                    .buttonStyle(.plain)
                                 }
                             }
+
+                            behaviorQuickNoteField(for: behavior)
                         }
                         .padding(.vertical, 3)
                     }
@@ -929,10 +985,66 @@ struct StudentQuickView: View {
                 }
             }
 
-            if !contactSummaryLines.isEmpty {
+            if !contactSummaryLines.isEmpty || !parsedParentEmails.isEmpty || !parsedParentPhones.isEmpty {
                 Section("Contacts") {
-                    ForEach(contactSummaryLines, id: \.self) { line in
-                        Text(line)
+                    if !parentContactActions.isEmpty {
+                        VStack(alignment: .leading, spacing: 10) {
+                            Text("Quick Actions")
+                                .font(.caption.weight(.semibold))
+                                .foregroundStyle(.secondary)
+
+                            HStack(spacing: 10) {
+                                ForEach(parentContactActions) { action in
+                                    Button {
+                                        openURL(action.url)
+                                    } label: {
+                                        Label(action.title, systemImage: action.systemImage)
+                                            .frame(maxWidth: .infinity)
+                                    }
+                                    .buttonStyle(.borderedProminent)
+                                    .tint(action.tint)
+                                }
+                            }
+                        }
+                        .padding(.vertical, 4)
+                    }
+
+                    if !profile.parentNames.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                        Text("Parent / Guardian: \(profile.parentNames.trimmingCharacters(in: .whitespacesAndNewlines))")
+                    }
+
+                    ForEach(parsedParentPhones, id: \.self) { phone in
+                        Button {
+                            if let url = phoneURL(for: phone) {
+                                openURL(url)
+                            }
+                        } label: {
+                            Label(phone, systemImage: "phone.fill")
+                        }
+                        .tint(ClassTraxSemanticColor.success)
+                    }
+
+                    ForEach(parsedParentEmails, id: \.self) { email in
+                        Button {
+                            if let url = emailURL(for: email, subject: "Re: \(profile.name)") {
+                                openURL(url)
+                            }
+                        } label: {
+                            Label(email, systemImage: "envelope.fill")
+                        }
+                        .tint(ClassTraxSemanticColor.primaryAction)
+                    }
+
+                    if !profile.studentEmail.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                        let studentEmail = profile.studentEmail.trimmingCharacters(in: .whitespacesAndNewlines)
+                        Button {
+                            if let url = emailURL(for: studentEmail, subject: "Re: \(profile.name)") {
+                                openURL(url)
+                            }
+                        } label: {
+                            Label("Student: \(studentEmail)", systemImage: "envelope")
+                        }
+                        .tint(ClassTraxSemanticColor.secondaryAction)
                     }
                 }
             }
@@ -972,6 +1084,14 @@ struct StudentQuickView: View {
         }
     }
 
+    private struct ParentContactAction: Identifiable {
+        let id: String
+        let title: String
+        let systemImage: String
+        let tint: Color
+        let url: URL
+    }
+
     private var linkedGroupCount: Int {
         max(linkedClassesOrGroups.count, profile.classDefinitionIDs.isEmpty ? 0 : profile.classDefinitionIDs.count)
     }
@@ -980,8 +1100,154 @@ struct StudentQuickView: View {
         filteredBehaviorLogs.sorted { $0.timestamp > $1.timestamp }.first
     }
 
+    private var studentAttendanceRecords: [AttendanceRecord] {
+        attendanceRecords.filter { record in
+            guard record.isAttendanceEntry else { return false }
+            if let studentID = record.studentID {
+                return studentID == profile.id
+            }
+            return record.studentName.trimmingCharacters(in: .whitespacesAndNewlines)
+                .caseInsensitiveCompare(profile.name.trimmingCharacters(in: .whitespacesAndNewlines)) == .orderedSame
+        }
+    }
+
+    private var weeklyAttendanceSummary: String {
+        attendanceSummary(for: studentAttendanceRecords.filter { currentWeekDateKeys.contains($0.dateKey) })
+    }
+
+    private var monthlyAttendanceSummary: String {
+        attendanceSummary(for: studentAttendanceRecords.filter { currentMonthDateKeys.contains($0.dateKey) })
+    }
+
+    private var weeklyNeedsSupportCount: Int {
+        behaviorLogs.filter {
+            currentWeekDateKeys.contains(AttendanceRecord.dateKey(for: $0.timestamp)) &&
+            $0.rating == .needsSupport
+        }.count
+    }
+
+    private var monthlyNeedsSupportCount: Int {
+        behaviorLogs.filter {
+            currentMonthDateKeys.contains(AttendanceRecord.dateKey(for: $0.timestamp)) &&
+            $0.rating == .needsSupport
+        }.count
+    }
+
+    private var currentWeekDateKeys: Set<String> {
+        AttendanceRecord.currentWeekDateKeys(containing: Date())
+    }
+
+    private var currentMonthDateKeys: Set<String> {
+        let calendar = Calendar.current
+        let now = Date()
+        let interval = calendar.dateInterval(of: .month, for: now)
+        let start = interval?.start ?? now
+        let end = interval?.end ?? now
+        var dateKeys = Set<String>()
+        var current = start
+
+        while current < end {
+            dateKeys.insert(AttendanceRecord.dateKey(for: current))
+            guard let next = calendar.date(byAdding: .day, value: 1, to: current) else { break }
+            current = next
+        }
+
+        return dateKeys
+    }
+
+    private var parentContactActions: [ParentContactAction] {
+        var actions: [ParentContactAction] = []
+
+        if let primaryPhone = parsedParentPhones.first, let messageURL = messageURL(for: primaryPhone) {
+            actions.append(
+                ParentContactAction(
+                    id: "message-parent",
+                    title: "Message Parent",
+                    systemImage: "message.fill",
+                    tint: ClassTraxSemanticColor.success,
+                    url: messageURL
+                )
+            )
+        }
+
+        if let summaryURL = parentSummaryEmailURL {
+            actions.append(
+                ParentContactAction(
+                    id: "email-summary",
+                    title: "Email Summary",
+                    systemImage: "envelope.badge.fill",
+                    tint: ClassTraxSemanticColor.primaryAction,
+                    url: summaryURL
+                )
+            )
+        } else if let primaryEmail = parsedParentEmails.first,
+                  let emailURL = emailURL(for: primaryEmail, subject: "Re: \(profile.name)") {
+            actions.append(
+                ParentContactAction(
+                    id: "email-parent",
+                    title: "Email Parent",
+                    systemImage: "envelope.fill",
+                    tint: ClassTraxSemanticColor.primaryAction,
+                    url: emailURL
+                )
+            )
+        }
+
+        return actions
+    }
+
     private func isSelected(behavior: BehaviorLogItem.BehaviorKind, rating: BehaviorLogItem.Rating) -> Bool {
         todayBehaviorLog(for: behavior)?.rating == rating
+    }
+
+    @ViewBuilder
+    private func behaviorRatingButton(behavior: BehaviorLogItem.BehaviorKind, rating: BehaviorLogItem.Rating) -> some View {
+        let selected = isSelected(behavior: behavior, rating: rating)
+        let fillOpacity: Double = selected ? 0.22 : 0.12
+        let strokeOpacity: Double = selected ? 0.9 : 0.35
+        let strokeWidth: CGFloat = selected ? 1.4 : 1
+        Button {
+            let note = behaviorQuickNote(for: behavior)
+                .trimmingCharacters(in: .whitespacesAndNewlines)
+            if let onLogBehaviorWithNote, !note.isEmpty {
+                onLogBehaviorWithNote(behavior, rating, resolvedBehaviorClassDefinitionID, note, Date())
+            } else {
+                onLogBehavior?(behavior, rating, resolvedBehaviorClassDefinitionID)
+            }
+        } label: {
+            Text(rating.emoji)
+                .font(.body.weight(.semibold))
+                .padding(.horizontal, 12)
+                .padding(.vertical, 7)
+                .background(
+                    Capsule(style: .continuous)
+                        .fill(rating.tint.opacity(fillOpacity))
+                )
+                .overlay(
+                    Capsule(style: .continuous)
+                        .stroke(rating.tint.opacity(strokeOpacity), lineWidth: strokeWidth)
+                )
+                .foregroundStyle(rating.tint)
+        }
+        .buttonStyle(.plain)
+    }
+
+    @ViewBuilder
+    private func behaviorQuickNoteField(for behavior: BehaviorLogItem.BehaviorKind) -> some View {
+        let segmentTitle = selectedBehaviorSegmentTitle
+        let placeholder = segmentTitle.isEmpty ? "Note for this class" : "Note for \(segmentTitle)"
+        let noteBinding = behaviorQuickNoteBinding(for: behavior)
+
+        TextField(placeholder, text: noteBinding, axis: .vertical)
+            .textInputAutocapitalization(.sentences)
+            .autocorrectionDisabled()
+            .font(.caption)
+            .padding(.horizontal, 12)
+            .padding(.vertical, 10)
+            .background(
+                RoundedRectangle(cornerRadius: 12, style: .continuous)
+                    .fill(Color(.secondarySystemBackground))
+            )
     }
 
     private func todayBehaviorLog(for behavior: BehaviorLogItem.BehaviorKind) -> BehaviorLogItem? {
@@ -1005,6 +1271,41 @@ struct StudentQuickView: View {
         let title = selectedBehaviorSegmentTitle
         let suffix = selectedBehaviorWindow == .today ? "Today" : "This Week"
         return title.isEmpty ? "Behavior \(suffix)" : "Behavior • \(title) \(suffix)"
+    }
+
+    private var resolvedBehaviorClassDefinitionID: UUID? {
+        selectedBehaviorSegmentID ?? preferredBehaviorSegmentID ?? profile.classDefinitionID
+    }
+
+    private func behaviorQuickNoteKey(for behavior: BehaviorLogItem.BehaviorKind) -> String {
+        let contextKey = resolvedBehaviorClassDefinitionID?.uuidString ?? "default"
+        return "\(contextKey)|\(behavior.rawValue)"
+    }
+
+    private func behaviorQuickNote(for behavior: BehaviorLogItem.BehaviorKind) -> String {
+        let key = behaviorQuickNoteKey(for: behavior)
+        if let draft = behaviorQuickNoteDrafts[key] {
+            return draft
+        }
+
+        guard
+            let classDefinitionID = resolvedBehaviorClassDefinitionID,
+            let context = classContext(for: profile, classDefinitionID: classDefinitionID)
+        else {
+            return ""
+        }
+
+        return context.behaviorQuickNotes[behavior.rawValue] ?? ""
+    }
+
+    private func behaviorQuickNoteBinding(for behavior: BehaviorLogItem.BehaviorKind) -> Binding<String> {
+        Binding(
+            get: { behaviorQuickNote(for: behavior) },
+            set: { newValue in
+                behaviorQuickNoteDrafts[behaviorQuickNoteKey(for: behavior)] = newValue
+                onSaveBehaviorQuickNote?(resolvedBehaviorClassDefinitionID, behavior, newValue)
+            }
+        )
     }
 
     private func isSelected(segment: BehaviorSegmentOption) -> Bool {
@@ -1099,6 +1400,14 @@ struct StudentQuickView: View {
                 return lhs.count > rhs.count
             }
             .first
+    }
+
+    private var commonTriggerInsight: BehaviorContextInsight? {
+        mostCommonBehaviorContext(from: windowFilteredBehaviorLogs.compactMap(\.triggerSummary))
+    }
+
+    private var commonInterventionInsight: BehaviorContextInsight? {
+        mostCommonBehaviorContext(from: windowFilteredBehaviorLogs.compactMap(\.interventionSummary))
     }
 
     private var behaviorSegmentSnapshots: [BehaviorSegmentSnapshot] {
@@ -1220,10 +1529,33 @@ struct StudentQuickView: View {
             .first
     }
 
+    private func mostCommonBehaviorContext(from values: [String]) -> BehaviorContextInsight? {
+        let grouped = Dictionary(grouping: values.map {
+            $0.trimmingCharacters(in: .whitespacesAndNewlines)
+        }.filter { !$0.isEmpty }, by: \.self)
+
+        return grouped
+            .compactMap { value, matches in
+                matches.count >= 2 ? BehaviorContextInsight(value: value, count: matches.count) : nil
+            }
+            .sorted { lhs, rhs in
+                if lhs.count == rhs.count {
+                    return lhs.value.localizedCaseInsensitiveCompare(rhs.value) == .orderedAscending
+                }
+                return lhs.count > rhs.count
+            }
+            .first
+    }
+
     private struct BehaviorSegmentSnapshot {
         let title: String
         let ratings: [BehaviorSnapshotRating]
         let accent: Color
+    }
+
+    private struct BehaviorContextInsight {
+        let value: String
+        let count: Int
     }
 
     private struct BehaviorSnapshotRating {
@@ -1250,6 +1582,32 @@ struct StudentQuickView: View {
             }
             .padding(.vertical, 1)
         }
+    }
+
+    private func behaviorContextCard(
+        title: String,
+        symbol: String,
+        detail: String,
+        count: Int,
+        tint: Color
+    ) -> some View {
+        VStack(alignment: .leading, spacing: 4) {
+            Label(title, systemImage: symbol)
+                .font(.subheadline.weight(.semibold))
+                .foregroundStyle(tint)
+
+            Text(detail)
+                .font(.caption)
+                .foregroundStyle(.primary)
+                .lineLimit(2)
+
+            Text("\(count)x in current review window")
+                .font(.caption2)
+                .foregroundStyle(.secondary)
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(12)
+        .classTraxCardChrome(accent: tint, cornerRadius: 16)
     }
 
     private var primaryClassOrGroupLabel: String {
@@ -1314,6 +1672,103 @@ struct StudentQuickView: View {
             labeledLine("Parent Email", profile.parentEmails),
             labeledLine("Student Email", profile.studentEmail)
         ].compactMap { $0 }
+    }
+
+    private var parsedParentEmails: [String] {
+        profile.parentEmails
+            .components(separatedBy: CharacterSet(charactersIn: ",;"))
+            .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
+            .filter { !$0.isEmpty }
+    }
+
+    private var parsedParentPhones: [String] {
+        profile.parentPhoneNumbers
+            .components(separatedBy: CharacterSet(charactersIn: ",;"))
+            .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
+            .filter { !$0.isEmpty }
+    }
+
+    private var parentSummaryEmailURL: URL? {
+        guard !parsedParentEmails.isEmpty else { return nil }
+
+        let subject = "ClassTrax Summary for \(profile.name)"
+        let body = parentSummaryEmailBody
+        let recipients = parsedParentEmails.joined(separator: ",")
+        return emailURL(for: recipients, subject: subject, body: body)
+    }
+
+    private var parentSummaryEmailBody: String {
+        var lines = ["Hello,", "", "Here is a quick summary for \(profile.name):"]
+
+        let classLabel = primaryClassOrGroupLabel.trimmingCharacters(in: .whitespacesAndNewlines)
+        if !classLabel.isEmpty {
+            lines.append("- Class / Group: \(classLabel)")
+        }
+
+        let gradeLabel = GradeLevelOption.normalized(profile.gradeLevel)
+        if !gradeLabel.isEmpty {
+            lines.append("- Grade: \(gradeLabel)")
+        }
+
+        if let latestBehaviorLog {
+            let segment = latestBehaviorLog.segmentTitle.trimmingCharacters(in: .whitespacesAndNewlines)
+            let segmentSuffix = segment.isEmpty ? "" : " during \(segment)"
+            lines.append("- Latest behavior check-in: \(latestBehaviorLog.behavior.title) was marked \(latestBehaviorLog.rating.title.lowercased())\(segmentSuffix).")
+            if let noteSummary = latestBehaviorLog.noteSummary {
+                lines.append("- Recent note: \(noteSummary)")
+            }
+        }
+
+        let supports = supportSummaryLines
+        if !supports.isEmpty {
+            lines.append("- Supports: \(supports.joined(separator: " | "))")
+        }
+
+        if !profile.accommodations.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+            lines.append("- Accommodations: \(profile.accommodations.trimmingCharacters(in: .whitespacesAndNewlines))")
+        }
+
+        if !profile.prompts.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+            lines.append("- Prompts: \(profile.prompts.trimmingCharacters(in: .whitespacesAndNewlines))")
+        }
+
+        lines.append("")
+        lines.append("Thank you,")
+        lines.append("")
+
+        return lines.joined(separator: "\n")
+    }
+
+    private func phoneURL(for phone: String) -> URL? {
+        let digits = phone.filter { $0.isNumber || $0 == "+" }
+        guard !digits.isEmpty else { return nil }
+        return URL(string: "tel:\(digits)")
+    }
+
+    private func messageURL(for phone: String) -> URL? {
+        let digits = phone.filter { $0.isNumber || $0 == "+" }
+        guard !digits.isEmpty else { return nil }
+        return URL(string: "sms:\(digits)")
+    }
+
+    private func emailURL(for recipient: String, subject: String, body: String? = nil) -> URL? {
+        var components = URLComponents()
+        components.scheme = "mailto"
+        components.path = recipient
+
+        var queryItems = [URLQueryItem(name: "subject", value: subject)]
+        if let body, !body.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+            queryItems.append(URLQueryItem(name: "body", value: body))
+        }
+        components.queryItems = queryItems
+        return components.url
+    }
+
+    private func attendanceSummary(for records: [AttendanceRecord]) -> String {
+        let attendanceOnly = records.filter(\.isAttendanceEntry)
+        guard !attendanceOnly.isEmpty else { return "No Data" }
+        let presentCount = attendanceOnly.filter { $0.status == .present }.count
+        return "\(presentCount)/\(attendanceOnly.count)"
     }
 
     private func labeledLine(_ label: String, _ value: String) -> String? {

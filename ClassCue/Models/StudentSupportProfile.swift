@@ -13,8 +13,32 @@ struct StudentSupportProfile: Identifiable, Codable, Equatable {
         var behaviorNotes: String = ""
         var effortNotes: String = ""
         var classNotes: String = ""
+        var behaviorQuickNotes: [String: String] = [:]
 
         var id: UUID { classDefinitionID }
+
+        init(
+            classDefinitionID: UUID,
+            behaviorNotes: String = "",
+            effortNotes: String = "",
+            classNotes: String = "",
+            behaviorQuickNotes: [String: String] = [:]
+        ) {
+            self.classDefinitionID = classDefinitionID
+            self.behaviorNotes = behaviorNotes
+            self.effortNotes = effortNotes
+            self.classNotes = classNotes
+            self.behaviorQuickNotes = behaviorQuickNotes
+        }
+
+        init(from decoder: Decoder) throws {
+            let container = try decoder.container(keyedBy: CodingKeys.self)
+            classDefinitionID = try container.decode(UUID.self, forKey: .classDefinitionID)
+            behaviorNotes = try container.decodeIfPresent(String.self, forKey: .behaviorNotes) ?? ""
+            effortNotes = try container.decodeIfPresent(String.self, forKey: .effortNotes) ?? ""
+            classNotes = try container.decodeIfPresent(String.self, forKey: .classNotes) ?? ""
+            behaviorQuickNotes = try container.decodeIfPresent([String: String].self, forKey: .behaviorQuickNotes) ?? [:]
+        }
     }
 
     var id: UUID = UUID()

@@ -116,7 +116,14 @@ struct EditClassDefinitionView: View {
                 showLinkedStudents = true
                 selectedStudentIDs = Set(
                     studentProfiles
-                        .filter { profileMatches(classDefinitionID: existing.id, profile: $0) }
+                        .filter {
+                            if profileMatches(classDefinitionID: existing.id, profile: $0) {
+                                return true
+                            }
+
+                            return linkedClassDefinitionIDs(for: $0).isEmpty &&
+                                classNamesMatch(scheduleClassName: existing.name, profileClassName: $0.className)
+                        }
                         .map(\.id)
                 )
             }

@@ -102,22 +102,24 @@ struct EditStudentSupportView: View {
                 }
 
                 collapsibleSection(.student, title: "Student Information", systemImage: "person.text.rectangle") {
-                    TextField("Name", text: $name)
+                    labeledEntryField("Name", text: $name, tint: accent(for: .student))
 
-                    Picker("Grade", selection: $gradeLevel) {
-                        Text("None").tag("")
-                        ForEach(GradeLevelOption.optionsForPicker(), id: \.self) { option in
-                            Text(option).tag(option)
+                    labeledEntryPicker("Grade", tint: accent(for: .student)) {
+                        Picker("Grade", selection: $gradeLevel) {
+                            Text("None").tag("")
+                            ForEach(GradeLevelOption.optionsForPicker(), id: \.self) { option in
+                                Text(option).tag(option)
+                            }
                         }
                     }
 
-                    TextField("Graduation Year", text: $graduationYear)
+                    labeledEntryField("Graduation Year", text: $graduationYear, tint: accent(for: .student))
                         .keyboardType(.numberPad)
-                    Toggle("Additional Supports / SPED", isOn: $isSped)
+                    labeledToggle("Additional Supports / SPED", isOn: $isSped, tint: accent(for: .student))
                 }
 
                 collapsibleSection(.classes, title: "Classes & Groups", systemImage: "books.vertical") {
-                    TextField("Class Summary", text: $className)
+                    labeledEntryField("Custom Class / Group Label (Optional)", text: $className, tint: accent(for: .classes))
 
                     if !classDefinitions.isEmpty {
                         DisclosureGroup("Choose Saved Classes or Groups") {
@@ -146,12 +148,12 @@ struct EditStudentSupportView: View {
 
                 if showOptionalDetails || existing != nil || hasOptionalDetails {
                     collapsibleSection(.contacts, title: "Contacts & Family", systemImage: "person.crop.circle.badge") {
-                        TextField("Parent / Guardian Names", text: $parentNames)
-                        TextField("Parent Phone Numbers", text: $parentPhoneNumbers)
-                        TextField("Parent Emails", text: $parentEmails)
+                        labeledEntryField("Parent / Guardian Names", text: $parentNames, tint: accent(for: .contacts))
+                        labeledEntryField("Parent Phone Numbers", text: $parentPhoneNumbers, tint: accent(for: .contacts))
+                        labeledEntryField("Parent Emails", text: $parentEmails, tint: accent(for: .contacts))
                             .textInputAutocapitalization(.never)
                             .keyboardType(.emailAddress)
-                        TextField("Student Email", text: $studentEmail)
+                        labeledEntryField("Student Email", text: $studentEmail, tint: accent(for: .contacts))
                             .textInputAutocapitalization(.never)
                             .keyboardType(.emailAddress)
                     }
@@ -213,20 +215,20 @@ struct EditStudentSupportView: View {
                             }
                         }
 
-                        TextField("Support Rooms", text: $supportRooms)
-                        TextField("Support Schedule Notes", text: $supportScheduleNotes, axis: .vertical)
+                        labeledEntryField("Support Rooms", text: $supportRooms, tint: accent(for: .supports))
+                        labeledEntryField("Support Schedule Notes", text: $supportScheduleNotes, tint: accent(for: .supports), axis: .vertical)
                             .lineLimit(2...6)
                     }
                 }
 
                 if showOptionalDetails || existing != nil || hasOptionalDetails {
                     collapsibleSection(.accommodations, title: "Accommodations", systemImage: "list.clipboard") {
-                        TextField("Supports, accommodations, or reminders", text: $accommodations, axis: .vertical)
+                        labeledEntryField("Supports, accommodations, or reminders", text: $accommodations, tint: accent(for: .accommodations), axis: .vertical)
                             .lineLimit(3...8)
                     }
 
                     collapsibleSection(.prompts, title: "Instructional Prompts", systemImage: "lightbulb") {
-                        TextField("What to remember during class", text: $prompts, axis: .vertical)
+                        labeledEntryField("What to remember during class", text: $prompts, tint: accent(for: .prompts), axis: .vertical)
                             .lineLimit(2...6)
                     }
                 }
@@ -234,6 +236,7 @@ struct EditStudentSupportView: View {
             .navigationTitle(existing == nil ? "Add Student" : "Edit Student")
             .scrollContentBackground(.hidden)
             .background(Color(.systemGroupedBackground))
+            .listSectionSpacing(.compact)
             .toolbar {
                 ToolbarItem(placement: .navigationBarLeading) {
                     Button("Cancel") {
@@ -346,7 +349,6 @@ struct EditStudentSupportView: View {
 
     private func applySelectedClassDefinitions() {
         guard let primaryDefinition = selectedClassDefinitions.first else { return }
-        className = selectedClassDefinitions.map(\.name).joined(separator: ", ")
 
         if gradeLevel.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
             let grades = selectedClassDefinitions
@@ -454,7 +456,7 @@ struct EditStudentSupportView: View {
                 profileMetric(title: "Optional Info", value: hasOptionalDetails ? "Added" : "Basic", accent: ClassTraxSemanticColor.success)
             }
         }
-        .padding(14)
+        .padding(12)
         .classTraxCardChrome(accent: ClassTraxSemanticColor.primaryAction, cornerRadius: 20)
     }
 
@@ -580,13 +582,16 @@ struct EditStudentSupportView: View {
                 Label(title, systemImage: systemImage)
                     .font(.headline)
                     .foregroundStyle(accent(for: section))
+                    .padding(.vertical, 2)
             }
         }
         .listRowBackground(
-            ClassTraxCardBackground(
-                accent: accent(for: section),
-                cornerRadius: 18
-            )
+            RoundedRectangle(cornerRadius: 18, style: .continuous)
+                .fill(Color(.secondarySystemBackground).opacity(0.46))
+                .overlay(
+                    RoundedRectangle(cornerRadius: 18, style: .continuous)
+                        .stroke(accent(for: section).opacity(0.22), lineWidth: 1)
+                )
         )
     }
 
@@ -626,6 +631,76 @@ struct EditStudentSupportView: View {
         case .prompts:
             return ClassTraxSemanticColor.attendance
         }
+    }
+
+    private func labeledEntryField(
+        _ title: String,
+        text: Binding<String>,
+        tint: Color,
+        axis: Axis = .horizontal
+    ) -> some View {
+        VStack(alignment: .leading, spacing: 6) {
+            Text(title)
+                .font(.caption.weight(.semibold))
+                .foregroundStyle(tint)
+
+            TextField(title, text: text, axis: axis)
+                .padding(.horizontal, 12)
+                .padding(.vertical, axis == .horizontal ? 10 : 12)
+                .background(
+                    RoundedRectangle(cornerRadius: 14, style: .continuous)
+                        .fill(Color(.systemBackground).opacity(0.18))
+                )
+                .overlay(
+                    RoundedRectangle(cornerRadius: 14, style: .continuous)
+                        .stroke(Color.primary.opacity(0.08), lineWidth: 1)
+                )
+        }
+        .padding(.vertical, 2)
+    }
+
+    private func labeledEntryPicker<Content: View>(
+        _ title: String,
+        tint: Color,
+        @ViewBuilder content: () -> Content
+    ) -> some View {
+        VStack(alignment: .leading, spacing: 6) {
+            Text(title)
+                .font(.caption.weight(.semibold))
+                .foregroundStyle(tint)
+
+            content()
+                .padding(.horizontal, 12)
+                .padding(.vertical, 2)
+                .background(
+                    RoundedRectangle(cornerRadius: 14, style: .continuous)
+                        .fill(Color(.systemBackground).opacity(0.18))
+                )
+                .overlay(
+                    RoundedRectangle(cornerRadius: 14, style: .continuous)
+                        .stroke(Color.primary.opacity(0.08), lineWidth: 1)
+                )
+        }
+        .padding(.vertical, 2)
+    }
+
+    private func labeledToggle(_ title: String, isOn: Binding<Bool>, tint: Color) -> some View {
+        Toggle(isOn: isOn) {
+            Text(title)
+                .font(.caption.weight(.semibold))
+                .foregroundStyle(tint)
+        }
+        .padding(.horizontal, 12)
+        .padding(.vertical, 10)
+        .background(
+            RoundedRectangle(cornerRadius: 14, style: .continuous)
+                .fill(Color(.systemBackground).opacity(0.18))
+        )
+        .overlay(
+            RoundedRectangle(cornerRadius: 14, style: .continuous)
+                .stroke(Color.primary.opacity(0.08), lineWidth: 1)
+        )
+        .padding(.vertical, 2)
     }
 }
 

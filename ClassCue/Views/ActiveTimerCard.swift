@@ -88,11 +88,33 @@ struct ActiveTimerCard: View {
         remaining > 0 && remaining <= 10
     }
 
+    private var isFiveMinuteWarning: Bool {
+        remaining > 0 && remaining <= 300
+    }
+
     private var isTwoMinuteWarning: Bool {
         if case .configured(let minutes, _) = warningStage {
             return minutes == 2
         }
         return false
+    }
+
+    private var isRainbowCountdown: Bool {
+        remaining > 0 && remaining <= 60
+    }
+
+    private var timerRingLineWidth: CGFloat {
+        if isRainbowCountdown {
+            return 12
+        }
+        if isFiveMinuteWarning {
+            return 8
+        }
+        return 4
+    }
+
+    private var isUrgentWarning: Bool {
+        isCriticalCountdown || isTwoMinuteWarning
     }
 
     private var warningStage: WarningStage? {
@@ -109,33 +131,45 @@ struct ActiveTimerCard: View {
             let landscape = geo.size.width > geo.size.height
 
             if landscape {
+                let timerSize = landscapeTimerSize(for: geo)
+                let ringSize = min(max(timerSize * 1.42, 150), 236)
 
-                VStack(spacing: 14) {
-                        Text(timeRemaining)
-                            .font(.system(size: landscapeTimerSize(for: geo), weight: .bold, design: .rounded))
-                            .monospacedDigit()
-                            .lineLimit(1)
-                            .minimumScaleFactor(0.55)
-                            .foregroundStyle(isCriticalCountdown ? .red : (isTwoMinuteWarning ? .orange : .primary))
-                            .scaleEffect((isCriticalCountdown || isTwoMinuteWarning) && pulse ? 1.05 : 0.98)
-                            .animation(.easeInOut(duration: 0.55).repeatForever(autoreverses: true), value: pulse)
+                ZStack {
+                    timerRing(size: ringSize)
+
+                    Text(timeRemaining)
+                        .font(.system(size: timerSize, weight: .bold, design: .rounded))
+                        .monospacedDigit()
+                        .lineLimit(1)
+                        .minimumScaleFactor(0.55)
+                        .foregroundStyle(isCriticalCountdown ? .red : (isRainbowCountdown ? .pink : (isFiveMinuteWarning ? .orange : .primary)))
+                        .scaleEffect(isUrgentWarning && pulse ? 1.07 : 0.98)
+                        .animation(.easeInOut(duration: 0.55).repeatForever(autoreverses: true), value: pulse)
                 }
                 .padding(.horizontal, 20)
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
                 .background(landscapeBackdrop)
+                .overlay(
+                    RoundedRectangle(cornerRadius: 32, style: .continuous)
+                        .stroke(isCriticalCountdown ? Color.red.opacity(0.88) : (isFiveMinuteWarning ? Color.orange.opacity(0.82) : .clear), lineWidth: isFiveMinuteWarning ? 3 : 0)
+                )
                 .clipShape(RoundedRectangle(cornerRadius: 32, style: .continuous))
 
             } else {
+                let timerFontSize = min(geo.size.width * 0.18, 56)
+                let ringSize = min(max(geo.size.width * 0.42, 116), 156)
 
                 VStack {
-                    VStack(alignment: .leading, spacing: 12) {
+                    ZStack {
+                        timerRing(size: ringSize)
+
                         Text(timeRemaining)
-                            .font(.system(size: min(geo.size.width * 0.18, 56), weight: .black, design: .rounded))
+                            .font(.system(size: timerFontSize, weight: .black, design: .rounded))
                             .monospacedDigit()
                             .lineLimit(1)
                             .minimumScaleFactor(0.64)
-                            .foregroundStyle(isCriticalCountdown ? .red : (isTwoMinuteWarning ? .orange : .primary))
-                            .scaleEffect((isCriticalCountdown || isTwoMinuteWarning) && pulse ? 1.05 : 0.99)
+                            .foregroundStyle(isCriticalCountdown ? .red : (isRainbowCountdown ? .pink : (isFiveMinuteWarning ? .orange : .primary)))
+                            .scaleEffect(isUrgentWarning && pulse ? 1.08 : 0.99)
                             .frame(maxWidth: .infinity, alignment: .center)
                     }
                     .padding(.horizontal, 16)
@@ -143,8 +177,9 @@ struct ActiveTimerCard: View {
                     .background(currentBlockBackdrop)
                     .overlay(
                         RoundedRectangle(cornerRadius: 22, style: .continuous)
-                            .stroke(currentBlockBorderColor, lineWidth: 1)
+                            .stroke(currentBlockBorderColor, lineWidth: isFiveMinuteWarning ? 3 : 1)
                     )
+                    .shadow(color: isCriticalCountdown ? Color.red.opacity(0.20) : (isFiveMinuteWarning ? Color.orange.opacity(0.18) : .clear), radius: isFiveMinuteWarning ? 14 : 0, y: 6)
                 }
                 .frame(maxWidth: .infinity)
             }
@@ -283,8 +318,8 @@ struct ActiveTimerCard: View {
             .fill(
                 LinearGradient(
                     colors: [
-                        ringPrimaryColor.opacity(isCriticalCountdown ? 0.18 : 0.14),
-                        (isTwoMinuteWarning ? Color.orange : Color(.secondarySystemBackground)).opacity(isTwoMinuteWarning ? 0.24 : 0.96)
+                        (isCriticalCountdown ? Color.red : (isFiveMinuteWarning ? Color.orange : ringPrimaryColor)).opacity(isUrgentWarning ? 0.24 : (isFiveMinuteWarning ? 0.18 : 0.14)),
+                        (isCriticalCountdown ? Color.red.opacity(0.22) : (isFiveMinuteWarning ? Color.orange.opacity(0.18) : Color(.secondarySystemBackground))).opacity(isUrgentWarning ? 0.38 : 0.96)
                     ],
                     startPoint: .topLeading,
                     endPoint: .bottomTrailing
@@ -293,12 +328,63 @@ struct ActiveTimerCard: View {
     }
 
     private var currentBlockBorderColor: Color {
-        (isCriticalCountdown ? Color.red : (isTwoMinuteWarning ? Color.orange : ringPrimaryColor))
-            .opacity(isCriticalCountdown ? 0.56 : (isTwoMinuteWarning ? 0.48 : 0.18))
+        (isCriticalCountdown ? Color.red : (isFiveMinuteWarning ? Color.orange : ringPrimaryColor))
+            .opacity(isCriticalCountdown ? 0.90 : (isFiveMinuteWarning ? 0.82 : 0.18))
     }
 
     private var warningBackdropColor: Color {
         warningStage?.tint ?? ringSecondaryColor
+    }
+
+    private var timerRingTrackColor: Color {
+        if isRainbowCountdown {
+            return Color.white.opacity(0.18)
+        }
+        if isFiveMinuteWarning {
+            return Color.orange.opacity(0.22)
+        }
+        return ringPrimaryColor.opacity(0.14)
+    }
+
+    private var timerRingStyle: AnyShapeStyle {
+        if isRainbowCountdown {
+            return AnyShapeStyle(
+                AngularGradient(
+                    colors: [.red, .orange, .yellow, .green, .blue, .purple, .red],
+                    center: .center
+                )
+            )
+        }
+
+        return AnyShapeStyle(
+            LinearGradient(
+                colors: [isFiveMinuteWarning ? .orange : ringPrimaryColor, ringSecondaryColor],
+                startPoint: .topLeading,
+                endPoint: .bottomTrailing
+            )
+        )
+    }
+
+    @ViewBuilder
+    private func timerRing(size: CGFloat) -> some View {
+        ZStack {
+            Circle()
+                .stroke(timerRingTrackColor, lineWidth: timerRingLineWidth)
+
+            Circle()
+                .trim(from: 0, to: min(max(progress, 0), 1))
+                .stroke(
+                    timerRingStyle,
+                    style: StrokeStyle(lineWidth: timerRingLineWidth, lineCap: .round, lineJoin: .round)
+                )
+                .rotationEffect(.degrees(-90))
+                .shadow(
+                    color: (isRainbowCountdown ? Color.pink : (isFiveMinuteWarning ? Color.orange : ringPrimaryColor)).opacity(isFiveMinuteWarning ? 0.26 : 0.14),
+                    radius: isFiveMinuteWarning ? 10 : 6,
+                    y: 2
+                )
+        }
+        .frame(width: size, height: size)
     }
 
     @ViewBuilder

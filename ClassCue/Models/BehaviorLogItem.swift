@@ -184,4 +184,34 @@ extension BehaviorLogItem {
             return "\(normalizedPrefix.dropLast()) \(value)"
         }
     }
+
+    var triggerSummary: String? {
+        noteContextValue(forPrefixes: ["Trigger:", "Antecedent:"])
+    }
+
+    var interventionSummary: String? {
+        noteContextValue(forPrefixes: ["Intervention:"])
+    }
+
+    var followUpSummary: String? {
+        noteContextValue(forPrefixes: ["Follow-Up:"])
+    }
+
+    private func noteContextValue(forPrefixes prefixes: [String]) -> String? {
+        guard !trimmedNote.isEmpty else { return nil }
+
+        let lines = trimmedNote
+            .split(whereSeparator: \.isNewline)
+            .map { String($0).trimmingCharacters(in: .whitespacesAndNewlines) }
+
+        for line in lines {
+            guard let prefix = prefixes.first(where: { line.hasPrefix($0) }) else { continue }
+            let value = line.dropFirst(prefix.count).trimmingCharacters(in: .whitespacesAndNewlines)
+            if !value.isEmpty {
+                return value
+            }
+        }
+
+        return nil
+    }
 }

@@ -273,6 +273,20 @@ struct RootTabView: View {
                         refreshNotifications()
                     }
                 }
+                .onChange(of: savedAttendance) { _, _ in
+                    guard !isRefreshingFromPersistence else { return }
+                    handleLegacyStorageChange {
+                        attendanceRecords = decodeLegacyAttendanceRecords()
+                        syncSharedSnapshot()
+                    }
+                }
+                .onChange(of: savedBehaviorLogs) { _, _ in
+                    guard !isRefreshingFromPersistence else { return }
+                    handleLegacyStorageChange {
+                        behaviorLogs = decodeLegacyBehaviorLogs()
+                        syncSharedSnapshot()
+                    }
+                }
                 .onChange(of: savedOverrides) { _, _ in
                     guard !isRefreshingFromPersistence else { return }
                     handleLegacyStorageChange {
@@ -470,14 +484,126 @@ struct RootTabView: View {
                 startTime: startDateToday(for: item, now: now),
                 endTime: endDateToday(for: item, now: now),
                 typeName: item.typeLabel,
-                isHeld: SessionControlStore.isHeld(itemID: item.id)
+                isHeld: SessionControlStore.isHeld(itemID: item.id),
+                bellSkipped: SessionControlStore.skippedBellItemIDs().contains(item.id)
             )
         }
+
+        func attendanceStatus(for profile: StudentSupportProfile, in item: AlarmItem) -> String? {
+            let dateKey = AttendanceRecord.dateKey(for: now)
+            let targetKey = {
+                let normalizedName = normalizedStudentKey(profile.name)
+                return normalizedName.isEmpty ? profile.id.uuidString.lowercased() : profile.id.uuidString.lowercased()
+            }()
+
+            return attendanceRecords.first(where: { record in
+                let recordKey: String? = {
+                    if let studentID = record.studentID {
+                        return studentID.uuidString.lowercased()
+                    }
+                    let normalizedName = normalizedStudentKey(record.studentName)
+                    return normalizedName.isEmpty ? nil : "name:\(normalizedName)"
+                }()
+
+                let blockMatches: Bool = {
+                    if let blockID = record.blockID {
+                        return blockID == item.id
+                    }
+
+                    if let recordStartTime = record.blockStartTime,
+                       let recordEndTime = record.blockEndTime {
+                        let calendar = Calendar(identifier: .gregorian)
+                        let recordSignature = String(
+                            format: "%02d:%02d-%02d:%02d",
+                            calendar.component(.hour, from: recordStartTime),
+                            calendar.component(.minute, from: recordStartTime),
+                            calendar.component(.hour, from: recordEndTime),
+                            calendar.component(.minute, from: recordEndTime)
+                        )
+                        let blockSignature = String(
+                            format: "%02d:%02d-%02d:%02d",
+                            calendar.component(.hour, from: item.startTime),
+                            calendar.component(.minute, from: item.startTime),
+                            calendar.component(.hour, from: item.endTime),
+                            calendar.component(.minute, from: item.endTime)
+                        )
+                        if recordSignature == blockSignature {
+                            return true
+                        }
+                    }
+
+                    if item.matchesLinkedClassDefinition(record.classDefinitionID) {
+                        return true
+                    }
+
+                    return record.dateKey == AttendanceRecord.dateKey(for: now) &&
+                        classNamesMatch(scheduleClassName: item.className, profileClassName: record.className) &&
+                        normalizedStudentKey(record.gradeLevel) == normalizedStudentKey(GradeLevelOption.normalized(item.gradeLevel))
+                }()
+
+                return record.isAttendanceEntry &&
+                    record.dateKey == dateKey &&
+                    blockMatches &&
+                    recordKey == targetKey
+            })?.status.rawValue
+        }
+
+        func behaviorRating(for profile: StudentSupportProfile, in item: AlarmItem) -> String? {
+            let segmentKey = normalizedSegmentTitle(item.className)
+
+            return behaviorLogs.first(where: { log in
+                log.studentID == profile.id &&
+                Calendar.current.isDateInToday(log.timestamp) &&
+                (log.blockID == item.id || normalizedSegmentTitle(log.segmentTitle) == segmentKey)
+            })?.rating.rawValue
+        }
+
+        let currentRoster: [ClassTraxWidgetSnapshot.StudentSummary] = activeItem.map { item in
+            let gradeKey = normalizedStudentKey(GradeLevelOption.normalized(item.gradeLevel))
+            let roster = studentProfiles
+                .filter { profile in
+                    if item.linkedStudentIDs.contains(profile.id) {
+                        return true
+                    }
+
+                    if let classDefinitionID = item.classDefinitionID,
+                       profile.classDefinitionIDs.contains(classDefinitionID) || profile.classDefinitionID == classDefinitionID {
+                        return true
+                    }
+
+                    if !item.linkedClassDefinitionIDs.isEmpty {
+                        let matchesLinkedContext = item.linkedClassDefinitionIDs.contains { linkedID in
+                            profile.classDefinitionIDs.contains(linkedID) || profile.classDefinitionID == linkedID
+                        }
+                        guard matchesLinkedContext else { return false }
+                        if gradeKey.isEmpty { return true }
+                        let profileGradeKey = normalizedStudentKey(GradeLevelOption.normalized(profile.gradeLevel))
+                        return profileGradeKey.isEmpty || profileGradeKey == gradeKey
+                    }
+
+                    guard classNamesMatch(scheduleClassName: item.className, profileClassName: profile.className) else { return false }
+                    let profileGradeKey = normalizedStudentKey(GradeLevelOption.normalized(profile.gradeLevel))
+                    return gradeKey.isEmpty || profileGradeKey.isEmpty || profileGradeKey == gradeKey
+                }
+                .sorted { $0.name.localizedCaseInsensitiveCompare($1.name) == .orderedAscending }
+
+            return roster.map { profile in
+                ClassTraxWidgetSnapshot.StudentSummary(
+                    id: profile.id,
+                    name: profile.name,
+                    gradeLevel: profile.gradeLevel.trimmingCharacters(in: .whitespacesAndNewlines),
+                    attendanceStatusRawValue: attendanceStatus(for: profile, in: item),
+                    behaviorRatingRawValue: behaviorRating(for: profile, in: item)
+                )
+            }
+        } ?? []
 
         return ClassTraxWidgetSnapshot(
             updatedAt: now,
             current: activeItem.map(summary),
-            next: nextItem.map(summary)
+            next: nextItem.map(summary),
+            currentRoster: currentRoster,
+            ignoreUntil: ignoreDate
         )
     }
 
@@ -627,6 +753,7 @@ struct RootTabView: View {
                     requestedManageDestination = .settings
                     selectedTab = .manage
                 },
+                behaviorLogs: behaviorLogs,
                 behaviorLogsForStudent: { profile in
                     behaviorLogsForStudent(profile)
                 },
@@ -724,6 +851,7 @@ struct RootTabView: View {
             classDefinitions: $classDefinitions,
             teacherContacts: $teacherContacts,
             paraContacts: $paraContacts,
+            attendanceRecords: $attendanceRecords,
             onImportedStudents: { importedProfiles in
                 persistStudentProfilesImmediately(importedProfiles)
             },
@@ -765,6 +893,17 @@ struct RootTabView: View {
             },
             onLogBehavior: { profile, behavior, rating, segmentID in
                 logBehavior(for: profile, behavior: behavior, rating: rating, segmentID: segmentID)
+            },
+            onLogBehaviorWithNote: { profile, behavior, rating, segmentID, note, timestamp in
+                logBehavior(
+                    for: profile,
+                    behavior: behavior,
+                    rating: rating,
+                    segmentID: segmentID,
+                    note: note,
+                    now: timestamp,
+                    shouldToggleOffMatching: false
+                )
             }
         )
         .toolbar {
@@ -2530,6 +2669,7 @@ private struct StudentsHubView: View {
     @Binding var classDefinitions: [ClassDefinitionItem]
     @Binding var teacherContacts: [ClassStaffContact]
     @Binding var paraContacts: [ClassStaffContact]
+    @Binding var attendanceRecords: [AttendanceRecord]
     let onImportedStudents: ([StudentSupportProfile]) -> Void
     let onSavedProfiles: ([StudentSupportProfile]) -> Void
     let onSavedTeacherContacts: ([ClassStaffContact]) -> Void
@@ -2542,6 +2682,7 @@ private struct StudentsHubView: View {
     let preferredBehaviorSegmentID: (StudentSupportProfile) -> UUID?
     let preferredBehaviorSegmentTitle: (StudentSupportProfile) -> String
     let onLogBehavior: (StudentSupportProfile, BehaviorLogItem.BehaviorKind, BehaviorLogItem.Rating, UUID?) -> Void
+    let onLogBehaviorWithNote: (StudentSupportProfile, BehaviorLogItem.BehaviorKind, BehaviorLogItem.Rating, UUID?, String, Date) -> Void
     @State private var mode: Mode = .students
 
     private enum Mode: String, CaseIterable, Identifiable {
@@ -2569,6 +2710,7 @@ private struct StudentsHubView: View {
                         classDefinitions: $classDefinitions,
                         teacherContacts: $teacherContacts,
                         paraContacts: $paraContacts,
+                        attendanceRecords: attendanceRecords,
                         onImportedStudents: { importedProfiles in
                             onImportedStudents(importedProfiles)
                         },
@@ -2588,7 +2730,8 @@ private struct StudentsHubView: View {
                         behaviorSegmentsForStudent: behaviorSegmentsForStudent,
                         preferredBehaviorSegmentID: preferredBehaviorSegmentID,
                         preferredBehaviorSegmentTitle: preferredBehaviorSegmentTitle,
-                        onLogBehavior: onLogBehavior
+                        onLogBehavior: onLogBehavior,
+                        onLogBehaviorWithNote: onLogBehaviorWithNote
                     )
                 case .classes:
                     ClassDefinitionsView(

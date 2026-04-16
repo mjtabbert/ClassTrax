@@ -4587,6 +4587,9 @@ extension TodayView {
             let behaviorSummary = behaviorSnapshot(for: item, roster: roster)
             let recentBehaviorNotes = recentBehaviorNotes(for: item, roster: roster)
             let needsSupportStudents = needsSupportStudents(for: item, roster: roster)
+            let behaviorPatternInsights = behaviorPatternInsights(for: item, roster: roster)
+            let classBehaviorNote = latestClassBehaviorNote(for: item)
+            let classBehaviorSnapshot = classBehaviorSnapshot(for: item, roster: roster, now: now)
             VStack(alignment: .leading, spacing: compact ? 7 : 9) {
                 Text(currentContextCardTitle)
                     .font(.caption.weight(.semibold))
@@ -4728,89 +4731,97 @@ extension TodayView {
                     }
                 }
 
+                if isBehaviorEnabled, classBehaviorSnapshot.totalCount > 0 {
+                    currentClassBehaviorSnapshotCard(snapshot: classBehaviorSnapshot)
+                }
+
                 if !roster.isEmpty {
                     if isBehaviorEnabled, behaviorSummary.totalCount > 0 {
-                        HStack(spacing: 8) {
-                            behaviorSnapshotPill(title: "Green", value: behaviorSummary.positiveCount, color: .green)
-                            behaviorSnapshotPill(title: "Yellow", value: behaviorSummary.neutralCount, color: .yellow)
-                            behaviorSnapshotPill(title: "Red", value: behaviorSummary.needsSupportCount, color: .red)
-                            if behaviorSummary.notedCount > 0 {
-                                behaviorSnapshotPill(title: "Notes", value: behaviorSummary.notedCount, color: .indigo)
-                            }
-                        }
-
                         Text("Behavior logged for \(behaviorSummary.totalCount) student\(behaviorSummary.totalCount == 1 ? "" : "s") in this block today.")
                             .font(compact ? .caption2 : .caption)
                             .foregroundStyle(.secondary)
 
-                        if !needsSupportStudents.isEmpty {
-                            VStack(alignment: .leading, spacing: 6) {
-                                Text("Needs Support Right Now")
-                                    .font(.caption.weight(.semibold))
-                                    .foregroundStyle(.secondary)
+                        VStack(alignment: .leading, spacing: 6) {
+                            if !needsSupportStudents.isEmpty {
+                                todayBehaviorRollupRow(
+                                    title: "Needs support",
+                                    detail: needsSupportStudents
+                                        .prefix(3)
+                                        .map { "\($0.studentName) (\($0.behavior.shortLabel))" }
+                                        .joined(separator: ", "),
+                                    tint: .orange
+                                )
+                            }
 
-                                ForEach(needsSupportStudents.prefix(3), id: \.studentID) { log in
-                                    HStack(spacing: 8) {
-                                        Text(log.rating.emoji)
-                                            .font(.caption)
-                                        Text(log.studentName)
-                                            .font(.caption.weight(.semibold))
-                                        Text(log.behavior.shortLabel)
-                                            .font(.caption2.weight(.bold))
-                                            .foregroundStyle(.secondary)
-                                    }
-                                    .foregroundStyle(.orange)
-                                }
+                            if let trigger = behaviorPatternInsights.trigger {
+                                todayBehaviorRollupRow(
+                                    title: "Trigger",
+                                    detail: "\(trigger.value) • \(trigger.count)x today",
+                                    tint: .orange
+                                )
+                            }
+
+                            if let intervention = behaviorPatternInsights.intervention {
+                                todayBehaviorRollupRow(
+                                    title: "Intervention",
+                                    detail: "\(intervention.value) • \(intervention.count)x today",
+                                    tint: .blue
+                                )
+                            }
+
+                            if !recentBehaviorNotes.isEmpty {
+                                let notedStudents = recentBehaviorNotes
+                                    .prefix(3)
+                                    .map(\.studentName)
+                                    .joined(separator: ", ")
+                                todayBehaviorRollupRow(
+                                    title: "Notes",
+                                    detail: "\(recentBehaviorNotes.count) recent note\(recentBehaviorNotes.count == 1 ? "" : "s")" + (notedStudents.isEmpty ? "" : " • \(notedStudents)"),
+                                    tint: .blue
+                                )
+                            }
+
+                            if let classBehaviorNote,
+                               !classBehaviorNote.note.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                                todayBehaviorRollupRow(
+                                    title: "Class note",
+                                    detail: classBehaviorNote.note,
+                                    tint: .purple
+                                )
                             }
                         }
                     } else if isBehaviorEnabled {
                         Text("No behavior check-ins saved for this block yet today.")
                             .font(compact ? .caption2 : .caption)
                             .foregroundStyle(.secondary)
-                    }
-                }
 
-                if isBehaviorEnabled, !recentBehaviorNotes.isEmpty {
-                    VStack(alignment: .leading, spacing: 6) {
-                        Text("Recent Behavior Notes")
-                            .font(.caption.weight(.semibold))
-                            .foregroundStyle(.secondary)
-
-                        ForEach(recentBehaviorNotes, id: \.id) { log in
-                            HStack(alignment: .top, spacing: 8) {
-                                Text(log.rating.emoji)
-                                    .font(.caption)
-
-                                VStack(alignment: .leading, spacing: 2) {
-                                    Text(log.studentName)
-                                        .font(.caption.weight(.semibold))
-                                    if let noteSummary = log.noteSummary {
-                                        Text(noteSummary)
-                                            .font(compact ? .caption2 : .caption)
-                                            .foregroundStyle(.secondary)
-                                            .lineLimit(2)
-                                    }
-                                    if !log.noteContextTags.isEmpty {
-                                        ScrollView(.horizontal, showsIndicators: false) {
-                                            HStack(spacing: 6) {
-                                                ForEach(log.noteContextTags, id: \.self) { tag in
-                                                    Text(tag)
-                                                        .font(.caption2.weight(.semibold))
-                                                        .foregroundStyle(.secondary)
-                                                        .padding(.horizontal, 7)
-                                                        .padding(.vertical, 3)
-                                                        .background(
-                                                            Capsule(style: .continuous)
-                                                                .fill(Color(.secondarySystemFill))
-                                                        )
-                                                }
-                                            }
-                                            .padding(.vertical, 1)
-                                        }
-                                    }
-                                }
+                        HStack(spacing: 10) {
+                            Button {
+                                markAllStudentsOK(for: item, roster: roster)
+                            } label: {
+                                Label("Log No Issues", systemImage: "checkmark.circle.fill")
+                                    .frame(maxWidth: .infinity, alignment: .leading)
                             }
+                            .buttonStyle(.borderedProminent)
+                            .tint(.green)
+                            .disabled(roster.isEmpty)
+
+                            Button {
+                                classBehaviorNoteItem = item
+                            } label: {
+                                Label("Class Note", systemImage: "note.text")
+                                    .frame(maxWidth: .infinity, alignment: .leading)
+                            }
+                            .buttonStyle(.bordered)
+                            .tint(.purple)
                         }
+                    } else if let classBehaviorNote,
+                              !classBehaviorNote.note.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                        todayBehaviorRollupRow(
+                            title: "Class note",
+                            detail: classBehaviorNote.note,
+                            tint: .purple
+                        )
                     }
                 }
 
@@ -4922,6 +4933,7 @@ extension TodayView {
             now >= startDateToday(for: $0, now: now) && now <= endDateToday(for: $0, now: now)
         }
         let attendanceSummary = todayAttendanceSummary(now: now, schedule: schedule)
+        let activeAttendanceSnapshot = currentAttendanceTarget.map { classAttendanceSnapshot(for: $0, now: now) }
         let previousAttendanceItems = schedule
             .filter {
                 endDateToday(for: $0, now: now) < now &&
@@ -4969,6 +4981,10 @@ extension TodayView {
                 )
                     .font(compact ? .caption2 : .caption)
                     .foregroundStyle(.secondary)
+
+                if let activeAttendanceSnapshot, activeAttendanceSnapshot.totalCount > 0 {
+                    currentClassAttendanceSnapshotCard(snapshot: activeAttendanceSnapshot)
+                }
 
                 Button {
                     presentRollCall(for: currentAttendanceTarget, now: now, schedule: schedule)
@@ -6109,7 +6125,7 @@ extension TodayView {
             }
 
             if isHomeworkEnabled {
-                Button("Today's Assigned & Missing Work", systemImage: "text.book.closed") {
+                Button("Today's Work", systemImage: "text.book.closed") {
                     homeworkReviewDate = now
                     showingHomeworkReview = true
                 }
@@ -6146,7 +6162,7 @@ extension TodayView {
                 }
             }
 
-            Button(soundsMuted ? "Turn Sounds Back On" : "Mute All Sounds", systemImage: soundsMuted ? "bell.fill" : "bell.slash.fill") {
+            Button(soundsMuted ? "Unmute Sounds" : "Mute Sounds", systemImage: soundsMuted ? "bell.fill" : "bell.slash.fill") {
                 soundsMuted.toggle()
                 onRefreshNotifications()
             }
@@ -6313,9 +6329,9 @@ extension TodayView {
     private func taskStatusPill(title: String, isComplete: Bool, color: Color) -> some View {
         HStack(spacing: 6) {
             Image(systemName: isComplete ? "checkmark.circle.fill" : "circle")
-                .font(.caption.weight(.bold))
+                .font(.caption.weight(.semibold))
             Text(title)
-                .font(.caption2.weight(.black))
+                .font(.caption2.weight(.semibold))
                 .lineLimit(1)
                 .minimumScaleFactor(0.9)
         }
@@ -6324,7 +6340,181 @@ extension TodayView {
         .padding(.vertical, 5)
         .background(
             Capsule(style: .continuous)
-                .fill((isComplete ? color : Color.secondary).opacity(isComplete ? 0.16 : 0.10))
+                .fill((isComplete ? color : Color.secondary).opacity(isComplete ? 0.12 : 0.08))
+        )
+    }
+
+    private struct ClassAttendanceSnapshot {
+        let weeklyPresentCount: Int
+        let weeklyTotalCount: Int
+        let monthlyPresentCount: Int
+        let monthlyTotalCount: Int
+        let todayAbsentCount: Int
+        let todayTardyCount: Int
+        let totalCount: Int
+
+        var weeklyRateText: String {
+            rateText(present: weeklyPresentCount, total: weeklyTotalCount)
+        }
+
+        var monthlyRateText: String {
+            rateText(present: monthlyPresentCount, total: monthlyTotalCount)
+        }
+
+        private func rateText(present: Int, total: Int) -> String {
+            guard total > 0 else { return "No Data" }
+            let percent = Int((Double(present) / Double(total) * 100).rounded())
+            return "\(percent)%"
+        }
+    }
+
+    private struct ClassBehaviorSnapshot {
+        let weeklyNeedsSupportCount: Int
+        let weeklyLoggedCount: Int
+        let monthlyNeedsSupportCount: Int
+        let monthlyLoggedCount: Int
+        let todayNotedCount: Int
+        let totalCount: Int
+
+        var weeklySupportText: String {
+            supportText(needsSupport: weeklyNeedsSupportCount, total: weeklyLoggedCount)
+        }
+
+        var monthlySupportText: String {
+            supportText(needsSupport: monthlyNeedsSupportCount, total: monthlyLoggedCount)
+        }
+
+        private func supportText(needsSupport: Int, total: Int) -> String {
+            guard total > 0 else { return "No Data" }
+            return "\(needsSupport) / \(total)"
+        }
+    }
+
+    private func classAttendanceSnapshot(for item: AlarmItem, now: Date) -> ClassAttendanceSnapshot {
+        let weekKeys = AttendanceRecord.currentWeekDateKeys(containing: now)
+        let monthKeys = currentMonthDateKeys(containing: now)
+        let todayKey = AttendanceRecord.dateKey(for: now)
+
+        let classRecords = attendanceRecords.filter { record in
+            record.isAttendanceEntry && attendanceRecordMatchesClass(record, item: item)
+        }
+        let weeklyRecords = classRecords.filter { weekKeys.contains($0.dateKey) }
+        let monthlyRecords = classRecords.filter { monthKeys.contains($0.dateKey) }
+        let todayRecords = classRecords.filter { $0.dateKey == todayKey }
+
+        return ClassAttendanceSnapshot(
+            weeklyPresentCount: weeklyRecords.filter { $0.status == .present }.count,
+            weeklyTotalCount: weeklyRecords.count,
+            monthlyPresentCount: monthlyRecords.filter { $0.status == .present }.count,
+            monthlyTotalCount: monthlyRecords.count,
+            todayAbsentCount: todayRecords.filter { $0.status == .absent }.count,
+            todayTardyCount: todayRecords.filter { $0.status == .tardy }.count,
+            totalCount: classRecords.count
+        )
+    }
+
+    private func currentMonthDateKeys(containing date: Date) -> Set<String> {
+        let calendar = Calendar.current
+        let interval = calendar.dateInterval(of: .month, for: date)
+        let start = interval?.start ?? date
+        let end = interval?.end ?? date
+        var dateKeys = Set<String>()
+        var current = start
+
+        while current < end {
+            dateKeys.insert(AttendanceRecord.dateKey(for: current))
+            guard let next = calendar.date(byAdding: .day, value: 1, to: current) else { break }
+            current = next
+        }
+
+        return dateKeys
+    }
+
+    private func currentClassAttendanceSnapshotCard(snapshot: ClassAttendanceSnapshot) -> some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Text("Class Attendance Snapshot")
+                .font(.caption.weight(.semibold))
+                .foregroundStyle(.secondary)
+
+            HStack(spacing: 10) {
+                attendanceSummaryPill(title: "Week Present", value: snapshot.weeklyRateText, accent: ClassTraxSemanticColor.primaryAction)
+                attendanceSummaryPill(title: "Month Present", value: snapshot.monthlyRateText, accent: ClassTraxSemanticColor.secondaryAction)
+            }
+
+            let exceptionParts = [
+                snapshot.todayAbsentCount > 0 ? "Absent \(snapshot.todayAbsentCount)" : nil,
+                snapshot.todayTardyCount > 0 ? "Tardy \(snapshot.todayTardyCount)" : nil
+            ].compactMap { $0 }
+
+            if !exceptionParts.isEmpty {
+                Text("Today: \(exceptionParts.joined(separator: " • "))")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
+        }
+        .padding(12)
+        .background(
+            RoundedRectangle(cornerRadius: 16, style: .continuous)
+                .fill(ClassTraxSemanticColor.attendance.opacity(0.08))
+        )
+        .overlay(
+            RoundedRectangle(cornerRadius: 16, style: .continuous)
+                .stroke(ClassTraxSemanticColor.attendance.opacity(0.16), lineWidth: 1)
+        )
+    }
+
+    private func classBehaviorSnapshot(for item: AlarmItem, roster: [StudentSupportProfile], now: Date) -> ClassBehaviorSnapshot {
+        let weekKeys = AttendanceRecord.currentWeekDateKeys(containing: now)
+        let monthKeys = currentMonthDateKeys(containing: now)
+        let todayKey = AttendanceRecord.dateKey(for: now)
+
+        let classLogs = roster
+            .flatMap { behaviorLogsForStudent($0) }
+            .filter { log in
+                classNamesMatch(scheduleClassName: item.className, profileClassName: log.segmentTitle)
+            }
+
+        let weeklyLogs = classLogs.filter { weekKeys.contains(AttendanceRecord.dateKey(for: $0.timestamp)) }
+        let monthlyLogs = classLogs.filter { monthKeys.contains(AttendanceRecord.dateKey(for: $0.timestamp)) }
+        let todayLogs = classLogs.filter { AttendanceRecord.dateKey(for: $0.timestamp) == todayKey }
+
+        return ClassBehaviorSnapshot(
+            weeklyNeedsSupportCount: weeklyLogs.filter { $0.rating == .needsSupport }.count,
+            weeklyLoggedCount: weeklyLogs.count,
+            monthlyNeedsSupportCount: monthlyLogs.filter { $0.rating == .needsSupport }.count,
+            monthlyLoggedCount: monthlyLogs.count,
+            todayNotedCount: todayLogs.filter {
+                !$0.note.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+            }.count,
+            totalCount: classLogs.count
+        )
+    }
+
+    private func currentClassBehaviorSnapshotCard(snapshot: ClassBehaviorSnapshot) -> some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Text("Class Behavior Snapshot")
+                .font(.caption.weight(.semibold))
+                .foregroundStyle(.secondary)
+
+            HStack(spacing: 10) {
+                attendanceSummaryPill(title: "Week Support", value: snapshot.weeklySupportText, accent: .orange)
+                attendanceSummaryPill(title: "Month Support", value: snapshot.monthlySupportText, accent: .pink)
+            }
+
+            if snapshot.todayNotedCount > 0 {
+                Text("Today: Notes \(snapshot.todayNotedCount)")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
+        }
+        .padding(12)
+        .background(
+            RoundedRectangle(cornerRadius: 16, style: .continuous)
+                .fill(Color.pink.opacity(0.08))
+        )
+        .overlay(
+            RoundedRectangle(cornerRadius: 16, style: .continuous)
+                .stroke(Color.pink.opacity(0.16), lineWidth: 1)
         )
     }
 
@@ -6363,6 +6553,153 @@ extension TodayView {
             .sorted { lhs, rhs in
                 lhs.studentName.localizedCaseInsensitiveCompare(rhs.studentName) == .orderedAscending
             }
+    }
+
+    private func behaviorPatternInsights(for item: AlarmItem, roster: [StudentSupportProfile]) -> (trigger: BehaviorPatternInsight?, intervention: BehaviorPatternInsight?) {
+        let todaysLogs = todayBehaviorLogs(for: item, roster: roster)
+        return (
+            trigger: mostCommonBehaviorPattern(from: todaysLogs.compactMap(\.triggerSummary)),
+            intervention: mostCommonBehaviorPattern(from: todaysLogs.compactMap(\.interventionSummary))
+        )
+    }
+
+    private func todayBehaviorLogs(for item: AlarmItem, roster: [StudentSupportProfile]) -> [BehaviorLogItem] {
+        let segmentKey = item.className.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+        return roster.flatMap { profile in
+            behaviorLogsForStudent(profile).filter {
+                Calendar.current.isDateInToday($0.timestamp) &&
+                $0.segmentTitle.trimmingCharacters(in: .whitespacesAndNewlines).lowercased() == segmentKey
+            }
+        }
+    }
+
+    private func mostCommonBehaviorPattern(from values: [String]) -> BehaviorPatternInsight? {
+        let grouped = Dictionary(grouping: values.map {
+            $0.trimmingCharacters(in: .whitespacesAndNewlines)
+        }.filter { !$0.isEmpty }, by: \.self)
+
+        return grouped
+            .compactMap { value, matches in
+                matches.count >= 2 ? BehaviorPatternInsight(value: value, count: matches.count) : nil
+            }
+            .sorted { lhs, rhs in
+                if lhs.count == rhs.count {
+                    return lhs.value.localizedCaseInsensitiveCompare(rhs.value) == .orderedAscending
+                }
+                return lhs.count > rhs.count
+            }
+            .first
+    }
+
+    private func todayBehaviorInsightCard(
+        title: String,
+        systemImage: String,
+        detail: String,
+        count: Int,
+        tint: Color
+    ) -> some View {
+        VStack(alignment: .leading, spacing: 4) {
+            Label(title, systemImage: systemImage)
+                .font(.caption.weight(.semibold))
+                .foregroundStyle(tint)
+
+            Text(detail)
+                .font(.caption2)
+                .foregroundStyle(.primary)
+                .lineLimit(2)
+
+            Text("\(count)x today")
+                .font(.caption2)
+                .foregroundStyle(.secondary)
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(10)
+        .background(
+            RoundedRectangle(cornerRadius: 14, style: .continuous)
+                .fill(tint.opacity(0.10))
+        )
+        .overlay(
+            RoundedRectangle(cornerRadius: 14, style: .continuous)
+                .stroke(tint.opacity(0.18), lineWidth: 1)
+        )
+    }
+
+    private func todayBehaviorRollupRow(title: String, detail: String, tint: Color) -> some View {
+        HStack(alignment: .top, spacing: 8) {
+            Text(title)
+                .font(.caption.weight(.semibold))
+                .foregroundStyle(tint)
+                .frame(width: 78, alignment: .leading)
+
+            Text(detail)
+                .font(.caption)
+                .foregroundStyle(.secondary)
+                .lineLimit(2)
+                .frame(maxWidth: .infinity, alignment: .leading)
+        }
+        .padding(.horizontal, 10)
+        .padding(.vertical, 8)
+        .background(
+            RoundedRectangle(cornerRadius: 12, style: .continuous)
+                .fill(tint.opacity(0.08))
+        )
+    }
+
+    private struct BehaviorPatternInsight {
+        let value: String
+        let count: Int
+    }
+
+    func latestClassBehaviorNote(for item: AlarmItem) -> FollowUpNoteItem? {
+        decodeFollowUpNotesFromDefaults()
+            .filter {
+                $0.kind == .classNote &&
+                classNamesMatch(scheduleClassName: item.className, profileClassName: $0.context)
+            }
+            .sorted { $0.createdAt > $1.createdAt }
+            .first
+    }
+
+    func saveClassBehaviorNote(_ text: String, for item: AlarmItem) {
+        let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
+        var notes = decodeFollowUpNotesFromDefaults()
+        let existingIndex = notes.firstIndex { note in
+            note.kind == .classNote &&
+            classNamesMatch(scheduleClassName: item.className, profileClassName: note.context)
+        }
+
+        if trimmed.isEmpty {
+            if let existingIndex {
+                notes.remove(at: existingIndex)
+            }
+        } else {
+            let updated = FollowUpNoteItem(
+                id: existingIndex.flatMap { notes[$0].id } ?? UUID(),
+                kind: .classNote,
+                context: item.className,
+                studentOrGroup: "",
+                note: trimmed,
+                followUpDate: Date(),
+                createdAt: Date()
+            )
+
+            if let existingIndex {
+                notes[existingIndex] = updated
+            } else {
+                notes.append(updated)
+            }
+        }
+
+        if let data = try? JSONEncoder().encode(notes) {
+            UserDefaults.standard.set(data, forKey: "follow_up_notes_v1_data")
+        }
+    }
+
+    func markAllStudentsOK(for item: AlarmItem, roster: [StudentSupportProfile]) {
+        for profile in roster {
+            let latestProfile = latestStudentProfile(for: profile)
+            onLogBehavior(latestProfile, .onTask, .onTask, item.id)
+        }
     }
 }
 
@@ -6847,13 +7184,24 @@ extension TodayView {
                 }
             }
 
-            Button {
-                openTodoTab()
-            } label: {
-                Label("Open Planner", systemImage: "checklist")
-                    .frame(maxWidth: .infinity)
+            HStack(spacing: 10) {
+                Button {
+                    showingDailyExport = true
+                } label: {
+                    Label("Export Day", systemImage: "square.and.arrow.up")
+                        .frame(maxWidth: .infinity)
+                }
+                .buttonStyle(.borderedProminent)
+                .tint(.indigo)
+
+                Button {
+                    openTodoTab()
+                } label: {
+                    Label("Open Planner", systemImage: "checklist")
+                        .frame(maxWidth: .infinity)
+                }
+                .buttonStyle(.bordered)
             }
-            .buttonStyle(.bordered)
         }
         .modifier(DashboardCardStyle(accent: .indigo, compact: compact))
     }
@@ -7936,6 +8284,10 @@ extension TodayView {
         SessionControlStore.isHeld(itemID: item.id)
     }
 
+    func isBellSkipped(_ item: AlarmItem) -> Bool {
+        SessionControlStore.skippedBellItemIDs().contains(item.id)
+    }
+
     func liveHoldDuration(for item: AlarmItem, now: Date) -> TimeInterval {
         SessionControlStore.liveHoldDuration(for: item.id, now: now)
     }
@@ -8085,14 +8437,17 @@ extension TodayView {
                 startTime: startDateToday(for: item, now: now),
                 endTime: endDateToday(for: item, now: now),
                 typeName: item.typeLabel,
-                isHeld: isHeld(item)
+                isHeld: isHeld(item),
+                bellSkipped: isBellSkipped(item)
             )
         }
 
         return ClassTraxWidgetSnapshot(
             updatedAt: now,
             current: activeItem.map(summary),
-            next: displayableNextItem(nextItem, now: now).map(summary)
+            next: displayableNextItem(nextItem, now: now).map(summary),
+            currentRoster: [],
+            ignoreUntil: ignoreDate
         )
     }
 
@@ -8449,6 +8804,173 @@ extension TodayView {
         guard let exportURL else { return }
         todayAttendanceExportURL = exportURL
         showingTodayAttendanceShareSheet = true
+    }
+
+    enum EndOfDayExportPreset: String, CaseIterable, Identifiable {
+        case fullDay
+        case parentTeamSummary
+        case behaviorOnly
+
+        var id: String { rawValue }
+
+        var title: String {
+            switch self {
+            case .fullDay:
+                return "Full Day"
+            case .parentTeamSummary:
+                return "Parent / Team Summary"
+            case .behaviorOnly:
+                return "Behavior Only"
+            }
+        }
+
+        var systemImage: String {
+            switch self {
+            case .fullDay:
+                return "doc.text"
+            case .parentTeamSummary:
+                return "person.2"
+            case .behaviorOnly:
+                return "face.smiling"
+            }
+        }
+
+        var filenameSuffix: String {
+            switch self {
+            case .fullDay:
+                return "full-day"
+            case .parentTeamSummary:
+                return "parent-team"
+            case .behaviorOnly:
+                return "behavior"
+            }
+        }
+    }
+
+    func exportEndOfDaySummary(schedule: [AlarmItem], now: Date, preset: EndOfDayExportPreset = .fullDay) {
+        let body = endOfDayExportBody(schedule: schedule, now: now, preset: preset)
+        guard !body.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { return }
+
+        let filenameDate = AttendanceRecord.dateKey(for: now)
+        let titleDate = now.formatted(date: .abbreviated, time: .omitted)
+        let title = "ClassTrax \(preset.title) - \(titleDate)"
+        let url = FileManager.default.temporaryDirectory
+            .appendingPathComponent("classtrax-end-of-day-\(preset.filenameSuffix)-\(filenameDate)-\(UUID().uuidString).txt")
+
+        do {
+            try "\(title)\n\n\(body)".write(to: url, atomically: true, encoding: .utf8)
+            todayAttendanceExportURL = url
+            showingTodayAttendanceShareSheet = true
+        } catch {
+            todayAttendanceExportURL = nil
+        }
+    }
+
+    func endOfDayExportBody(schedule: [AlarmItem], now: Date, preset: EndOfDayExportPreset = .fullDay) -> String {
+        let todaysSchedule = adjustedTodaySchedule(for: now)
+        let attendanceToday = attendanceRecordsForToday(now: now)
+        let attendanceEntries = attendanceToday.filter(\.isAttendanceEntry)
+        let classHomeworkNotes = attendanceToday.filter(\.isClassHomeworkNote)
+        let dayCommitments = commitmentsForToday(now: now)
+        let notes = decodeFollowUpNotesFromDefaults()
+        let includesFullDay = preset == .fullDay
+        let includesParentTeam = preset == .parentTeamSummary
+        let includesBehaviorOnly = preset == .behaviorOnly
+
+        let summaryLines = [
+            "Date: \(now.formatted(date: .complete, time: .omitted))",
+            "Schedule: \(activeOverrideName ?? "Regular Day")",
+            "Blocks: \(todaysSchedule.count)",
+            "Attendance Entries: \(attendanceEntries.count)",
+            "Assignments Logged: \(classHomeworkNotes.count)",
+            "Commitments: \(dayCommitments.count)"
+        ]
+
+        let commitmentLines = dayCommitments.map { commitment in
+            "\(commitment.title) • \(commitmentTimeText(for: commitment))"
+        }
+
+        let exceptionLines = attendanceEntries
+            .filter { $0.status != .present || !$0.absentHomework.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty }
+            .sorted {
+                if $0.className.localizedCaseInsensitiveCompare($1.className) != .orderedSame {
+                    return $0.className.localizedCaseInsensitiveCompare($1.className) == .orderedAscending
+                }
+                return $0.studentName.localizedCaseInsensitiveCompare($1.studentName) == .orderedAscending
+            }
+            .map { record in
+                let missingWork = formattedMissingWorkLines(from: record.absentHomework)
+                let missingSummary = missingWork.isEmpty ? nil : missingWork.joined(separator: " | ")
+                let detailParts = [record.status.rawValue, missingSummary].compactMap { $0 }
+                return "\(resolvedAttendanceClassName(for: record)) • \(record.studentName): \(detailParts.joined(separator: " • "))"
+            }
+
+        let blockSections = todaysSchedule.compactMap { block -> String? in
+            let roster = rosterStudents(for: block)
+            let attendance = attendanceEntries.filter { attendanceRecordMatchesClass($0, item: block) }
+            let assignedWork = formattedMissingWorkLines(from: classHomeworkText(for: block, now: now))
+            let classNotes = notes.filter {
+                $0.kind == .classNote &&
+                classNamesMatch(scheduleClassName: block.className, profileClassName: $0.context)
+            }
+            let behaviorLogs = todayBehaviorLogs(for: block, roster: roster)
+            let behaviorSummary = behaviorSnapshot(for: block, roster: roster)
+            let supportNote = block.blockSupportNote.trimmingCharacters(in: .whitespacesAndNewlines)
+
+            let attendanceSummary = Dictionary(grouping: attendance, by: \.status)
+                .compactMap { status, records in
+                    records.isEmpty ? nil : "\(status.rawValue): \(records.count)"
+                }
+                .sorted()
+                .joined(separator: " • ")
+
+            let behaviorLines: [String] = {
+                guard !behaviorLogs.isEmpty else { return [] }
+                var lines = [
+                    "Green: \(behaviorSummary.positiveCount) • Yellow: \(behaviorSummary.neutralCount) • Red: \(behaviorSummary.needsSupportCount) • Notes: \(behaviorSummary.notedCount)"
+                ]
+                let notedStudents = behaviorLogs
+                    .filter { !$0.note.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty }
+                    .sorted { $0.timestamp > $1.timestamp }
+                    .prefix(4)
+                    .map { log in
+                        let note = log.noteSummary ?? log.note.trimmingCharacters(in: .whitespacesAndNewlines)
+                        return "\(log.studentName): \(log.rating.title)" + (note.isEmpty ? "" : " • \(note)")
+                    }
+                lines.append(contentsOf: notedStudents)
+                return lines
+            }()
+
+            let attendanceExceptionLines = attendance.filter { $0.status != .present || !$0.absentHomework.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty }.map { record in
+                let missingWork = formattedMissingWorkLines(from: record.absentHomework)
+                let suffix = missingWork.isEmpty ? "" : " • Missing: \(missingWork.joined(separator: " | "))"
+                return "\(record.studentName): \(record.status.rawValue)\(suffix)"
+            }
+            let classNoteLines = classNotes.compactMap { cleanedExportText($0.note) }
+
+            let section = joinExportSections([
+                exportSection("Block", body: cleanedExportText("\(block.className)\n\(block.startTime.formatted(date: .omitted, time: .shortened)) - \(block.endTime.formatted(date: .omitted, time: .shortened))")),
+                includesFullDay ? exportSection("Assigned Work", body: exportBulletLines(assignedWork)) : nil,
+                includesFullDay ? exportSection("Attendance", body: cleanedExportText(attendanceSummary)) : nil,
+                (includesFullDay || includesParentTeam) ? exportSection("Attendance Exceptions", body: exportBulletLines(attendanceExceptionLines)) : nil,
+                exportSection("Behavior", body: exportBulletLines(behaviorLines)),
+                (includesFullDay || includesParentTeam) ? exportSection("Class Notes", body: exportBulletLines(classNoteLines)) : nil,
+                includesFullDay ? exportSection("Support Note", body: cleanedExportText(supportNote)) : nil
+            ].compactMap { $0 })
+
+            if includesBehaviorOnly && behaviorLines.isEmpty {
+                return nil
+            }
+
+            return section.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? nil : section
+        }
+
+        return joinExportSections([
+            exportSection(includesBehaviorOnly ? "Behavior Summary" : "Summary", body: exportBulletLines(summaryLines)),
+            includesBehaviorOnly ? nil : exportSection("Commitments", body: exportBulletLines(commitmentLines)),
+            (includesFullDay || includesParentTeam) ? exportSection("Attendance Exceptions", body: exportBulletLines(exceptionLines)) : nil,
+            exportSection("Blocks", body: blockSections.joined(separator: "\n\n"))
+        ].compactMap { $0 })
     }
 
     func filteredAttendanceRecordsForExport(scope: TodayAttendanceExportScope, now: Date) -> [AttendanceRecord] {

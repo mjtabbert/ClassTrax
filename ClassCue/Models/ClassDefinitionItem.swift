@@ -246,7 +246,7 @@ struct ClassDefinitionItem: Identifiable, Codable, Equatable, Hashable {
         case .transition:
             return Color(.systemGray4)
         case .other:
-            return Color(.systemGray)
+            return .mint
         case .blank:
             return .clear
         }

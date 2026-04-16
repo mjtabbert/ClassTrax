@@ -122,6 +122,7 @@
 				Views/AddCommitmentView.swift,
 				Views/AddEditView.swift,
 				Views/AddTodoView.swift,
+				Views/DailyExportView.swift,
 				Views/DayOverridesView.swift,
 				Views/DebugView.swift,
 				Views/ExportView.swift,

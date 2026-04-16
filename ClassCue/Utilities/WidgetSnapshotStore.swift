@@ -17,6 +17,14 @@ enum ClassTraxSharedStore {
 }
 
 struct ClassTraxWidgetSnapshot: Codable, Equatable {
+    struct StudentSummary: Codable, Equatable, Identifiable {
+        var id: UUID
+        var name: String
+        var gradeLevel: String
+        var attendanceStatusRawValue: String?
+        var behaviorRatingRawValue: String?
+    }
+
     struct BlockSummary: Codable, Equatable {
         var id: UUID
         var className: String
@@ -27,11 +35,14 @@ struct ClassTraxWidgetSnapshot: Codable, Equatable {
         var endTime: Date
         var typeName: String
         var isHeld: Bool
+        var bellSkipped: Bool
     }
 
     var updatedAt: Date
     var current: BlockSummary?
     var next: BlockSummary?
+    var currentRoster: [StudentSummary]
+    var ignoreUntil: Date?
 
     var isDayWrapped: Bool {
         current == nil && next == nil
@@ -42,7 +53,10 @@ struct ClassTraxWidgetSnapshot: Codable, Equatable {
     }
 
     static func == (lhs: ClassTraxWidgetSnapshot, rhs: ClassTraxWidgetSnapshot) -> Bool {
-        lhs.current == rhs.current && lhs.next == rhs.next
+        lhs.current == rhs.current &&
+        lhs.next == rhs.next &&
+        lhs.currentRoster == rhs.currentRoster &&
+        lhs.ignoreUntil == rhs.ignoreUntil
     }
 }
 

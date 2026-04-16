@@ -4,14 +4,16 @@ private struct StudentBulkEntryRow: Identifiable {
     let id: UUID
     var name: String
     var className: String
+    var linkedClassDefinitionID: UUID?
     var gradeLevel: String
     var parentNames: String
     var studentEmail: String
 
-    init(profile: StudentSupportProfile? = nil) {
+    nonisolated init(profile: StudentSupportProfile? = nil) {
         id = profile?.id ?? UUID()
         name = profile?.name ?? ""
         className = profile?.className ?? ""
+        linkedClassDefinitionID = profile?.classDefinitionIDs.first ?? profile?.classDefinitionID
         gradeLevel = profile?.gradeLevel ?? ""
         parentNames = profile?.parentNames ?? ""
         studentEmail = profile?.studentEmail ?? ""
@@ -36,7 +38,7 @@ private struct ClassBulkEntryRow: Identifiable {
     var gradeLevel: String
     var defaultLocation: String
 
-    init(definition: ClassDefinitionItem? = nil) {
+    nonisolated init(definition: ClassDefinitionItem? = nil) {
         id = definition?.id ?? UUID()
         name = definition?.name ?? ""
         scheduleKind = definition?.scheduleKind ?? .other
@@ -62,7 +64,7 @@ private struct StaffBulkEntryRow: Identifiable {
     var tags: String
     var emailAddress: String
 
-    init(contact: ClassStaffContact? = nil) {
+    nonisolated init(contact: ClassStaffContact? = nil) {
         id = contact?.id ?? UUID()
         name = contact?.name ?? ""
         room = contact?.room ?? ""
@@ -105,16 +107,20 @@ struct StudentBulkEntryView: View {
     var body: some View {
         bulkEntryScaffold(
             title: "Student Grid Entry",
-            description: "Use this on iPad or Mac to enter several students at once. Existing students stay in place and edited rows update in place.",
+            description: "Use this on iPad or Mac to enter several students at once. Pick a saved roster when you want direct class linking, or leave it blank and use the class label only.",
             addLabel: "Add Student Row",
             saveAction: save
         ) {
             Grid(alignment: .leading, horizontalSpacing: 12, verticalSpacing: 12) {
-                gridHeader(["Student", "Class / Group", "Grade", "Parents", "Email", ""])
+                gridHeader(["Student", "Roster", "Class / Group", "Grade", "Parents", "Email", ""])
 
                 ForEach($draftRows) { $row in
                     GridRow {
                         bulkField("Student", text: $row.name)
+                        bulkRosterPicker(
+                            selection: $row.linkedClassDefinitionID,
+                            classDefinitions: classDefinitions
+                        )
                         bulkField("Class / Group", text: $row.className)
                         bulkField("Grade", text: $row.gradeLevel)
                         bulkField("Parents", text: $row.parentNames)
@@ -135,12 +141,22 @@ struct StudentBulkEntryView: View {
         var updatedProfiles = profiles
 
         for row in trimmedRows {
-            let normalizedClassName = row.className.trimmingCharacters(in: .whitespacesAndNewlines)
-            let matchedDefinitions = classDefinitions.filter {
-                classNamesMatch(scheduleClassName: $0.name, profileClassName: normalizedClassName)
+            let selectedDefinition = classDefinitions.first(where: { $0.id == row.linkedClassDefinitionID })
+            let typedClassName = row.className.trimmingCharacters(in: .whitespacesAndNewlines)
+            let normalizedClassName = typedClassName.isEmpty ? (selectedDefinition?.name ?? "") : typedClassName
+            let matchedDefinitions = if let selectedDefinition {
+                [selectedDefinition]
+            } else {
+                classDefinitions.filter {
+                    classNamesMatch(scheduleClassName: $0.name, profileClassName: normalizedClassName)
+                }
             }
             let linkedIDs = matchedDefinitions.map(\.id).sorted { $0.uuidString < $1.uuidString }
-            let normalizedGrade = GradeLevelOption.normalized(row.gradeLevel)
+            let normalizedGrade = GradeLevelOption.normalized(
+                row.gradeLevel.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+                    ? (selectedDefinition?.gradeLevel ?? "")
+                    : row.gradeLevel
+            )
             let profile = StudentSupportProfile(
                 id: row.id,
                 name: row.name.trimmingCharacters(in: .whitespacesAndNewlines),
@@ -388,6 +404,20 @@ private func bulkField(_ title: String, text: Binding<String>) -> some View {
     TextField(title, text: text)
         .textFieldStyle(.roundedBorder)
         .frame(minWidth: 140)
+}
+
+private func bulkRosterPicker(
+    selection: Binding<UUID?>,
+    classDefinitions: [ClassDefinitionItem]
+) -> some View {
+    Picker("Roster", selection: selection) {
+        Text("None").tag(nil as UUID?)
+        ForEach(classDefinitions) { definition in
+            Text(definition.displayName).tag(Optional(definition.id))
+        }
+    }
+    .pickerStyle(.menu)
+    .frame(minWidth: 160, alignment: .leading)
 }
 
 private func bulkDeleteButton(action: @escaping () -> Void) -> some View {

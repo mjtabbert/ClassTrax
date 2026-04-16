@@ -16,6 +16,7 @@ struct StudentDirectoryView: View {
     @Binding var classDefinitions: [ClassDefinitionItem]
     @Binding var teacherContacts: [ClassStaffContact]
     @Binding var paraContacts: [ClassStaffContact]
+    let attendanceRecords: [AttendanceRecord]
     let showsRosterDataTools: Bool
     let onImportedStudents: (([StudentSupportProfile]) -> Void)?
     let onSavedProfiles: (([StudentSupportProfile]) -> Void)?
@@ -27,6 +28,7 @@ struct StudentDirectoryView: View {
     let preferredBehaviorSegmentID: ((StudentSupportProfile) -> UUID?)?
     let preferredBehaviorSegmentTitle: ((StudentSupportProfile) -> String)?
     let onLogBehavior: ((StudentSupportProfile, BehaviorLogItem.BehaviorKind, BehaviorLogItem.Rating, UUID?) -> Void)?
+    let onLogBehaviorWithNote: ((StudentSupportProfile, BehaviorLogItem.BehaviorKind, BehaviorLogItem.Rating, UUID?, String, Date) -> Void)?
 
     private enum GroupingMode: String, CaseIterable, Identifiable {
         case none = "All"
@@ -86,6 +88,7 @@ struct StudentDirectoryView: View {
     @State private var showingTeacherBulkEntry = false
     @State private var showingParaBulkEntry = false
     @State private var editingProfile: StudentSupportProfile?
+    @State private var editingClassDefinition: ClassDefinitionItem?
     @State private var showingFileImporter = false
     @State private var showingTemplateShareSheet = false
     @State private var pastedCSVText = ""
@@ -120,6 +123,7 @@ struct StudentDirectoryView: View {
         classDefinitions: Binding<[ClassDefinitionItem]>,
         teacherContacts: Binding<[ClassStaffContact]>,
         paraContacts: Binding<[ClassStaffContact]>,
+        attendanceRecords: [AttendanceRecord] = [],
         showsRosterDataTools: Bool = false,
         onImportedStudents: (([StudentSupportProfile]) -> Void)? = nil,
         onSavedProfiles: (([StudentSupportProfile]) -> Void)? = nil,
@@ -130,12 +134,14 @@ struct StudentDirectoryView: View {
         behaviorSegmentsForStudent: ((StudentSupportProfile) -> [BehaviorSegmentOption])? = nil,
         preferredBehaviorSegmentID: ((StudentSupportProfile) -> UUID?)? = nil,
         preferredBehaviorSegmentTitle: ((StudentSupportProfile) -> String)? = nil,
-        onLogBehavior: ((StudentSupportProfile, BehaviorLogItem.BehaviorKind, BehaviorLogItem.Rating, UUID?) -> Void)? = nil
+        onLogBehavior: ((StudentSupportProfile, BehaviorLogItem.BehaviorKind, BehaviorLogItem.Rating, UUID?) -> Void)? = nil,
+        onLogBehaviorWithNote: ((StudentSupportProfile, BehaviorLogItem.BehaviorKind, BehaviorLogItem.Rating, UUID?, String, Date) -> Void)? = nil
     ) {
         _profiles = profiles
         _classDefinitions = classDefinitions
         _teacherContacts = teacherContacts
         _paraContacts = paraContacts
+        self.attendanceRecords = attendanceRecords
         self.showsRosterDataTools = showsRosterDataTools
         self.onImportedStudents = onImportedStudents
         self.onSavedProfiles = onSavedProfiles
@@ -147,6 +153,7 @@ struct StudentDirectoryView: View {
         self.preferredBehaviorSegmentID = preferredBehaviorSegmentID
         self.preferredBehaviorSegmentTitle = preferredBehaviorSegmentTitle
         self.onLogBehavior = onLogBehavior
+        self.onLogBehaviorWithNote = onLogBehaviorWithNote
     }
 
     private var supportsBulkEntry: Bool {
@@ -277,6 +284,13 @@ struct StudentDirectoryView: View {
                     onSaveProfiles: onSavedProfiles
                 )
             }
+            .sheet(item: $editingClassDefinition) { definition in
+                EditClassDefinitionView(
+                    classDefinitions: $classDefinitions,
+                    studentProfiles: $profiles,
+                    existing: definition
+                )
+            }
             .sheet(item: $quickViewProfile) { profile in
                 NavigationStack {
                     StudentQuickView(
@@ -284,6 +298,7 @@ struct StudentDirectoryView: View {
                         classDefinitions: classDefinitions,
                         teacherContacts: teacherContacts,
                         paraContacts: paraContacts,
+                        attendanceRecords: attendanceRecords,
                         behaviorLogs: behaviorLogsForStudent?(latestProfile(for: profile)) ?? [],
                         behaviorSegments: behaviorSegmentsForStudent?(latestProfile(for: profile)) ?? [],
                         preferredBehaviorSegmentID: preferredBehaviorSegmentID?(latestProfile(for: profile)),
@@ -303,6 +318,14 @@ struct StudentDirectoryView: View {
                             { behavior, rating, segmentID in
                                 callback(latestProfile(for: profile), behavior, rating, segmentID)
                             }
+                        },
+                        onLogBehaviorWithNote: onLogBehaviorWithNote.map { callback in
+                            { behavior, rating, segmentID, note, timestamp in
+                                callback(latestProfile(for: profile), behavior, rating, segmentID, note, timestamp)
+                            }
+                        },
+                        onSaveBehaviorQuickNote: { segmentID, behavior, note in
+                            saveBehaviorQuickNote(for: latestProfile(for: profile), segmentID: segmentID, behavior: behavior, note: note)
                         }
                     )
                 }
@@ -526,23 +549,39 @@ struct StudentDirectoryView: View {
             }
 
             Section {
-                compactSelectionMenu(
-                    title: "View",
-                    value: viewModeLabel,
-                    systemImage: "arrow.up.arrow.down.circle"
-                ) {
-                    Section("Show") {
-                        Picker("Group By", selection: $groupingMode) {
-                            ForEach(GroupingMode.allCases) { mode in
-                                Text(mode.rawValue).tag(mode)
+                HStack(spacing: 12) {
+                    compactSelectionMenu(
+                        title: "Group By",
+                        value: groupingMode.rawValue,
+                        systemImage: "square.grid.2x2"
+                    ) {
+                        ForEach(GroupingMode.allCases) { mode in
+                            Button {
+                                groupingMode = mode
+                            } label: {
+                                if groupingMode == mode {
+                                    Label(mode.rawValue, systemImage: "checkmark")
+                                } else {
+                                    Text(mode.rawValue)
+                                }
                             }
                         }
                     }
 
-                    Section("Name Order") {
-                        Picker("Sort Names", selection: $nameSortMode) {
-                            ForEach(NameSortMode.allCases) { mode in
-                                Text(mode.rawValue).tag(mode)
+                    compactSelectionMenu(
+                        title: "Sort",
+                        value: nameSortMode.rawValue,
+                        systemImage: "arrow.up.arrow.down"
+                    ) {
+                        ForEach(NameSortMode.allCases) { mode in
+                            Button {
+                                nameSortMode = mode
+                            } label: {
+                                if nameSortMode == mode {
+                                    Label(mode.rawValue, systemImage: "checkmark")
+                                } else {
+                                    Text(mode.rawValue)
+                                }
                             }
                         }
                     }
@@ -587,10 +626,30 @@ struct StudentDirectoryView: View {
                             } label: {
                                 VStack(alignment: .leading, spacing: 4) {
                                     HStack {
-                                        Text(section.title)
-                                            .fontWeight(.semibold)
+                                        if let definition = section.definition {
+                                            Button {
+                                                editingClassDefinition = definition
+                                            } label: {
+                                                Text(section.title)
+                                                    .fontWeight(.semibold)
+                                                    .foregroundStyle(.primary)
+                                            }
+                                            .buttonStyle(.plain)
+                                        } else {
+                                            Text(section.title)
+                                                .fontWeight(.semibold)
+                                        }
 
                                         Spacer()
+
+                                        if let definition = section.definition {
+                                            Button("Edit") {
+                                                editingClassDefinition = definition
+                                            }
+                                            .font(.caption.weight(.semibold))
+                                            .buttonStyle(.plain)
+                                            .foregroundStyle(section.accent)
+                                        }
 
                                         Text("\(section.profiles.count)")
                                             .font(.caption.weight(.semibold))
@@ -769,11 +828,6 @@ struct StudentDirectoryView: View {
         }
 
         return "Students, saved classes, and support details in one place."
-    }
-
-    private var viewModeLabel: String {
-        let groupLabel = groupingMode == .none ? "All" : groupingMode.rawValue
-        return "\(groupLabel) • \(nameSortMode.rawValue)"
     }
 
     @ViewBuilder
@@ -1246,7 +1300,7 @@ struct StudentDirectoryView: View {
     private var pasteImportView: some View {
         Form {
             Section {
-                Text("Paste CSV rows copied from Google Sheets. Expected columns: `name,className,gradeLevel,accommodations,prompts`.")
+                Text("Paste CSV rows copied from Google Sheets. Expected columns: `name,className,gradeLevel,accommodations,prompts`. Use `savedClass` or `className` with a saved roster name to link students into that roster during import.")
                     .font(.subheadline)
                     .foregroundColor(.secondary)
                 Text("Additional optional columns: `graduationYear,parentNames,parentPhoneNumbers,parentEmails,studentEmail`.")
@@ -1630,6 +1684,23 @@ struct StudentDirectoryView: View {
 
     private func latestProfile(for profile: StudentSupportProfile) -> StudentSupportProfile {
         profiles.first(where: { $0.id == profile.id }) ?? profile
+    }
+
+    private func saveBehaviorQuickNote(
+        for profile: StudentSupportProfile,
+        segmentID: UUID?,
+        behavior: BehaviorLogItem.BehaviorKind,
+        note: String
+    ) {
+        guard let index = profiles.firstIndex(where: { $0.id == profile.id }) else { return }
+        profiles[index] = updatingProfile(
+            profiles[index],
+            behaviorQuickNote: note,
+            for: behavior,
+            classDefinitionID: segmentID
+        )
+        quickViewProfile = profiles[index]
+        onSavedProfiles?(profiles)
     }
 
     private func mergeDuplicates(_ group: [StudentSupportProfile]) {
@@ -2493,7 +2564,12 @@ private extension StudentDirectoryView {
     var classRosterSections: [ClassRosterSection] {
         var sections: [ClassRosterSection] = classDefinitions.map { definition in
             let linkedProfiles = filteredProfiles.filter { profile in
-                profileMatches(classDefinitionID: definition.id, profile: profile)
+                if profileMatches(classDefinitionID: definition.id, profile: profile) {
+                    return true
+                }
+
+                return linkedClassDefinitionIDs(for: profile).isEmpty &&
+                    classNamesMatch(scheduleClassName: definition.name, profileClassName: profile.className)
             }
 
             return ClassRosterSection(

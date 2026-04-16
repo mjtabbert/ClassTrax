@@ -16,6 +16,7 @@ struct ScheduleView: View {
     }
 
     @Environment(\.modelContext) private var modelContext
+    @Environment(\.horizontalSizeClass) private var horizontalSizeClass
 
     @Binding var selectedDay: WeekdayTab
     @Binding var focusedItemID: UUID?
@@ -76,6 +77,13 @@ struct ScheduleView: View {
         WeekdayTab.allCases.filter { day in
             day != selectedDay && alarms.contains(where: { $0.dayOfWeek == day.rawValue })
         }
+    }
+
+    private var displayedDays: [WeekdayTab] {
+        if horizontalSizeClass == .compact {
+            return [.monday, .tuesday, .wednesday, .thursday, .friday, .saturday, .sunday]
+        }
+        return WeekdayTab.allCases
     }
 
     private var isSelectedDayToday: Bool {
@@ -395,7 +403,7 @@ struct ScheduleView: View {
         ScrollView(.horizontal, showsIndicators: false) {
             HStack(spacing: 10) {
 
-                ForEach(WeekdayTab.allCases, id: \.self) { day in
+                ForEach(displayedDays, id: \.self) { day in
 
                     Button {
                         selectedDay = day
@@ -419,12 +427,12 @@ struct ScheduleView: View {
     private func scheduleNavButton(title: String, isSelected: Bool, action: @escaping () -> Void) -> some View {
         Button(action: action) {
             Text(title)
-                .font(.title3.weight(.semibold))
+                .font(.headline.weight(.semibold))
                 .lineLimit(1)
-                .minimumScaleFactor(0.82)
+                .minimumScaleFactor(0.62)
                 .foregroundStyle(isSelected ? ClassTraxSemanticColor.primaryAction : .primary)
                 .frame(maxWidth: .infinity)
-                .padding(.horizontal, 14)
+                .padding(.horizontal, 10)
                 .padding(.vertical, 12)
                 .background(
                     Capsule(style: .continuous)

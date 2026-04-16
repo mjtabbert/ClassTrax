@@ -50,7 +50,8 @@ struct ClassTraxHomeProvider: TimelineProvider {
                 startTime: now.addingTimeInterval(-600),
                 endTime: now.addingTimeInterval(1800),
                 typeName: "Math",
-                isHeld: false
+                isHeld: false,
+                bellSkipped: false
             ),
             next: .init(
                 id: UUID(),
@@ -61,8 +62,19 @@ struct ClassTraxHomeProvider: TimelineProvider {
                 startTime: now.addingTimeInterval(2100),
                 endTime: now.addingTimeInterval(4500),
                 typeName: "Science",
-                isHeld: false
-            )
+                isHeld: false,
+                bellSkipped: false
+            ),
+            currentRoster: [
+                .init(
+                    id: UUID(),
+                    name: "Avery Moss",
+                    gradeLevel: "5",
+                    attendanceStatusRawValue: "Present",
+                    behaviorRatingRawValue: "onTask"
+                )
+            ],
+            ignoreUntil: nil
         )
     }
 
@@ -104,18 +116,42 @@ struct ClassTraxHomeProvider: TimelineProvider {
 
         if let current {
             let normalizedNext = next?.id == current.id ? nil : next
-            return ClassTraxWidgetSnapshot(updatedAt: date, current: current, next: normalizedNext)
+            return ClassTraxWidgetSnapshot(
+                updatedAt: date,
+                current: current,
+                next: normalizedNext,
+                currentRoster: snapshot.currentRoster,
+                ignoreUntil: snapshot.ignoreUntil
+            )
         }
 
         if let next {
             if date >= next.startTime {
-                return ClassTraxWidgetSnapshot(updatedAt: date, current: next, next: nil)
+                return ClassTraxWidgetSnapshot(
+                    updatedAt: date,
+                    current: next,
+                    next: nil,
+                    currentRoster: snapshot.currentRoster,
+                    ignoreUntil: snapshot.ignoreUntil
+                )
             }
 
-            return ClassTraxWidgetSnapshot(updatedAt: date, current: nil, next: next)
+            return ClassTraxWidgetSnapshot(
+                updatedAt: date,
+                current: nil,
+                next: next,
+                currentRoster: [],
+                ignoreUntil: snapshot.ignoreUntil
+            )
         }
 
-        return ClassTraxWidgetSnapshot(updatedAt: date, current: nil, next: nil)
+        return ClassTraxWidgetSnapshot(
+            updatedAt: date,
+            current: nil,
+            next: nil,
+            currentRoster: [],
+            ignoreUntil: snapshot.ignoreUntil
+        )
     }
 }
 
@@ -450,7 +486,8 @@ struct Class_Trax: Widget {
                 startTime: .now.addingTimeInterval(-600),
                 endTime: .now.addingTimeInterval(2400),
                 typeName: "Math",
-                isHeld: false
+                isHeld: false,
+                bellSkipped: false
             ),
             next: .init(
                 id: UUID(),
@@ -461,8 +498,19 @@ struct Class_Trax: Widget {
                 startTime: .now.addingTimeInterval(2700),
                 endTime: .now.addingTimeInterval(4500),
                 typeName: "Science",
-                isHeld: false
-            )
+                isHeld: false,
+                bellSkipped: false
+            ),
+            currentRoster: [
+                .init(
+                    id: UUID(),
+                    name: "Jordan Hale",
+                    gradeLevel: "5",
+                    attendanceStatusRawValue: "Present",
+                    behaviorRatingRawValue: "neutral"
+                )
+            ],
+            ignoreUntil: nil
         )
     )
 }

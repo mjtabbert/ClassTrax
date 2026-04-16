@@ -294,17 +294,29 @@ struct TodoListView: View {
 
                         if workspaceFilter == .all {
                             Menu {
-                                Picker("Priority", selection: $priorityFilter) {
-                                    ForEach(PriorityFilter.allCases, id: \.self) { filter in
-                                        Text(filter.displayName).tag(filter)
+                                ForEach(PriorityFilter.allCases, id: \.self) { filter in
+                                    Button {
+                                        priorityFilter = filter
+                                    } label: {
+                                        if priorityFilter == filter {
+                                            Label(filter.displayName, systemImage: "checkmark")
+                                        } else {
+                                            Text(filter.displayName)
+                                        }
                                     }
                                 }
 
                                 Divider()
 
-                                Picker("Category", selection: $categoryFilter) {
-                                    ForEach(CategoryFilter.allCases, id: \.self) { filter in
-                                        Text(filter.displayName).tag(filter)
+                                ForEach(CategoryFilter.allCases, id: \.self) { filter in
+                                    Button {
+                                        categoryFilter = filter
+                                    } label: {
+                                        if categoryFilter == filter {
+                                            Label(filter.displayName, systemImage: "checkmark")
+                                        } else {
+                                            Text(filter.displayName)
+                                        }
                                     }
                                 }
 
@@ -316,10 +328,25 @@ struct TodoListView: View {
                                 if !suggestedStudents.isEmpty {
                                     Divider()
 
-                                    Picker("Student Link", selection: $studentFilter) {
-                                        Text("All Students").tag("")
-                                        ForEach(suggestedStudents, id: \.self) { student in
-                                            Text(student).tag(student)
+                                    Button {
+                                        studentFilter = ""
+                                    } label: {
+                                        if studentFilter.isEmpty {
+                                            Label("All Students", systemImage: "checkmark")
+                                        } else {
+                                            Text("All Students")
+                                        }
+                                    }
+
+                                    ForEach(suggestedStudents, id: \.self) { student in
+                                        Button {
+                                            studentFilter = student
+                                        } label: {
+                                            if studentFilter == student {
+                                                Label(student, systemImage: "checkmark")
+                                            } else {
+                                                Text(student)
+                                            }
                                         }
                                     }
                                 }
@@ -327,10 +354,25 @@ struct TodoListView: View {
                                 if !suggestedStudentGroups.isEmpty {
                                     Divider()
 
-                                    Picker("Group Link", selection: $studentGroupFilter) {
-                                        Text("All Groups").tag("")
-                                        ForEach(suggestedStudentGroups, id: \.self) { group in
-                                            Text(group).tag(group)
+                                    Button {
+                                        studentGroupFilter = ""
+                                    } label: {
+                                        if studentGroupFilter.isEmpty {
+                                            Label("All Groups", systemImage: "checkmark")
+                                        } else {
+                                            Text("All Groups")
+                                        }
+                                    }
+
+                                    ForEach(suggestedStudentGroups, id: \.self) { group in
+                                        Button {
+                                            studentGroupFilter = group
+                                        } label: {
+                                            if studentGroupFilter == group {
+                                                Label(group, systemImage: "checkmark")
+                                            } else {
+                                                Text(group)
+                                            }
                                         }
                                     }
                                 }
@@ -338,10 +380,25 @@ struct TodoListView: View {
                                 if !suggestedContexts.isEmpty {
                                     Divider()
 
-                                    Picker("Class / Group", selection: $linkedContextFilter) {
-                                        Text("All Classes / Groups").tag("")
-                                        ForEach(suggestedContexts, id: \.self) { context in
-                                            Text(context).tag(context)
+                                    Button {
+                                        linkedContextFilter = ""
+                                    } label: {
+                                        if linkedContextFilter.isEmpty {
+                                            Label("All Classes / Groups", systemImage: "checkmark")
+                                        } else {
+                                            Text("All Classes / Groups")
+                                        }
+                                    }
+
+                                    ForEach(suggestedContexts, id: \.self) { context in
+                                        Button {
+                                            linkedContextFilter = context
+                                        } label: {
+                                            if linkedContextFilter == context {
+                                                Label(context, systemImage: "checkmark")
+                                            } else {
+                                                Text(context)
+                                            }
                                         }
                                     }
                                 }

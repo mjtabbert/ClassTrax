@@ -214,6 +214,29 @@ func updatingProfile(
     return updated
 }
 
+func updatingProfile(
+    _ profile: StudentSupportProfile,
+    behaviorQuickNote: String,
+    for behavior: BehaviorLogItem.BehaviorKind,
+    classDefinitionID: UUID?
+) -> StudentSupportProfile {
+    guard let resolvedClassDefinitionID = classDefinitionID ?? profile.classDefinitionID else {
+        return profile
+    }
+
+    var context = classContext(for: profile, classDefinitionID: resolvedClassDefinitionID)
+        ?? StudentSupportProfile.ClassContext(classDefinitionID: resolvedClassDefinitionID)
+    let trimmedNote = behaviorQuickNote.trimmingCharacters(in: .whitespacesAndNewlines)
+
+    if trimmedNote.isEmpty {
+        context.behaviorQuickNotes.removeValue(forKey: behavior.rawValue)
+    } else {
+        context.behaviorQuickNotes[behavior.rawValue] = trimmedNote
+    }
+
+    return updatingProfile(profile, classContext: context)
+}
+
 func exactClassDefinitionMatch(
     name: String,
     gradeLevel: String,

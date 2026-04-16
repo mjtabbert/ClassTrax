@@ -59,6 +59,7 @@ struct TodayView: View {
     let openTodoItem: (TodoItem) -> Void
     let openNotesTab: () -> Void
     let openSettingsTab: () -> Void
+    let behaviorLogs: [BehaviorLogItem]
     let behaviorLogsForStudent: (StudentSupportProfile) -> [BehaviorLogItem]
     let behaviorSegmentsForStudent: (StudentSupportProfile) -> [BehaviorSegmentOption]
     let preferredBehaviorSegmentID: (StudentSupportProfile) -> UUID?
@@ -106,9 +107,11 @@ struct TodayView: View {
     @State var rosterItem: AlarmItem?
     @State var attendanceSession: AttendanceSession?
     @State var homeworkCaptureSession: HomeworkCaptureSession?
+    @State var classBehaviorNoteItem: AlarmItem?
     @State var showingHomeworkReview = false
     @State var homeworkReviewDate = Date()
     @State var subPlanItem: AlarmItem?
+    @State var showingDailyExport = false
     @State var showingDailySubPlan = false
     @State var dailySubPlanDate = Date()
     @State var todayAttendanceExportURL: URL?
@@ -274,6 +277,7 @@ struct TodayView: View {
                     classDefinitions: classDefinitions,
                     teacherContacts: teacherContacts,
                     paraContacts: paraContacts,
+                    attendanceRecords: attendanceRecords,
                     behaviorLogs: behaviorLogsForStudent(profile),
                     behaviorSegments: behaviorSegmentsForStudent(latestStudentProfile(for: profile)),
                     preferredBehaviorSegmentID: preferredBehaviorSegmentID(latestStudentProfile(for: profile)),
@@ -292,6 +296,12 @@ struct TodayView: View {
                     },
                     onLogBehavior: { behavior, rating, segmentID in
                         onLogBehavior(latestStudentProfile(for: profile), behavior, rating, segmentID)
+                    },
+                    onLogBehaviorWithNote: { behavior, rating, segmentID, note, timestamp in
+                        onLogBehaviorWithNote(latestStudentProfile(for: profile), behavior, rating, segmentID, note, timestamp)
+                    },
+                    onSaveBehaviorQuickNote: { segmentID, behavior, note in
+                        saveBehaviorQuickNote(for: latestStudentProfile(for: profile), segmentID: segmentID, behavior: behavior, note: note)
                     }
                 )
             }
@@ -345,6 +355,17 @@ struct TodayView: View {
                 )
             }
         }
+        .sheet(isPresented: $showingDailyExport) {
+            DailyExportView(
+                attendanceRecords: attendanceRecords,
+                behaviorLogs: behaviorLogs,
+                todos: todos,
+                commitments: commitments,
+                followUpNotes: decodeFollowUpNotesFromDefaults(),
+                classDefinitions: classDefinitions,
+                studentProfiles: studentSupportProfiles
+            )
+        }
         .sheet(isPresented: $showingTodayAttendanceShareSheet) {
             if let todayAttendanceExportURL {
                 ShareSheet(activityItems: [todayAttendanceExportURL])
@@ -370,6 +391,19 @@ struct TodayView: View {
                     helperText: "This homework note is saved with today's class and included in attendance exports.",
                     initialText: classHomeworkText(for: session.item, now: session.date, targetClassDefinitionID: session.targetClassDefinitionID),
                     onSave: { saveClassHomework($0, for: session.item, now: session.date, targetClassDefinitionID: session.targetClassDefinitionID, targetTitle: session.targetTitle) }
+                )
+            }
+        }
+        .sheet(item: $classBehaviorNoteItem) { item in
+            let initialNote = latestClassBehaviorNote(for: item)?.note ?? ""
+            NavigationStack {
+                AttendanceNoteEditorView(
+                    title: "\(item.className) Behavior Note",
+                    helperText: "Keep one class-level note for what you need to watch in this block.",
+                    initialText: initialNote,
+                    onSave: { text in
+                        saveClassBehaviorNote(text, for: item)
+                    }
                 )
             }
         }
@@ -410,6 +444,22 @@ struct TodayView: View {
     private func openStudentQuickView(_ profile: StudentSupportProfile) {
         studentLookupSession = nil
         quickViewStudent = profile
+    }
+
+    private func saveBehaviorQuickNote(
+        for profile: StudentSupportProfile,
+        segmentID: UUID?,
+        behavior: BehaviorLogItem.BehaviorKind,
+        note: String
+    ) {
+        guard let index = studentSupportProfiles.firstIndex(where: { $0.id == profile.id }) else { return }
+        studentSupportProfiles[index] = updatingProfile(
+            studentSupportProfiles[index],
+            behaviorQuickNote: note,
+            for: behavior,
+            classDefinitionID: segmentID
+        )
+        quickViewStudent = studentSupportProfiles[index]
     }
 
     @ViewBuilder
