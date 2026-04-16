@@ -65,6 +65,10 @@ struct TypeBadge: View {
     }
 
     var body: some View {
+        let usesBlankPalette = type == .blank
+        let topColor = usesBlankPalette ? Color.blue.opacity(0.28) : type.themeColor.opacity(0.95)
+        let bottomColor = usesBlankPalette ? Color.cyan.opacity(0.20) : type.themeColor.opacity(0.72)
+
         HStack(spacing: 5) {
             Image(systemName: type.symbolName)
                 .font(.system(size: 9, weight: .black))
@@ -81,10 +85,7 @@ struct TypeBadge: View {
             Capsule(style: .continuous)
                 .fill(
                     LinearGradient(
-                        colors: [
-                            type.themeColor.opacity(type == .blank ? 0.12 : 0.95),
-                            type.themeColor.opacity(type == .blank ? 0.05 : 0.72)
-                        ],
+                        colors: [topColor, bottomColor],
                         startPoint: .topLeading,
                         endPoint: .bottomTrailing
                     )

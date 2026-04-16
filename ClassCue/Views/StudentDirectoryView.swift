@@ -164,7 +164,7 @@ struct StudentDirectoryView: View {
         directoryList
             .frame(maxWidth: 1040)
             .frame(maxWidth: .infinity)
-            .navigationTitle("Class List")
+            .navigationTitle("Students")
             .navigationBarTitleDisplayMode(.inline)
             .environment(\.editMode, .constant(selection.isEmpty ? .inactive : .active))
             .searchable(text: $searchText, prompt: "Search students, class, grade, or contact")
@@ -550,39 +550,23 @@ struct StudentDirectoryView: View {
 
             Section {
                 HStack(spacing: 12) {
-                    compactSelectionMenu(
+                    compactPickerMenu(
                         title: "Group By",
-                        value: groupingMode.rawValue,
-                        systemImage: "square.grid.2x2"
+                        systemImage: "square.grid.2x2",
+                        selection: $groupingMode
                     ) {
                         ForEach(GroupingMode.allCases) { mode in
-                            Button {
-                                groupingMode = mode
-                            } label: {
-                                if groupingMode == mode {
-                                    Label(mode.rawValue, systemImage: "checkmark")
-                                } else {
-                                    Text(mode.rawValue)
-                                }
-                            }
+                            Text(mode.rawValue).tag(mode)
                         }
                     }
 
-                    compactSelectionMenu(
+                    compactPickerMenu(
                         title: "Sort",
-                        value: nameSortMode.rawValue,
-                        systemImage: "arrow.up.arrow.down"
+                        systemImage: "arrow.up.arrow.down",
+                        selection: $nameSortMode
                     ) {
                         ForEach(NameSortMode.allCases) { mode in
-                            Button {
-                                nameSortMode = mode
-                            } label: {
-                                if nameSortMode == mode {
-                                    Label(mode.rawValue, systemImage: "checkmark")
-                                } else {
-                                    Text(mode.rawValue)
-                                }
-                            }
+                            Text(mode.rawValue).tag(mode)
                         }
                     }
                 }
@@ -720,7 +704,7 @@ struct StudentDirectoryView: View {
     private var directoryOverviewCard: some View {
         VStack(alignment: .leading, spacing: 14) {
             VStack(alignment: .leading, spacing: 4) {
-                Text(showsRosterDataTools ? "Student Rosters" : "Class List")
+                Text(showsRosterDataTools ? "Student Rosters" : "Students")
                     .font(.title3.weight(.bold))
 
                 Text(directoryOverviewSubtitle)
@@ -730,14 +714,12 @@ struct StudentDirectoryView: View {
             }
 
             if !showsRosterDataTools {
-                LazyVGrid(
-                    columns: [
-                        GridItem(.flexible(), spacing: 10),
-                        GridItem(.flexible(), spacing: 10)
-                    ],
-                    alignment: .leading,
-                    spacing: 10
-                ) {
+                HStack(spacing: 10) {
+                    overviewActionPill(title: "Add Student", systemImage: "plus", accent: .blue) {
+                        onPrepareStudentEditor?()
+                        addStudentSeed = .blank
+                    }
+
                     overviewActionPill(
                         title: classDefinitions.isEmpty ? "Saved Class" : "Saved Classes",
                         systemImage: "books.vertical",
@@ -746,28 +728,7 @@ struct StudentDirectoryView: View {
                         showingSavedClasses = true
                     }
 
-                    overviewActionPill(title: "Add Student", systemImage: "plus", accent: .blue) {
-                        onPrepareStudentEditor?()
-                        addStudentSeed = .blank
-                    }
-
-                    overviewActionPill(title: "Teachers", systemImage: "person.badge.plus", accent: .teal) {
-                        showingTeacherList = true
-                    }
-
-                    overviewActionPill(title: "Paras", systemImage: "person.2.badge.plus", accent: .orange) {
-                        showingParaList = true
-                    }
-
-                    if supportsBulkEntry {
-                        overviewActionPill(
-                            title: "Grid Entry",
-                            systemImage: "square.grid.3x2",
-                            accent: ClassTraxSemanticColor.secondaryAction
-                        ) {
-                            showingStudentBulkEntry = true
-                        }
-                    }
+                    overviewSecondaryActionsMenu
                 }
             }
 
@@ -895,6 +856,53 @@ struct StudentDirectoryView: View {
         .buttonStyle(.plain)
     }
 
+    private var overviewSecondaryActionsMenu: some View {
+        Menu {
+            Button("Teachers", systemImage: "person.badge.plus") {
+                showingTeacherList = true
+            }
+
+            Button("Paras", systemImage: "person.2.badge.plus") {
+                showingParaList = true
+            }
+
+            if supportsBulkEntry {
+                Button("Grid Entry", systemImage: "square.grid.3x2") {
+                    showingStudentBulkEntry = true
+                }
+            }
+        } label: {
+            HStack(spacing: 8) {
+                Image(systemName: "ellipsis.circle")
+                    .font(.caption.weight(.bold))
+                    .foregroundStyle(ClassTraxSemanticColor.secondaryAction)
+                    .frame(width: 22, height: 22)
+                    .background(
+                        Circle()
+                            .fill(ClassTraxSemanticColor.secondaryAction.opacity(0.16))
+                    )
+
+                Text("More")
+                    .font(.caption.weight(.semibold))
+                    .foregroundStyle(.primary)
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.85)
+            }
+            .frame(maxWidth: .infinity)
+            .padding(.horizontal, 12)
+            .padding(.vertical, 10)
+            .background(
+                Capsule(style: .continuous)
+                    .fill(ClassTraxSemanticColor.secondaryAction.opacity(0.10))
+            )
+            .overlay(
+                Capsule(style: .continuous)
+                    .stroke(ClassTraxSemanticColor.secondaryAction.opacity(0.14), lineWidth: 0.9)
+            )
+        }
+        .buttonStyle(.plain)
+    }
+
     @ViewBuilder
     private func overviewTag(_ text: String, accent: Color) -> some View {
         Text(text)
@@ -906,40 +914,35 @@ struct StudentDirectoryView: View {
     }
 
     @ViewBuilder
-    private func compactSelectionMenu<Content: View>(
+    private func compactPickerMenu<Selection: Hashable, Content: View>(
         title: String,
-        value: String,
         systemImage: String,
+        selection: Binding<Selection>,
         @ViewBuilder content: () -> Content
     ) -> some View {
-        Menu {
-            content()
-        } label: {
-            HStack(spacing: 8) {
-                Image(systemName: systemImage)
-                    .font(.caption.weight(.semibold))
-                VStack(alignment: .leading, spacing: 1) {
-                    Text(title)
-                        .font(.caption2.weight(.semibold))
-                        .foregroundStyle(.secondary)
-                    Text(value)
-                        .font(.subheadline.weight(.semibold))
-                        .foregroundStyle(.primary)
-                }
-                Spacer(minLength: 8)
-                Image(systemName: "chevron.down")
-                    .font(.caption2.weight(.bold))
+        HStack(spacing: 8) {
+            Image(systemName: systemImage)
+                .font(.caption.weight(.semibold))
+            VStack(alignment: .leading, spacing: 1) {
+                Text(title)
+                    .font(.caption2.weight(.semibold))
                     .foregroundStyle(.secondary)
+                Picker(title, selection: selection) {
+                    content()
+                }
+                .labelsHidden()
+                .pickerStyle(.menu)
+                .font(.subheadline.weight(.semibold))
             }
-            .padding(.horizontal, 12)
-            .padding(.vertical, 10)
-            .frame(maxWidth: .infinity, alignment: .leading)
-            .background(
-                RoundedRectangle(cornerRadius: 14, style: .continuous)
-                    .fill(Color.white.opacity(0.55))
-            )
+            Spacer(minLength: 8)
         }
-        .buttonStyle(.plain)
+        .padding(.horizontal, 12)
+        .padding(.vertical, 10)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(
+            RoundedRectangle(cornerRadius: 14, style: .continuous)
+                .fill(Color.white.opacity(0.55))
+        )
     }
 
     @ViewBuilder

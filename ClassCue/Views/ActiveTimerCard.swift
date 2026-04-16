@@ -100,7 +100,12 @@ struct ActiveTimerCard: View {
     }
 
     private var isRainbowCountdown: Bool {
-        remaining > 0 && remaining <= 60
+        remaining > 0 && remaining <= 300
+    }
+
+    private var rainbowIntensity: Double {
+        guard isRainbowCountdown else { return 0 }
+        return min(max((300 - remaining) / 300, 0), 1)
     }
 
     private var timerRingLineWidth: CGFloat {
@@ -108,7 +113,7 @@ struct ActiveTimerCard: View {
             return 12
         }
         if isFiveMinuteWarning {
-            return 8
+            return 10
         }
         return 4
     }
@@ -348,9 +353,18 @@ struct ActiveTimerCard: View {
 
     private var timerRingStyle: AnyShapeStyle {
         if isRainbowCountdown {
+            let intensity = rainbowIntensity
             return AnyShapeStyle(
                 AngularGradient(
-                    colors: [.red, .orange, .yellow, .green, .blue, .purple, .red],
+                    colors: [
+                        Color.orange.opacity(1 - (intensity * 0.55)),
+                        .yellow,
+                        .green.opacity(0.5 + (intensity * 0.5)),
+                        .blue.opacity(0.35 + (intensity * 0.65)),
+                        .purple.opacity(0.25 + (intensity * 0.75)),
+                        .pink.opacity(0.25 + (intensity * 0.75)),
+                        .red.opacity(0.45 + (intensity * 0.55))
+                    ],
                     center: .center
                 )
             )

@@ -633,6 +633,48 @@ struct StudentQuickView: View {
         var id: String { rawValue }
     }
 
+    private enum StudentTimelineEventKind: Equatable {
+        case attendance
+        case behavior
+        case assignedWork
+        case missingWork
+        case classNote
+
+        var symbol: String {
+            switch self {
+            case .attendance:
+                return "checkmark.circle.fill"
+            case .behavior:
+                return "face.smiling.fill"
+            case .assignedWork:
+                return "book.fill"
+            case .missingWork:
+                return "exclamationmark.circle.fill"
+            case .classNote:
+                return "note.text"
+            }
+        }
+    }
+
+    private enum TimelineFilter: String, CaseIterable, Identifiable {
+        case all = "All"
+        case attendance = "Attendance"
+        case behavior = "Behavior"
+        case work = "Work"
+        case notes = "Notes"
+
+        var id: String { rawValue }
+    }
+
+    private struct StudentTimelineEntry: Identifiable {
+        let id: String
+        let timestamp: Date
+        let kind: StudentTimelineEventKind
+        let title: String
+        let detail: String
+        let tint: Color
+    }
+
     let profile: StudentSupportProfile
     let classDefinitions: [ClassDefinitionItem]
     let teacherContacts: [ClassStaffContact]
@@ -654,6 +696,7 @@ struct StudentQuickView: View {
     @State private var selectedBehaviorSegmentID: UUID?
     @State private var selectedBehaviorWindow: BehaviorWindow = .today
     @State private var behaviorQuickNoteDrafts: [String: String] = [:]
+    @State private var selectedTimelineFilter: TimelineFilter = .all
 
     var body: some View {
         List {
@@ -913,6 +956,58 @@ struct StudentQuickView: View {
                 }
             }
 
+            if !studentTimelineEntries.isEmpty {
+                Section("Student Timeline") {
+                    Picker("Filter", selection: $selectedTimelineFilter) {
+                        ForEach(TimelineFilter.allCases) { filter in
+                            Text(filter.rawValue).tag(filter)
+                        }
+                    }
+                    .pickerStyle(.segmented)
+
+                    if let entry = filteredTimelineEntries.first,
+                       let emailURL = timelineEntryEmailURL(for: entry) {
+                        Button {
+                            openURL(emailURL)
+                        } label: {
+                            Label("Email Parent About Latest Event", systemImage: "envelope.badge")
+                        }
+                        .tint(ClassTraxSemanticColor.primaryAction)
+                    }
+
+                    if filteredTimelineEntries.isEmpty {
+                        Text("No timeline entries for this filter yet.")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    } else {
+                        ForEach(filteredTimelineEntries.prefix(30)) { entry in
+                            HStack(alignment: .top, spacing: 10) {
+                                Image(systemName: entry.kind.symbol)
+                                    .font(.caption.weight(.semibold))
+                                    .foregroundStyle(entry.tint)
+                                    .frame(width: 18, height: 18)
+
+                                VStack(alignment: .leading, spacing: 3) {
+                                    Text(entry.title)
+                                        .font(.subheadline.weight(.semibold))
+                                        .foregroundStyle(.primary)
+
+                                    Text(entry.detail)
+                                        .font(.caption)
+                                        .foregroundStyle(.secondary)
+                                        .lineLimit(3)
+
+                                    Text(entry.timestamp, format: .dateTime.month(.abbreviated).day().hour().minute())
+                                        .font(.caption2)
+                                        .foregroundStyle(.secondary)
+                                }
+                            }
+                            .padding(.vertical, 2)
+                        }
+                    }
+                }
+            }
+
             if onLogBehavior != nil || onLogBehaviorWithNote != nil {
                 Section("Behavior Check-In") {
                     if !behaviorSegments.isEmpty {
@@ -1111,6 +1206,131 @@ struct StudentQuickView: View {
         }
     }
 
+    private var linkedClassDefinitionIDs: Set<UUID> {
+        Set(profile.classDefinitionIDs + (profile.classDefinitionID.map { [$0] } ?? []))
+    }
+
+    private var classNoteTimelineRecords: [AttendanceRecord] {
+        attendanceRecords.filter { record in
+            guard record.isClassHomeworkNote else { return false }
+            let note = record.assignedHomework.trimmingCharacters(in: .whitespacesAndNewlines)
+            guard !note.isEmpty else { return false }
+
+            if let classDefinitionID = record.classDefinitionID {
+                return linkedClassDefinitionIDs.contains(classDefinitionID)
+            }
+
+            let recordClass = record.className.trimmingCharacters(in: .whitespacesAndNewlines)
+            let profileClass = profile.className.trimmingCharacters(in: .whitespacesAndNewlines)
+            guard !recordClass.isEmpty, !profileClass.isEmpty else { return false }
+            return recordClass.caseInsensitiveCompare(profileClass) == .orderedSame
+        }
+    }
+
+    private var studentTimelineEntries: [StudentTimelineEntry] {
+        var entries: [StudentTimelineEntry] = []
+
+        for record in studentAttendanceRecords {
+            let timestamp = timelineDate(for: record)
+            let classLabel = record.className.trimmingCharacters(in: .whitespacesAndNewlines)
+            let attendanceDetail = classLabel.isEmpty ? record.status.rawValue : "\(record.status.rawValue) • \(classLabel)"
+            let attendanceTint: Color = record.status == .present ? ClassTraxSemanticColor.success : ClassTraxSemanticColor.reviewWarning
+
+            entries.append(
+                StudentTimelineEntry(
+                    id: "attendance-\(record.id.uuidString)",
+                    timestamp: timestamp,
+                    kind: .attendance,
+                    title: "Attendance",
+                    detail: attendanceDetail,
+                    tint: attendanceTint
+                )
+            )
+
+            let assignedWork = record.assignedHomework.trimmingCharacters(in: .whitespacesAndNewlines)
+            if !assignedWork.isEmpty {
+                entries.append(
+                    StudentTimelineEntry(
+                        id: "assigned-\(record.id.uuidString)",
+                        timestamp: timestamp,
+                        kind: .assignedWork,
+                        title: "Assigned Work",
+                        detail: assignedWork,
+                        tint: ClassTraxSemanticColor.primaryAction
+                    )
+                )
+            }
+
+            let missingWork = record.absentHomework.trimmingCharacters(in: .whitespacesAndNewlines)
+            if !missingWork.isEmpty {
+                entries.append(
+                    StudentTimelineEntry(
+                        id: "missing-\(record.id.uuidString)",
+                        timestamp: timestamp,
+                        kind: .missingWork,
+                        title: "Missing Work",
+                        detail: missingWork,
+                        tint: ClassTraxSemanticColor.reviewWarning
+                    )
+                )
+            }
+        }
+
+        for record in classNoteTimelineRecords {
+            let classLabel = record.className.trimmingCharacters(in: .whitespacesAndNewlines)
+            let note = record.assignedHomework.trimmingCharacters(in: .whitespacesAndNewlines)
+            let detail = classLabel.isEmpty ? note : "\(classLabel): \(note)"
+
+            entries.append(
+                StudentTimelineEntry(
+                    id: "class-note-\(record.id.uuidString)",
+                    timestamp: timelineDate(for: record),
+                    kind: .classNote,
+                    title: "Class Note",
+                    detail: detail,
+                    tint: ClassTraxSemanticColor.secondaryAction
+                )
+            )
+        }
+
+        for log in behaviorLogs {
+            let segment = log.segmentTitle.trimmingCharacters(in: .whitespacesAndNewlines)
+            let title = segment.isEmpty
+                ? "\(log.behavior.title) • \(log.rating.colorLabel)"
+                : "\(log.behavior.title) • \(log.rating.colorLabel) • \(segment)"
+            let detail = log.noteSummary ?? "Behavior check-in"
+
+            entries.append(
+                StudentTimelineEntry(
+                    id: "behavior-\(log.id.uuidString)",
+                    timestamp: log.timestamp,
+                    kind: .behavior,
+                    title: title,
+                    detail: detail,
+                    tint: log.rating.tint
+                )
+            )
+        }
+
+        return entries
+            .sorted { $0.timestamp > $1.timestamp }
+    }
+
+    private var filteredTimelineEntries: [StudentTimelineEntry] {
+        switch selectedTimelineFilter {
+        case .all:
+            return studentTimelineEntries
+        case .attendance:
+            return studentTimelineEntries.filter { $0.kind == .attendance }
+        case .behavior:
+            return studentTimelineEntries.filter { $0.kind == .behavior }
+        case .work:
+            return studentTimelineEntries.filter { $0.kind == .assignedWork || $0.kind == .missingWork }
+        case .notes:
+            return studentTimelineEntries.filter { $0.kind == .classNote }
+        }
+    }
+
     private var weeklyAttendanceSummary: String {
         attendanceSummary(for: studentAttendanceRecords.filter { currentWeekDateKeys.contains($0.dateKey) })
     }
@@ -1238,16 +1458,63 @@ struct StudentQuickView: View {
         let placeholder = segmentTitle.isEmpty ? "Note for this class" : "Note for \(segmentTitle)"
         let noteBinding = behaviorQuickNoteBinding(for: behavior)
 
-        TextField(placeholder, text: noteBinding, axis: .vertical)
-            .textInputAutocapitalization(.sentences)
-            .autocorrectionDisabled()
-            .font(.caption)
-            .padding(.horizontal, 12)
-            .padding(.vertical, 10)
-            .background(
-                RoundedRectangle(cornerRadius: 12, style: .continuous)
-                    .fill(Color(.secondarySystemBackground))
-            )
+        VStack(alignment: .leading, spacing: 8) {
+            ScrollView(.horizontal, showsIndicators: false) {
+                HStack(spacing: 8) {
+                    ForEach(quickBehaviorTemplates(for: behavior), id: \.self) { template in
+                        Button {
+                            noteBinding.wrappedValue = template
+                        } label: {
+                            Text(template)
+                                .font(.caption2.weight(.semibold))
+                                .padding(.horizontal, 10)
+                                .padding(.vertical, 6)
+                                .background(
+                                    Capsule(style: .continuous)
+                                        .fill(ClassTraxSemanticColor.primaryAction.opacity(0.12))
+                                )
+                                .foregroundStyle(ClassTraxSemanticColor.primaryAction)
+                        }
+                        .buttonStyle(.plain)
+                    }
+                }
+                .padding(.vertical, 1)
+            }
+
+            TextField(placeholder, text: noteBinding, axis: .vertical)
+                .textInputAutocapitalization(.sentences)
+                .autocorrectionDisabled()
+                .font(.caption)
+                .padding(.horizontal, 12)
+                .padding(.vertical, 10)
+                .background(
+                    RoundedRectangle(cornerRadius: 12, style: .continuous)
+                        .fill(Color(.secondarySystemBackground))
+                )
+        }
+    }
+
+    private func quickBehaviorTemplates(for behavior: BehaviorLogItem.BehaviorKind) -> [String] {
+        switch behavior {
+        case .onTask:
+            return [
+                "Stayed focused and followed directions.",
+                "Independent work completed.",
+                "Returned to task after reminder."
+            ]
+        case .respectful:
+            return [
+                "Used respectful language with peers.",
+                "Handled feedback calmly.",
+                "Needed reminder about respectful tone."
+            ]
+        case .safeBody:
+            return [
+                "Kept hands and body safe.",
+                "Needed movement break to reset.",
+                "Safety reminder given and followed."
+            ]
+        }
     }
 
     private func todayBehaviorLog(for behavior: BehaviorLogItem.BehaviorKind) -> BehaviorLogItem? {
@@ -1739,6 +2006,23 @@ struct StudentQuickView: View {
         return lines.joined(separator: "\n")
     }
 
+    private func timelineEntryEmailURL(for entry: StudentTimelineEntry) -> URL? {
+        guard !parsedParentEmails.isEmpty else { return nil }
+        let recipients = parsedParentEmails.joined(separator: ",")
+        let subject = "ClassTrax Update for \(profile.name)"
+        let body = [
+            "Hello,",
+            "",
+            "Quick update for \(profile.name):",
+            "- \(entry.title)",
+            "- \(entry.detail)",
+            "- \(entry.timestamp.formatted(date: .abbreviated, time: .shortened))",
+            "",
+            "Generated from ClassTrax."
+        ].joined(separator: "\n")
+        return emailURL(for: recipients, subject: subject, body: body)
+    }
+
     private func phoneURL(for phone: String) -> URL? {
         let digits = phone.filter { $0.isNumber || $0 == "+" }
         guard !digits.isEmpty else { return nil }
@@ -1769,6 +2053,28 @@ struct StudentQuickView: View {
         guard !attendanceOnly.isEmpty else { return "No Data" }
         let presentCount = attendanceOnly.filter { $0.status == .present }.count
         return "\(presentCount)/\(attendanceOnly.count)"
+    }
+
+    private func timelineDate(for record: AttendanceRecord) -> Date {
+        if let blockStart = record.blockStartTime {
+            return blockStart
+        }
+
+        if let date = dateFromDateKey(record.dateKey) {
+            return date
+        }
+
+        return Date.distantPast
+    }
+
+    private func dateFromDateKey(_ dateKey: String) -> Date? {
+        let trimmed = dateKey.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { return nil }
+
+        let formatter = DateFormatter()
+        formatter.calendar = Calendar(identifier: .gregorian)
+        formatter.dateFormat = "yyyy-MM-dd"
+        return formatter.date(from: trimmed)
     }
 
     private func labeledLine(_ label: String, _ value: String) -> String? {

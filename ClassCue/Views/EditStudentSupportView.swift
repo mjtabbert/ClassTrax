@@ -580,17 +580,17 @@ struct EditStudentSupportView: View {
                 content()
             } label: {
                 Label(title, systemImage: systemImage)
-                    .font(.headline)
+                    .font(.subheadline.weight(.semibold))
                     .foregroundStyle(accent(for: section))
-                    .padding(.vertical, 2)
+                    .padding(.vertical, 1)
             }
         }
         .listRowBackground(
-            RoundedRectangle(cornerRadius: 18, style: .continuous)
-                .fill(Color(.secondarySystemBackground).opacity(0.46))
+            RoundedRectangle(cornerRadius: 16, style: .continuous)
+                .fill(Color(.secondarySystemBackground).opacity(0.12))
                 .overlay(
-                    RoundedRectangle(cornerRadius: 18, style: .continuous)
-                        .stroke(accent(for: section).opacity(0.22), lineWidth: 1)
+                    RoundedRectangle(cornerRadius: 16, style: .continuous)
+                        .stroke(accent(for: section).opacity(0.10), lineWidth: 1)
                 )
         )
     }
@@ -639,24 +639,24 @@ struct EditStudentSupportView: View {
         tint: Color,
         axis: Axis = .horizontal
     ) -> some View {
-        VStack(alignment: .leading, spacing: 6) {
+        VStack(alignment: .leading, spacing: 4) {
             Text(title)
                 .font(.caption.weight(.semibold))
                 .foregroundStyle(tint)
 
             TextField(title, text: text, axis: axis)
                 .padding(.horizontal, 12)
-                .padding(.vertical, axis == .horizontal ? 10 : 12)
+                .padding(.vertical, axis == .horizontal ? 9 : 11)
                 .background(
-                    RoundedRectangle(cornerRadius: 14, style: .continuous)
-                        .fill(Color(.systemBackground).opacity(0.18))
+                    RoundedRectangle(cornerRadius: 12, style: .continuous)
+                        .fill(tint.opacity(0.06))
                 )
                 .overlay(
-                    RoundedRectangle(cornerRadius: 14, style: .continuous)
-                        .stroke(Color.primary.opacity(0.08), lineWidth: 1)
+                    RoundedRectangle(cornerRadius: 12, style: .continuous)
+                        .stroke(tint.opacity(0.18), lineWidth: 1)
                 )
         }
-        .padding(.vertical, 2)
+        .padding(.vertical, 1)
     }
 
     private func labeledEntryPicker<Content: View>(
@@ -664,7 +664,7 @@ struct EditStudentSupportView: View {
         tint: Color,
         @ViewBuilder content: () -> Content
     ) -> some View {
-        VStack(alignment: .leading, spacing: 6) {
+        VStack(alignment: .leading, spacing: 4) {
             Text(title)
                 .font(.caption.weight(.semibold))
                 .foregroundStyle(tint)
@@ -673,15 +673,15 @@ struct EditStudentSupportView: View {
                 .padding(.horizontal, 12)
                 .padding(.vertical, 2)
                 .background(
-                    RoundedRectangle(cornerRadius: 14, style: .continuous)
-                        .fill(Color(.systemBackground).opacity(0.18))
+                    RoundedRectangle(cornerRadius: 12, style: .continuous)
+                        .fill(tint.opacity(0.06))
                 )
                 .overlay(
-                    RoundedRectangle(cornerRadius: 14, style: .continuous)
-                        .stroke(Color.primary.opacity(0.08), lineWidth: 1)
+                    RoundedRectangle(cornerRadius: 12, style: .continuous)
+                        .stroke(tint.opacity(0.18), lineWidth: 1)
                 )
         }
-        .padding(.vertical, 2)
+        .padding(.vertical, 1)
     }
 
     private func labeledToggle(_ title: String, isOn: Binding<Bool>, tint: Color) -> some View {
@@ -691,16 +691,16 @@ struct EditStudentSupportView: View {
                 .foregroundStyle(tint)
         }
         .padding(.horizontal, 12)
-        .padding(.vertical, 10)
+        .padding(.vertical, 9)
         .background(
-            RoundedRectangle(cornerRadius: 14, style: .continuous)
-                .fill(Color(.systemBackground).opacity(0.18))
+            RoundedRectangle(cornerRadius: 12, style: .continuous)
+                .fill(tint.opacity(0.06))
         )
         .overlay(
-            RoundedRectangle(cornerRadius: 14, style: .continuous)
-                .stroke(Color.primary.opacity(0.08), lineWidth: 1)
+            RoundedRectangle(cornerRadius: 12, style: .continuous)
+                .stroke(tint.opacity(0.18), lineWidth: 1)
         )
-        .padding(.vertical, 2)
+        .padding(.vertical, 1)
     }
 }
 

@@ -189,7 +189,7 @@ struct AttendanceNoteEditorView: View {
         }
         .padding(20)
         .background(Color(.systemGroupedBackground).ignoresSafeArea())
-        .navigationTitle("Homework")
+        .navigationTitle(title)
         .navigationBarTitleDisplayMode(.inline)
         .toolbar {
             ToolbarItem(placement: .cancellationAction) {
@@ -1549,7 +1549,7 @@ struct AttendanceEditorView: View {
         guard !didCommit else { return }
         didCommit = true
         upsertClassHomeworkRecord()
-        onCommit(baseRecords + draftClassRecords)
+        onCommit(Self.mergedAttendanceRecords(base: baseRecords, draft: draftClassRecords))
     }
 
     private func upsertClassHomeworkRecord() {
@@ -1727,6 +1727,79 @@ struct AttendanceEditorView: View {
         }
 
         return (base, currentClass)
+    }
+
+    private static func mergedAttendanceRecords(base: [AttendanceRecord], draft: [AttendanceRecord]) -> [AttendanceRecord] {
+        var mergedByKey: [String: AttendanceRecord] = [:]
+        var orderedKeys: [String] = []
+
+        for record in base {
+            let key = attendanceMergeKey(for: record)
+            if mergedByKey[key] == nil {
+                orderedKeys.append(key)
+            }
+            mergedByKey[key] = record
+        }
+
+        for record in draft {
+            let key = attendanceMergeKey(for: record)
+            if mergedByKey[key] == nil {
+                orderedKeys.append(key)
+            }
+            // Draft values should always win over base values for the same logical record.
+            mergedByKey[key] = record
+        }
+
+        return orderedKeys.compactMap { mergedByKey[$0] }
+    }
+
+    private static func attendanceMergeKey(for record: AttendanceRecord) -> String {
+        let recordType: String = {
+            if record.isClassHomeworkNote { return "class-note" }
+            if record.isHomeworkAssignmentOnly { return "assignment-only" }
+            return "attendance"
+        }()
+
+        let blockIdentity: String = {
+            if let blockID = record.blockID {
+                return "block:\(blockID.uuidString.lowercased())"
+            }
+            if let start = record.blockStartTime, let end = record.blockEndTime {
+                let cal = Calendar(identifier: .gregorian)
+                return String(
+                    format: "time:%02d:%02d-%02d:%02d",
+                    cal.component(.hour, from: start),
+                    cal.component(.minute, from: start),
+                    cal.component(.hour, from: end),
+                    cal.component(.minute, from: end)
+                )
+            }
+            return "time:unspecified"
+        }()
+
+        let classIdentity: String = {
+            if let classDefinitionID = record.classDefinitionID {
+                return "class:\(classDefinitionID.uuidString.lowercased())"
+            }
+            let normalizedClass = normalizedStudentKey(record.className)
+            return "class:\(normalizedClass)"
+        }()
+
+        let studentIdentity: String = {
+            if let studentID = record.studentID {
+                return "student:\(studentID.uuidString.lowercased())"
+            }
+            let normalizedName = normalizedStudentKey(record.studentName)
+            return "student:name:\(normalizedName)"
+        }()
+
+        return [
+            record.dateKey,
+            recordType,
+            blockIdentity,
+            classIdentity,
+            studentIdentity
+        ].joined(separator: "|")
     }
 
     private static func recordMatchesCurrentClass(_ record: AttendanceRecord, item: AlarmItem, targetClassDefinitionID: UUID?) -> Bool {
@@ -4581,6 +4654,9 @@ extension TodayView {
 
         if let item = activeItem ?? nextItem ?? completedItem {
             let context = item.instructionalContextSummary(using: classDefinitions, workflowMode: teacherWorkflowMode)
+            let displayClassTitle = item.className.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+                ? context.displayTitle
+                : item.className
             let linkedContextNames = item.linkedInstructionalContextNames(using: classDefinitions, workflowMode: teacherWorkflowMode)
             let hasMultipleContexts = linkedContextNames.count > 1
             let roster = rosterStudents(for: item)
@@ -4611,7 +4687,7 @@ extension TodayView {
 
                         VStack(alignment: .leading, spacing: compact ? 5 : 6) {
                             HStack(alignment: .firstTextBaseline, spacing: 8) {
-                                Text(context.displayTitle)
+                                Text(displayClassTitle)
                                     .font(compact ? .subheadline.weight(.bold) : .headline.weight(.bold))
                                     .foregroundStyle(.primary)
                                     .lineLimit(1)
@@ -4704,14 +4780,6 @@ extension TodayView {
                 }
 
                 HStack(spacing: 8) {
-                    if isAttendanceEnabled {
-                        taskStatusPill(
-                            title: "Attendance",
-                            isComplete: attendanceCompletionText(for: item, now: now) == "Attendance complete",
-                            color: ClassTraxSemanticColor.attendance
-                        )
-                    }
-
                     if isHomeworkEnabled {
                         taskStatusPill(
                             title: "Assigned Work",
@@ -4799,7 +4867,7 @@ extension TodayView {
                             Button {
                                 markAllStudentsOK(for: item, roster: roster)
                             } label: {
-                                Label("Log No Issues", systemImage: "checkmark.circle.fill")
+                                Label("All Students OK", systemImage: "checkmark.circle.fill")
                                     .frame(maxWidth: .infinity, alignment: .leading)
                             }
                             .buttonStyle(.borderedProminent)
@@ -5219,23 +5287,19 @@ extension TodayView {
     }
 
     func rosterStudents(for item: AlarmItem, targetClassDefinitionID: UUID? = nil) -> [StudentSupportProfile] {
-        if !item.linkedStudentIDs.isEmpty {
+        let explicitLinkedProfiles: [StudentSupportProfile] = {
+            guard !item.linkedStudentIDs.isEmpty else { return [] }
             let linkedIDs = Set(item.linkedStudentIDs)
-            var linkedProfiles = studentSupportProfiles
-                .filter { linkedIDs.contains($0.id) }
+            var linkedProfiles = studentSupportProfiles.filter { linkedIDs.contains($0.id) }
             if let targetClassDefinitionID {
                 linkedProfiles = linkedProfiles.filter { profileMatches(classDefinitionID: targetClassDefinitionID, profile: $0) }
             }
-            linkedProfiles = linkedProfiles.sorted { $0.name.localizedCaseInsensitiveCompare($1.name) == .orderedAscending }
-
-            if !linkedProfiles.isEmpty {
-                return linkedProfiles
-            }
-        }
+            return linkedProfiles.sorted { $0.name.localizedCaseInsensitiveCompare($1.name) == .orderedAscending }
+        }()
 
         let gradeKey = normalizedStudentKey(GradeLevelOption.normalized(item.gradeLevel))
 
-        return studentSupportProfiles
+        let contextMatchedProfiles = studentSupportProfiles
             .filter { profile in
                 if let targetClassDefinitionID {
                     let matchesLinkedContext = profileMatches(classDefinitionID: targetClassDefinitionID, profile: profile)
@@ -5267,6 +5331,15 @@ extension TodayView {
                 return profileGradeKey == gradeKey
             }
             .sorted { $0.name.localizedCaseInsensitiveCompare($1.name) == .orderedAscending }
+
+        guard !explicitLinkedProfiles.isEmpty else {
+            return contextMatchedProfiles
+        }
+
+        var mergedProfiles = explicitLinkedProfiles
+        let existingIDs = Set(explicitLinkedProfiles.map(\.id))
+        mergedProfiles.append(contentsOf: contextMatchedProfiles.filter { !existingIDs.contains($0.id) })
+        return mergedProfiles
     }
 
     func presentAttendance(for item: AlarmItem, now: Date, schedule: [AlarmItem], targetClassDefinitionID: UUID? = nil, targetTitle: String? = nil) {
@@ -6120,12 +6193,8 @@ extension TodayView {
                 }
             }
 
-            Button("Notes", systemImage: "square.and.pencil") {
-                openNotesTab()
-            }
-
             if isHomeworkEnabled {
-                Button("Today's Work", systemImage: "text.book.closed") {
+                Button("Work", systemImage: "text.book.closed") {
                     homeworkReviewDate = now
                     showingHomeworkReview = true
                 }
@@ -6136,24 +6205,12 @@ extension TodayView {
                 showingDailySubPlan = true
             }
 
-            Button("Student Quick View", systemImage: "person.text.rectangle") {
-                if let activeItem {
-                    presentStudentLookup(for: activeItem)
-                } else {
-                    presentStudentLookup(
-                        title: "Students",
-                        subtitle: "Search students, supports, and linked groups.",
-                        students: []
-                    )
-                }
+            Button("Students", systemImage: "person.text.rectangle") {
+                openStudentsTab()
             }
 
-            Button("Planner", systemImage: "calendar.badge.checkmark") {
+            Button("Planner & Notes", systemImage: "calendar.badge.checkmark") {
                 openTodoTab()
-            }
-
-            Button("Refresh", systemImage: "arrow.clockwise") {
-                onRefresh()
             }
 
             if isScheduleEnabled {
@@ -6165,10 +6222,6 @@ extension TodayView {
             Button(soundsMuted ? "Unmute Sounds" : "Mute Sounds", systemImage: soundsMuted ? "bell.fill" : "bell.slash.fill") {
                 soundsMuted.toggle()
                 onRefreshNotifications()
-            }
-
-            Button("Students & Supports", systemImage: "person.3") {
-                openStudentsTab()
             }
 
             Button("Settings", systemImage: "gearshape") {
@@ -6329,9 +6382,9 @@ extension TodayView {
     private func taskStatusPill(title: String, isComplete: Bool, color: Color) -> some View {
         HStack(spacing: 6) {
             Image(systemName: isComplete ? "checkmark.circle.fill" : "circle")
-                .font(.caption.weight(.semibold))
+                .font(.caption)
             Text(title)
-                .font(.caption2.weight(.semibold))
+                .font(.caption2.weight(.regular))
                 .lineLimit(1)
                 .minimumScaleFactor(0.9)
         }
@@ -7424,14 +7477,6 @@ extension TodayView {
                         .font(.largeTitle.weight(.bold))
                         .foregroundStyle(.primary)
 
-                    Text(headerStatusText(for: now))
-                        .font(.subheadline)
-                        .foregroundStyle(.secondary)
-
-                    Text(teacherWorkflowMode.todayModeDescription)
-                        .font(.caption)
-                        .foregroundStyle(accent.opacity(0.88))
-                        .lineLimit(2)
                 }
 
                 Spacer(minLength: 0)

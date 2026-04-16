@@ -652,6 +652,13 @@ struct SettingsView: View {
                 settingsLink(.diagnostics, detail: diagnosticsSummaryText)
             }
             settingsLink(.about, detail: "App info")
+
+            Button {
+                loadData()
+                ClassTraxPersistence.refreshCloudKitDiagnosticsStatus()
+            } label: {
+                Label("Refresh App Data", systemImage: "arrow.clockwise")
+            }
         }
     }
 

@@ -589,6 +589,14 @@ private struct WatchStudentActionView: View {
         ("☹️", "needsSupport", .red)
     ]
 
+    private var selectedAttendanceStatus: String? {
+        student.attendanceStatusRawValue
+    }
+
+    private var selectedBehaviorStatus: String? {
+        student.behaviorRatingRawValue
+    }
+
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 12) {
@@ -613,17 +621,30 @@ private struct WatchStudentActionView: View {
                         .foregroundStyle(.secondary)
 
                     ForEach(attendanceOptions, id: \.self) { option in
+                        let isSelected = selectedAttendanceStatus == option
                         Button {
                             onAttendance(option)
                         } label: {
-                            Text(option)
-                                .font(.caption.weight(.semibold))
-                                .frame(maxWidth: .infinity)
-                                .padding(.vertical, 8)
-                                .background(
-                                    RoundedRectangle(cornerRadius: 12, style: .continuous)
-                                        .fill(attendanceTint(for: option).opacity(0.16))
-                                )
+                            HStack(spacing: 6) {
+                                Text(option)
+                                    .font(.caption.weight(.semibold))
+                                Spacer(minLength: 0)
+                                if isSelected {
+                                    Image(systemName: "checkmark.circle.fill")
+                                        .font(.caption2.weight(.bold))
+                                }
+                            }
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                            .padding(.horizontal, 10)
+                            .padding(.vertical, 8)
+                            .background(
+                                RoundedRectangle(cornerRadius: 12, style: .continuous)
+                                    .fill(attendanceTint(for: option).opacity(isSelected ? 0.30 : 0.16))
+                            )
+                            .overlay(
+                                RoundedRectangle(cornerRadius: 12, style: .continuous)
+                                    .stroke(attendanceTint(for: option).opacity(isSelected ? 0.95 : 0.30), lineWidth: isSelected ? 1.4 : 1)
+                            )
                         }
                         .buttonStyle(.plain)
                         .tint(attendanceTint(for: option))
@@ -637,6 +658,7 @@ private struct WatchStudentActionView: View {
 
                     HStack(spacing: 8) {
                         ForEach(behaviorOptions, id: \.value) { option in
+                            let isSelected = selectedBehaviorStatus == option.value
                             Button {
                                 onBehavior(option.value)
                             } label: {
@@ -646,7 +668,11 @@ private struct WatchStudentActionView: View {
                                     .padding(.vertical, 10)
                                     .background(
                                         RoundedRectangle(cornerRadius: 12, style: .continuous)
-                                            .fill(option.tint.opacity(0.16))
+                                            .fill(option.tint.opacity(isSelected ? 0.30 : 0.16))
+                                    )
+                                    .overlay(
+                                        RoundedRectangle(cornerRadius: 12, style: .continuous)
+                                            .stroke(option.tint.opacity(isSelected ? 0.95 : 0.30), lineWidth: isSelected ? 1.4 : 1)
                                     )
                             }
                             .buttonStyle(.plain)

@@ -156,7 +156,7 @@ final class WatchSnapshotStore: NSObject, ObservableObject {
             studentName: student.name,
             className: block.className,
             rating: rating,
-            feedback: "Behavior sent"
+            feedback: "\(rating.capitalized) logged"
         )
     }
 

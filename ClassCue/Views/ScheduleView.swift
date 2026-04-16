@@ -81,9 +81,17 @@ struct ScheduleView: View {
 
     private var displayedDays: [WeekdayTab] {
         if horizontalSizeClass == .compact {
-            return [.monday, .tuesday, .wednesday, .thursday, .friday, .saturday, .sunday]
+            return compactPrimaryDays + compactWeekendDays
         }
         return WeekdayTab.allCases
+    }
+
+    private var compactPrimaryDays: [WeekdayTab] {
+        [.monday, .tuesday, .wednesday, .thursday, .friday]
+    }
+
+    private var compactWeekendDays: [WeekdayTab] {
+        [.saturday, .sunday]
     }
 
     private var isSelectedDayToday: Bool {
@@ -399,8 +407,9 @@ struct ScheduleView: View {
     }
 
     private var dayPicker: some View {
+        let isCompact = horizontalSizeClass == .compact
 
-        ScrollView(.horizontal, showsIndicators: false) {
+        return ScrollView(.horizontal, showsIndicators: false) {
             HStack(spacing: 10) {
 
                 ForEach(displayedDays, id: \.self) { day in
@@ -409,10 +418,10 @@ struct ScheduleView: View {
                         selectedDay = day
                     } label: {
                         Text(day.shortTitle)
-                            .font(.subheadline.weight(.semibold))
+                            .font((isCompact ? Font.caption : .subheadline).weight(.semibold))
                             .foregroundColor(selectedDay == day ? .white : .primary.opacity(0.82))
-                            .padding(.horizontal, 18)
-                            .padding(.vertical, 12)
+                            .padding(.horizontal, isCompact ? 14 : 18)
+                            .padding(.vertical, isCompact ? 10 : 12)
                             .background(
                                 Capsule()
                                     .fill(selectedDay == day ? ClassTraxSemanticColor.primaryAction : Color(.secondarySystemBackground))
@@ -427,13 +436,13 @@ struct ScheduleView: View {
     private func scheduleNavButton(title: String, isSelected: Bool, action: @escaping () -> Void) -> some View {
         Button(action: action) {
             Text(title)
-                .font(.headline.weight(.semibold))
+                .font((horizontalSizeClass == .compact ? Font.subheadline : .headline).weight(.semibold))
                 .lineLimit(1)
-                .minimumScaleFactor(0.62)
+                .minimumScaleFactor(0.5)
                 .foregroundStyle(isSelected ? ClassTraxSemanticColor.primaryAction : .primary)
                 .frame(maxWidth: .infinity)
-                .padding(.horizontal, 10)
-                .padding(.vertical, 12)
+                .padding(.horizontal, horizontalSizeClass == .compact ? 8 : 10)
+                .padding(.vertical, horizontalSizeClass == .compact ? 10 : 12)
                 .background(
                     Capsule(style: .continuous)
                         .fill(isSelected ? ClassTraxSemanticColor.primaryAction.opacity(0.14) : Color.clear)

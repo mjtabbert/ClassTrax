@@ -623,11 +623,13 @@ struct RootTabView: View {
         let stableEndTime = endDateToday(for: activeItem, now: now).addingTimeInterval(-liveHold)
 
         return RootLiveActivitySnapshot(
+            activeItemID: activeItem.id,
             className: activeItem.className,
             room: activeItem.location.trimmingCharacters(in: .whitespacesAndNewlines),
             endTime: stableEndTime,
             isHeld: SessionControlStore.isHeld(itemID: activeItem.id),
             iconName: activeItem.scheduleType.symbolName,
+            nextItemID: nextItem?.id,
             nextClassName: nextItem?.className ?? "",
             nextIconName: nextItem?.scheduleType.symbolName ?? ""
         )
@@ -2426,24 +2428,21 @@ struct AttendanceWorkspaceView: View {
     }
 
     private func rosterStudents(for item: AlarmItem, targetClassDefinitionID: UUID?) -> [StudentSupportProfile] {
-        if !item.linkedStudentIDs.isEmpty {
+        let explicitLinkedProfiles: [StudentSupportProfile] = {
+            guard !item.linkedStudentIDs.isEmpty else { return [] }
             let linkedIDs = Set(item.linkedStudentIDs)
-            let linkedProfiles = studentProfiles
+            return studentProfiles
                 .filter { linkedIDs.contains($0.id) }
                 .filter { profile in
                     guard let targetClassDefinitionID else { return true }
                     return profileMatches(classDefinitionID: targetClassDefinitionID, profile: profile)
                 }
                 .sorted { $0.name.localizedCaseInsensitiveCompare($1.name) == .orderedAscending }
-
-            if !linkedProfiles.isEmpty {
-                return linkedProfiles
-            }
-        }
+        }()
 
         let gradeKey = normalizedStudentKey(GradeLevelOption.normalized(item.gradeLevel))
 
-        return studentProfiles
+        let contextMatchedProfiles = studentProfiles
             .filter { profile in
                 if !item.linkedClassDefinitionIDs.isEmpty {
                     let matchesLinkedContext: Bool
@@ -2465,6 +2464,15 @@ struct AttendanceWorkspaceView: View {
                 return gradeKey.isEmpty || profileGradeKey.isEmpty || profileGradeKey == gradeKey
             }
             .sorted { $0.name.localizedCaseInsensitiveCompare($1.name) == .orderedAscending }
+
+        guard !explicitLinkedProfiles.isEmpty else {
+            return contextMatchedProfiles
+        }
+
+        var mergedProfiles = explicitLinkedProfiles
+        let existingIDs = Set(explicitLinkedProfiles.map(\.id))
+        mergedProfiles.append(contentsOf: contextMatchedProfiles.filter { !existingIDs.contains($0.id) })
+        return mergedProfiles
     }
 
     private func makeGroupActionSession(for item: AlarmItem) -> TodayGroupActionSession? {
@@ -2544,11 +2552,13 @@ private struct AttendanceBlockSession: Identifiable {
 }
 
 private struct RootLiveActivitySnapshot: Equatable {
+    let activeItemID: UUID
     let className: String
     let room: String
     let endTime: Date
     let isHeld: Bool
     let iconName: String
+    let nextItemID: UUID?
     let nextClassName: String
     let nextIconName: String
 }
@@ -2683,70 +2693,35 @@ private struct StudentsHubView: View {
     let preferredBehaviorSegmentTitle: (StudentSupportProfile) -> String
     let onLogBehavior: (StudentSupportProfile, BehaviorLogItem.BehaviorKind, BehaviorLogItem.Rating, UUID?) -> Void
     let onLogBehaviorWithNote: (StudentSupportProfile, BehaviorLogItem.BehaviorKind, BehaviorLogItem.Rating, UUID?, String, Date) -> Void
-    @State private var mode: Mode = .students
-
-    private enum Mode: String, CaseIterable, Identifiable {
-        case students = "Students"
-        case classes = "Classes"
-
-        var id: String { rawValue }
-    }
-
     var body: some View {
-        VStack(spacing: 0) {
-            Picker("Directory", selection: $mode) {
-                ForEach(Mode.allCases) { mode in
-                    Text(mode.rawValue).tag(mode)
-                }
-            }
-            .pickerStyle(.segmented)
-            .padding([.horizontal, .top])
-
-            Group {
-                switch mode {
-                case .students:
-                    StudentDirectoryView(
-                        profiles: $profiles,
-                        classDefinitions: $classDefinitions,
-                        teacherContacts: $teacherContacts,
-                        paraContacts: $paraContacts,
-                        attendanceRecords: attendanceRecords,
-                        onImportedStudents: { importedProfiles in
-                            onImportedStudents(importedProfiles)
-                        },
-                        onSavedProfiles: { updatedProfiles in
-                            onSavedProfiles(updatedProfiles)
-                        },
-                        onSavedTeacherContacts: { updatedContacts in
-                            onSavedTeacherContacts(updatedContacts)
-                        },
-                        onSavedParaContacts: { updatedContacts in
-                            onSavedParaContacts(updatedContacts)
-                        },
-                        onPrepareStudentEditor: {
-                            onPrepareStudentEditor()
-                        },
-                        behaviorLogsForStudent: behaviorLogsForStudent,
-                        behaviorSegmentsForStudent: behaviorSegmentsForStudent,
-                        preferredBehaviorSegmentID: preferredBehaviorSegmentID,
-                        preferredBehaviorSegmentTitle: preferredBehaviorSegmentTitle,
-                        onLogBehavior: onLogBehavior,
-                        onLogBehaviorWithNote: onLogBehaviorWithNote
-                    )
-                case .classes:
-                    ClassDefinitionsView(
-                        classDefinitions: $classDefinitions,
-                        profiles: $profiles,
-                        onCommitChanges: { updatedDefinitions, updatedProfiles in
-                            onSavedClassDefinitions(updatedDefinitions, updatedProfiles)
-                        },
-                        onDeleteDefinition: { definition in
-                            onDeleteClassDefinition(definition)
-                        }
-                    )
-                }
-            }
-        }
-        .navigationTitle(mode == .students ? "Students" : "Classes")
+        StudentDirectoryView(
+            profiles: $profiles,
+            classDefinitions: $classDefinitions,
+            teacherContacts: $teacherContacts,
+            paraContacts: $paraContacts,
+            attendanceRecords: attendanceRecords,
+            onImportedStudents: { importedProfiles in
+                onImportedStudents(importedProfiles)
+            },
+            onSavedProfiles: { updatedProfiles in
+                onSavedProfiles(updatedProfiles)
+            },
+            onSavedTeacherContacts: { updatedContacts in
+                onSavedTeacherContacts(updatedContacts)
+            },
+            onSavedParaContacts: { updatedContacts in
+                onSavedParaContacts(updatedContacts)
+            },
+            onPrepareStudentEditor: {
+                onPrepareStudentEditor()
+            },
+            behaviorLogsForStudent: behaviorLogsForStudent,
+            behaviorSegmentsForStudent: behaviorSegmentsForStudent,
+            preferredBehaviorSegmentID: preferredBehaviorSegmentID,
+            preferredBehaviorSegmentTitle: preferredBehaviorSegmentTitle,
+            onLogBehavior: onLogBehavior,
+            onLogBehaviorWithNote: onLogBehaviorWithNote
+        )
+        .navigationTitle("Students")
     }
 }

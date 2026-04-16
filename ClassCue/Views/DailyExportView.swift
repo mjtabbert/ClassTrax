@@ -78,6 +78,9 @@ struct DailyExportView: View {
     // MARK: - State
 
     @Environment(\.dismiss) private var dismiss
+    @AppStorage("daily_export_last_preset_v1") private var storedPresetRawValue = ExportPreset.fullDay.rawValue
+    @AppStorage("daily_export_last_sections_v1") private var storedSectionsRawValue = ""
+    @AppStorage("daily_export_last_format_v1") private var storedFormatRawValue = ExportFormat.text.rawValue
     @State private var selectedPreset: ExportPreset = .fullDay
     @State private var customSections: Set<ExportSection> = Set(ExportSection.allCases)
     @State private var exportFormat: ExportFormat = .text
@@ -110,6 +113,18 @@ struct DailyExportView: View {
             }
             .sheet(isPresented: $showingShareSheet) {
                 DailyExportShareSheet(activityItems: shareItems)
+            }
+            .onAppear {
+                restoreExportPreferences()
+            }
+            .onChange(of: selectedPreset) { _, _ in
+                persistExportPreferences()
+            }
+            .onChange(of: customSections) { _, _ in
+                persistExportPreferences()
+            }
+            .onChange(of: exportFormat) { _, _ in
+                persistExportPreferences()
             }
         }
     }
@@ -189,6 +204,33 @@ struct DailyExportView: View {
 
     private var activeSections: Set<ExportSection> {
         selectedPreset == .custom ? customSections : selectedPreset.sections
+    }
+
+    private func restoreExportPreferences() {
+        if let preset = ExportPreset(rawValue: storedPresetRawValue) {
+            selectedPreset = preset
+        }
+
+        if let format = ExportFormat(rawValue: storedFormatRawValue) {
+            exportFormat = format
+        }
+
+        let tokens = storedSectionsRawValue
+            .split(separator: "|")
+            .map { String($0) }
+        let restoredSections = Set(tokens.compactMap(ExportSection.init(rawValue:)))
+        if !restoredSections.isEmpty {
+            customSections = restoredSections
+        }
+    }
+
+    private func persistExportPreferences() {
+        storedPresetRawValue = selectedPreset.rawValue
+        storedFormatRawValue = exportFormat.rawValue
+        let orderedSections = ExportSection.allCases
+            .filter { customSections.contains($0) }
+            .map(\.rawValue)
+        storedSectionsRawValue = orderedSections.joined(separator: "|")
     }
 
     // MARK: - Export

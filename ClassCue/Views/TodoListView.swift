@@ -273,10 +273,6 @@ struct TodoListView: View {
                                 showingStudentDirectory = true
                             }
 
-                            Button("Refresh", systemImage: "arrow.clockwise") {
-                                onRefresh()
-                            }
-
                             Button("Sub Plans", systemImage: "doc.text") {
                                 openTodayTab()
                             }
