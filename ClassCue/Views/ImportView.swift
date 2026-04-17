@@ -119,7 +119,7 @@ struct ImportView: View {
             }
         }
         .padding(16)
-        .classTraxCardChrome(accent: ClassTraxSemanticColor.primaryAction, cornerRadius: 20)
+        .classTraxOverviewCardChrome(accent: ClassTraxSemanticColor.primaryAction)
     }
 
     private func importMetric(title: String, value: String, accent: Color) -> some View {
@@ -178,6 +178,7 @@ struct ImportView: View {
                     .font(.body.monospaced())
                     .focused($isPasteEditorFocused)
                     .frame(minHeight: 280)
+                    .classTraxInputSurface(accent: ClassTraxSemanticColor.secondaryAction, cornerRadius: 12)
             }
 
             Section {

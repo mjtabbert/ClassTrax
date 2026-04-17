@@ -42,10 +42,10 @@ struct RootTabView: View {
         }
     }
 
-    private enum ManageDestination: Hashable {
-        case rollCall
-        case students
-        case settings
+    private enum ManageDestinationKey {
+        static let rollCall = "rollCall"
+        static let students = "students"
+        static let settings = "settings"
     }
 
     private struct FirstSliceDomain: OptionSet {
@@ -67,13 +67,9 @@ struct RootTabView: View {
     @Environment(\.modelContext) private var modelContext
     @Environment(\.scenePhase) private var scenePhase
     @Environment(\.horizontalSizeClass) private var horizontalSizeClass
-    @State private var selectedTab: AppTab = .today
+    @StateObject private var appStore = ClassTraxAppStore()
+    private let appCoordinator = ClassTraxAppCoordinator()
     @State private var plannerWorkspaceTab: PlannerWorkspaceTab = .tasks
-    @State private var selectedScheduleDay: WeekdayTab = .today
-    @State private var focusedScheduleItemID: UUID?
-    @State private var focusedTodoID: UUID?
-    @State private var managePath = NavigationPath()
-    @State private var requestedManageDestination: ManageDestination?
     @AppStorage("timer_v6_data") private var savedAlarms: Data = Data()
     @AppStorage("todo_v6_data") private var savedTodos: Data = Data()
     @AppStorage("commitments_v1_data") private var savedCommitments: Data = Data()
@@ -127,6 +123,95 @@ struct RootTabView: View {
     @State private var lastNotificationRefreshSignature: NotificationRefreshSignature?
     @State private var lastCloudBackedRefreshAt = Date.distantPast
     @State private var hasBootstrappedInitialData = false
+
+    private var selectedTab: AppTab {
+        get {
+            switch appStore.selectedTabKey {
+            case "attendance":
+                return .attendance
+            case "schedule":
+                return .schedule
+            case "students":
+                return .students
+            case "todo":
+                return .todo
+            case "settings":
+                return .settings
+            case "manage":
+                return .manage
+            default:
+                return .today
+            }
+        }
+        nonmutating set {
+            switch newValue {
+            case .today:
+                appStore.selectedTabKey = "today"
+            case .attendance:
+                appStore.selectedTabKey = "attendance"
+            case .schedule:
+                appStore.selectedTabKey = "schedule"
+            case .students:
+                appStore.selectedTabKey = "students"
+            case .todo:
+                appStore.selectedTabKey = "todo"
+            case .settings:
+                appStore.selectedTabKey = "settings"
+            case .manage:
+                appStore.selectedTabKey = "manage"
+            }
+        }
+    }
+
+    private var selectedScheduleDay: WeekdayTab {
+        get { WeekdayTab(rawValue: appStore.selectedScheduleDayRawValue) ?? .today }
+        nonmutating set { appStore.selectedScheduleDayRawValue = newValue.rawValue }
+    }
+
+    private var focusedScheduleItemID: UUID? {
+        get { appStore.focusedScheduleItemID }
+        nonmutating set { appStore.focusedScheduleItemID = newValue }
+    }
+
+    private var focusedTodoID: UUID? {
+        get { appStore.focusedTodoID }
+        nonmutating set { appStore.focusedTodoID = newValue }
+    }
+
+    private var selectedTabBinding: Binding<AppTab> {
+        Binding(
+            get: { selectedTab },
+            set: { selectedTab = $0 }
+        )
+    }
+
+    private var selectedScheduleDayBinding: Binding<WeekdayTab> {
+        Binding(
+            get: { selectedScheduleDay },
+            set: { selectedScheduleDay = $0 }
+        )
+    }
+
+    private var focusedScheduleItemIDBinding: Binding<UUID?> {
+        Binding(
+            get: { focusedScheduleItemID },
+            set: { focusedScheduleItemID = $0 }
+        )
+    }
+
+    private var focusedTodoIDBinding: Binding<UUID?> {
+        Binding(
+            get: { focusedTodoID },
+            set: { focusedTodoID = $0 }
+        )
+    }
+
+    private var managePathBinding: Binding<NavigationPath> {
+        Binding(
+            get: { appStore.managePath },
+            set: { appStore.managePath = $0 }
+        )
+    }
 
     private var ignoreDate: Date? {
         ignoreUntil > 0 ? Date(timeIntervalSince1970: ignoreUntil) : nil
@@ -189,7 +274,7 @@ struct RootTabView: View {
     }
 
     private var baseTabView: some View {
-        TabView(selection: $selectedTab) {
+        TabView(selection: selectedTabBinding) {
             todayTab
             if featureScheduleEnabled {
                 scheduleTab
@@ -376,31 +461,48 @@ struct RootTabView: View {
     }
 
     private func handleOnAppear() {
-        ignoreUntil = ScheduleSnoozeStore.synchronize()
+        let launchPlan = appCoordinator.launchPlan(
+            hasBootstrappedInitialData: hasBootstrappedInitialData,
+            synchronizedIgnoreUntil: ScheduleSnoozeStore.synchronize()
+        )
+
+        ignoreUntil = {
+            switch launchPlan {
+            case .syncOnly(let synchronizedIgnoreUntil),
+                    .bootstrap(let synchronizedIgnoreUntil):
+                return synchronizedIgnoreUntil
+            }
+        }()
         selectedScheduleDay = .today
 
-        guard !hasBootstrappedInitialData else {
+        switch launchPlan {
+        case .syncOnly:
             syncRuntimeState(now: Date())
-            return
-        }
-
-        hasBootstrappedInitialData = true
-
-        Task { @MainActor in
-            await Task.yield()
-            loadSavedData()
-            refreshNotifications(immediate: true)
-            syncRuntimeState(now: Date())
+        case .bootstrap:
+            hasBootstrappedInitialData = true
+            Task { @MainActor in
+                await Task.yield()
+                loadSavedData()
+                refreshNotifications(immediate: true)
+                syncRuntimeState(now: Date())
+            }
         }
     }
 
     private func handleSelectedTabChange(_ newTab: AppTab) {
-        if newTab == .schedule {
+        let selectionPlan = appCoordinator.tabSelectionPlan(
+            isScheduleTab: newTab == .schedule,
+            isSettingsTab: newTab == .settings
+        )
+
+        if selectionPlan.resetScheduleDayToToday {
             selectedScheduleDay = .today
         }
 
-        if newTab != .settings {
+        if selectionPlan.refreshCloudBackedStore {
             refreshFromCloudBackedStore(force: true)
+        }
+        if selectionPlan.syncRuntimeState {
             syncRuntimeState(now: Date())
         }
     }
@@ -724,21 +826,19 @@ struct RootTabView: View {
                     refreshNotifications(immediate: true)
                 },
                 openAttendanceTab: {
-                    managePath = NavigationPath()
-                    requestedManageDestination = .rollCall
+                    appStore.resetManagePath()
+                    appStore.requestManageDestination(ManageDestinationKey.rollCall)
                     selectedTab = .manage
                 },
                 openScheduleTab: {
                     selectedTab = .schedule
                 },
                 openScheduleBlock: { item in
-                    focusedScheduleItemID = item.id
-                    selectedScheduleDay = WeekdayTab(rawValue: item.dayOfWeek) ?? .today
-                    selectedTab = .schedule
+                    appStore.openScheduleBlock(itemID: item.id, weekdayRawValue: item.dayOfWeek)
                 },
                 openStudentsTab: {
-                    managePath = NavigationPath()
-                    requestedManageDestination = .students
+                    appStore.resetManagePath()
+                    appStore.requestManageDestination(ManageDestinationKey.students)
                     selectedTab = .manage
                 }, openTodoTab: {
                     plannerWorkspaceTab = .tasks
@@ -751,8 +851,8 @@ struct RootTabView: View {
                     plannerWorkspaceTab = .notes
                     selectedTab = .todo
                 }, openSettingsTab: {
-                    managePath = NavigationPath()
-                    requestedManageDestination = .settings
+                    appStore.resetManagePath()
+                    appStore.requestManageDestination(ManageDestinationKey.settings)
                     selectedTab = .manage
                 },
                 behaviorLogs: behaviorLogs,
@@ -794,8 +894,8 @@ struct RootTabView: View {
 
     private var scheduleTab: some View {
         ScheduleView(
-            selectedDay: $selectedScheduleDay,
-            focusedItemID: $focusedScheduleItemID,
+            selectedDay: selectedScheduleDayBinding,
+            focusedItemID: focusedScheduleItemIDBinding,
             alarms: $alarms,
             todos: $todos,
             subPlans: $subPlans,
@@ -840,8 +940,8 @@ struct RootTabView: View {
                 selectedTab = .schedule
             },
             openStudentsSetup: {
-                managePath = NavigationPath()
-                requestedManageDestination = .students
+                appStore.resetManagePath()
+                appStore.requestManageDestination(ManageDestinationKey.students)
                 selectedTab = .manage
             }
         )
@@ -941,7 +1041,7 @@ struct RootTabView: View {
                         classDefinitions: $classDefinitions,
                         teacherContacts: $teacherContacts,
                         paraContacts: $paraContacts,
-                        focusedTodoID: $focusedTodoID,
+                        focusedTodoID: focusedTodoIDBinding,
                         suggestedContexts: suggestedTaskContexts,
                         suggestedStudents: suggestedStudents,
                         suggestedStudentGroups: suggestedStudentGroups,
@@ -968,7 +1068,7 @@ struct RootTabView: View {
             }
         }
         .tabItem {
-            tabLabel(title: "Planner", systemImage: "calendar.badge.checkmark")
+            tabLabel(title: "Planner", systemImage: "checklist")
         }
         .accessibilityLabel("Planner")
         .tag(AppTab.todo)
@@ -995,7 +1095,7 @@ struct RootTabView: View {
     }
 
     private var manageTab: some View {
-        NavigationStack(path: $managePath) {
+        NavigationStack(path: managePathBinding) {
             List {
                 Section {
                     manageOverviewCard
@@ -1017,7 +1117,7 @@ struct RootTabView: View {
                     hubSwitchRow(
                         title: "Planner",
                         detail: "Open tasks, notes, and student-linked planning in one workspace.",
-                        systemImage: "calendar.badge.checkmark",
+                        systemImage: "checklist",
                         accent: ClassTraxSemanticColor.reviewWarning
                     ) {
                         plannerWorkspaceTab = .tasks
@@ -1037,7 +1137,7 @@ struct RootTabView: View {
 
                 Section("Daily Tools") {
                     if featureAttendanceEnabled {
-                        NavigationLink(value: ManageDestination.rollCall) {
+                        NavigationLink(value: ManageDestinationKey.rollCall) {
                             manageRow(
                                 title: "Attendance",
                                 detail: "Open the dedicated attendance workspace and catch up any missed blocks.",
@@ -1048,7 +1148,7 @@ struct RootTabView: View {
                 }
 
                 Section("Workspace") {
-                    NavigationLink(value: ManageDestination.students) {
+                    NavigationLink(value: ManageDestinationKey.students) {
                         manageRow(
                             title: "Students & Supports",
                             detail: "Open the student directory, class rosters, and support profiles.",
@@ -1056,7 +1156,7 @@ struct RootTabView: View {
                         )
                     }
 
-                    NavigationLink(value: ManageDestination.settings) {
+                    NavigationLink(value: ManageDestinationKey.settings) {
                         manageRow(
                             title: "Settings",
                             detail: "Open setup, alerts, layout defaults, integrations, and data tools.",
@@ -1090,22 +1190,24 @@ struct RootTabView: View {
                     .accessibilityLabel("Today")
                 }
             }
-            .navigationDestination(for: ManageDestination.self) { destination in
+            .navigationDestination(for: String.self) { destination in
                 switch destination {
-                case .rollCall:
+                case ManageDestinationKey.rollCall:
                     attendanceWorkspace
-                case .students:
+                case ManageDestinationKey.students:
                     studentsWorkspace
-                case .settings:
+                case ManageDestinationKey.settings:
                     settingsWorkspace
+                default:
+                    EmptyView()
                 }
             }
         }
-        .onChange(of: requestedManageDestination) { _, destination in
+        .onChange(of: appStore.requestedManageDestinationKey) { _, destination in
             guard let destination else { return }
-            managePath = NavigationPath()
-            managePath.append(destination)
-            requestedManageDestination = nil
+            appStore.resetManagePath()
+            appStore.managePath.append(destination)
+            appStore.requestedManageDestinationKey = nil
         }
         .tabItem {
             tabLabel(title: "Hub", systemImage: "square.grid.2x2")
@@ -1144,25 +1246,25 @@ struct RootTabView: View {
 
             HStack(spacing: 8) {
                 hubMetric(title: "Students", value: "\(studentProfiles.count)", accent: .blue) {
-                    managePath = NavigationPath()
-                    managePath.append(ManageDestination.students)
+                    appStore.resetManagePath()
+                    appStore.managePath.append(ManageDestinationKey.students)
                 }
                 hubMetric(title: "Classes", value: "\(classDefinitions.count)", accent: .indigo) {
-                    managePath = NavigationPath()
-                    managePath.append(ManageDestination.students)
+                    appStore.resetManagePath()
+                    appStore.managePath.append(ManageDestinationKey.students)
                 }
                 hubMetric(title: "Teachers", value: "\(teacherContacts.count)", accent: .teal) {
-                    managePath = NavigationPath()
-                    managePath.append(ManageDestination.students)
+                    appStore.resetManagePath()
+                    appStore.managePath.append(ManageDestinationKey.students)
                 }
                 hubMetric(title: "Paras", value: "\(paraContacts.count)", accent: .orange) {
-                    managePath = NavigationPath()
-                    managePath.append(ManageDestination.students)
+                    appStore.resetManagePath()
+                    appStore.managePath.append(ManageDestinationKey.students)
                 }
             }
         }
         .padding(16)
-        .classTraxCardChrome(accent: ClassTraxSemanticColor.primaryAction, cornerRadius: 22)
+        .classTraxOverviewCardChrome(accent: ClassTraxSemanticColor.primaryAction)
     }
 
     private func hubMetric(title: String, value: String, accent: Color, action: @escaping () -> Void) -> some View {
@@ -1262,13 +1364,17 @@ struct RootTabView: View {
         force: Bool = false,
         bypassLocalMutationPause: Bool = false
     ) {
-        if !force, Date().timeIntervalSince(lastCloudBackedRefreshAt) < 10 {
-            return
-        }
-        if !bypassLocalMutationPause,
-           Date().timeIntervalSince(lastLocalMutationAt) < Self.localMutationRefreshPauseSeconds {
-            return
-        }
+        let refreshPlan = appCoordinator.cloudRefreshPlan(
+            force: force,
+            bypassLocalMutationPause: bypassLocalMutationPause,
+            now: Date(),
+            lastCloudBackedRefreshAt: lastCloudBackedRefreshAt,
+            lastLocalMutationAt: lastLocalMutationAt,
+            minimumRefreshInterval: 10,
+            localMutationRefreshPauseSeconds: Self.localMutationRefreshPauseSeconds
+        )
+        guard refreshPlan.shouldRefresh else { return }
+
         lastCloudBackedRefreshAt = Date()
         storedLastCloudRefreshAt = lastCloudBackedRefreshAt.timeIntervalSince1970
         refreshFromPersistence()
@@ -1281,18 +1387,12 @@ struct RootTabView: View {
     }
 
     private func handleCloudKitEventChange(timestamp: Double, summary: String) {
-        guard ClassTraxPersistence.activeContainerMode == .cloudKit else { return }
-        guard timestamp > 0 else { return }
-
-        let eventDate = Date(timeIntervalSince1970: timestamp)
-        guard eventDate > lastCloudBackedRefreshAt else { return }
-
-        let normalizedSummary = summary.lowercased()
-        let shouldRefreshImmediately =
-            normalizedSummary.contains("import succeeded") ||
-            normalizedSummary.contains("setup succeeded")
-
-        if shouldRefreshImmediately {
+        if appCoordinator.shouldRefreshForCloudKitEvent(
+            isCloudKitMode: ClassTraxPersistence.activeContainerMode == .cloudKit,
+            timestamp: timestamp,
+            summary: summary,
+            lastCloudBackedRefreshAt: lastCloudBackedRefreshAt
+        ) {
             refreshFromCloudBackedStore(force: true, bypassLocalMutationPause: true)
         }
     }
@@ -1309,11 +1409,15 @@ struct RootTabView: View {
         while !Task.isCancelled && scenePhase == .active {
             try? await Task.sleep(for: Self.cloudSyncRefreshInterval)
             guard !Task.isCancelled, scenePhase == .active else { return }
-            guard ClassTraxPersistence.activeContainerMode == .cloudKit else { continue }
-            guard selectedTab != .settings, selectedTab != .students else { continue }
-            guard Date().timeIntervalSince(lastLocalMutationAt) >= Self.localMutationRefreshPauseSeconds else {
-                continue
-            }
+            let shouldRefresh = appCoordinator.shouldRunCloudSyncRefreshTick(
+                isCloudKitMode: ClassTraxPersistence.activeContainerMode == .cloudKit,
+                isSettingsTab: selectedTab == .settings,
+                isStudentsTab: selectedTab == .students,
+                now: Date(),
+                lastLocalMutationAt: lastLocalMutationAt,
+                localMutationRefreshPauseSeconds: Self.localMutationRefreshPauseSeconds
+            )
+            guard shouldRefresh else { continue }
             await MainActor.run {
                 refreshFromCloudBackedStore()
             }
@@ -2705,6 +2809,9 @@ private struct StudentsHubView: View {
             },
             onSavedProfiles: { updatedProfiles in
                 onSavedProfiles(updatedProfiles)
+            },
+            onSavedClassDefinitions: { updatedDefinitions, updatedProfiles in
+                onSavedClassDefinitions(updatedDefinitions, updatedProfiles)
             },
             onSavedTeacherContacts: { updatedContacts in
                 onSavedTeacherContacts(updatedContacts)

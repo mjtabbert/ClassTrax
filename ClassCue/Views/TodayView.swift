@@ -398,8 +398,8 @@ struct TodayView: View {
             let initialNote = latestClassBehaviorNote(for: item)?.note ?? ""
             NavigationStack {
                 AttendanceNoteEditorView(
-                    title: "\(item.className) Behavior Note",
-                    helperText: "Keep one class-level note for what you need to watch in this block.",
+                    title: "\(item.className) Class Note",
+                    helperText: "Keep one class-level note for behavior or anything you need to remember in this block.",
                     initialText: initialNote,
                     onSave: { text in
                         saveClassBehaviorNote(text, for: item)

@@ -87,6 +87,7 @@ struct AddFollowUpNoteView: View {
                         }
 
                         TextField(contextFieldTitle, text: $context)
+                            .classTraxInputSurface(accent: ClassTraxSemanticColor.primaryAction)
                     }
 
                     if showsStudentField {
@@ -99,10 +100,12 @@ struct AddFollowUpNoteView: View {
                         }
 
                         TextField(studentFieldTitle, text: $studentOrGroup)
+                            .classTraxInputSurface(accent: ClassTraxSemanticColor.secondaryAction)
                     }
 
                     TextField("Note", text: $note, axis: .vertical)
                         .lineLimit(4...8)
+                        .classTraxInputSurface(accent: ClassTraxSemanticColor.secondaryAction)
 
                     DatePicker(
                         "Follow-Up Date",
@@ -183,7 +186,7 @@ struct AddFollowUpNoteView: View {
             }
         }
         .padding(16)
-        .classTraxCardChrome(accent: ClassTraxSemanticColor.primaryAction, cornerRadius: 20)
+        .classTraxOverviewCardChrome(accent: ClassTraxSemanticColor.primaryAction)
     }
 
     private var linkedSummary: String {

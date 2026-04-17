@@ -365,7 +365,7 @@ private func bulkEntryScaffold<Content: View>(
                         .foregroundStyle(.secondary)
                 }
                 .padding(18)
-                .classTraxCardChrome(accent: ClassTraxSemanticColor.primaryAction, cornerRadius: 20)
+                .classTraxOverviewCardChrome(accent: ClassTraxSemanticColor.primaryAction)
 
                 content()
                     .padding(18)
@@ -402,7 +402,9 @@ private func gridHeader(_ titles: [String]) -> some View {
 
 private func bulkField(_ title: String, text: Binding<String>) -> some View {
     TextField(title, text: text)
-        .textFieldStyle(.roundedBorder)
+        .padding(.horizontal, 10)
+        .padding(.vertical, 8)
+        .classTraxInputSurface(accent: ClassTraxSemanticColor.secondaryAction, cornerRadius: 10)
         .frame(minWidth: 140)
 }
 

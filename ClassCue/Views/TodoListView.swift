@@ -257,9 +257,19 @@ struct TodoListView: View {
                         }
                         .accessibilityLabel("Today")
 
-                        if todos.contains(where: { $0.isCompleted }) {
+                        if todos.contains(where: { isItemCompleted($0, on: Date()) }) {
                             Button("Clear Done") {
-                                todos = todos.filter { !$0.isCompleted }
+                                let todayDateKey = AttendanceRecord.dateKey(for: Date())
+                                todos = todos.compactMap { item in
+                                    if item.recurrence == .none {
+                                        return item.isCompleted ? nil : item
+                                    }
+                                    var updated = item
+                                    if updated.recurrenceLastCompletedDateKey == todayDateKey {
+                                        updated.recurrenceLastCompletedDateKey = nil
+                                    }
+                                    return updated
+                                }
                             }
                             .foregroundColor(.red)
                         }
@@ -535,7 +545,7 @@ struct TodoListView: View {
             }
         }
         .padding(16)
-        .classTraxCardChrome(accent: ClassTraxSemanticColor.reviewWarning, cornerRadius: 22)
+        .classTraxOverviewCardChrome(accent: ClassTraxSemanticColor.reviewWarning)
     }
 
     private var todoHeaderSummary: String {
@@ -554,6 +564,8 @@ struct TodoListView: View {
     private func toolbarCapsuleLabel(title: String, systemImage: String) -> some View {
         Label(title, systemImage: systemImage)
             .font(.caption.weight(.bold))
+            .lineLimit(1)
+            .minimumScaleFactor(0.82)
             .foregroundStyle(ClassTraxSemanticColor.primaryAction)
             .padding(.horizontal, 10)
             .padding(.vertical, 7)
@@ -612,12 +624,13 @@ struct TodoListView: View {
     }
 
     private func items(for bucket: TodoItem.Bucket) -> [TodoItem] {
+        let referenceDate = Date()
         let selectedCategory = categoryFilter.category
         let selectedWorkspace = workspaceFilter.workspace
         let selectedPriority = priorityFilter.priority
 
         let filtered = todos.filter { item in
-            guard item.bucket == bucket else { return false }
+            guard shouldShow(item, in: bucket, on: referenceDate) else { return false }
 
             if let selectedCategory, item.category != selectedCategory {
                 return false
@@ -658,8 +671,11 @@ struct TodoListView: View {
         }
 
         return filtered.sorted { a, b in
-                if a.isCompleted != b.isCompleted {
-                    return !a.isCompleted
+                let aCompleted = isItemCompleted(a, on: referenceDate)
+                let bCompleted = isItemCompleted(b, on: referenceDate)
+
+                if aCompleted != bCompleted {
+                    return !aCompleted
                 }
 
                 if reminderRank(a.reminder) != reminderRank(b.reminder) {
@@ -686,13 +702,14 @@ struct TodoListView: View {
     private func todoRow(for item: TodoItem) -> some View {
         let studentName = item.effectiveStudentLink
         let matchedStudent = studentProfile(named: studentName)
+        let completed = isItemCompleted(item, on: Date())
 
         return HStack(spacing: 12) {
             Button {
                 toggleCompletion(for: item)
             } label: {
-                Image(systemName: item.isCompleted ? "checkmark.circle.fill" : "circle")
-                    .foregroundColor(item.isCompleted ? .green : item.priority.color)
+                Image(systemName: completed ? "checkmark.circle.fill" : "circle")
+                    .foregroundColor(completed ? .green : item.priority.color)
                     .font(.title3)
             }
             .buttonStyle(.plain)
@@ -701,11 +718,11 @@ struct TodoListView: View {
             VStack(alignment: .leading, spacing: 5) {
                 HStack(alignment: .top, spacing: 8) {
                     Text(item.task)
-                        .strikethrough(item.isCompleted)
-                        .foregroundColor(item.isCompleted ? .secondary : .primary)
+                        .strikethrough(completed)
+                        .foregroundColor(completed ? .secondary : .primary)
                         .frame(maxWidth: .infinity, alignment: .leading)
 
-                    if !item.isCompleted, item.priority != .none {
+                    if !completed, item.priority != .none {
                         priorityBadge(for: item.priority)
                     }
                 }
@@ -729,6 +746,14 @@ struct TodoListView: View {
                                 title: "Priority: \(priorityText(for: item.priority))",
                                 systemImage: "flag.fill",
                                 tint: item.priority.color
+                            )
+                        }
+
+                        if item.recurrence != .none {
+                            metadataBadge(
+                                title: item.recurrence.displayName,
+                                systemImage: "repeat",
+                                tint: .indigo
                             )
                         }
                     }
@@ -779,7 +804,7 @@ struct TodoListView: View {
                     editingTodo = item
                 }
 
-                Button(item.isCompleted ? "Mark Incomplete" : "Mark Complete", systemImage: item.isCompleted ? "arrow.uturn.backward.circle" : "checkmark.circle") {
+                Button(completed ? "Mark Incomplete" : "Mark Complete", systemImage: completed ? "arrow.uturn.backward.circle" : "checkmark.circle") {
                     toggleCompletion(for: item)
                 }
 
@@ -856,8 +881,17 @@ struct TodoListView: View {
 
     private func toggleCompletion(for item: TodoItem) {
         guard let index = todos.firstIndex(where: { $0.id == item.id }) else { return }
+        let todayDateKey = AttendanceRecord.dateKey(for: Date())
         var updatedTodos = todos
-        updatedTodos[index].isCompleted.toggle()
+
+        if updatedTodos[index].recurrence == .none {
+            updatedTodos[index].isCompleted.toggle()
+        } else if updatedTodos[index].recurrenceLastCompletedDateKey == todayDateKey {
+            updatedTodos[index].recurrenceLastCompletedDateKey = nil
+        } else {
+            updatedTodos[index].recurrenceLastCompletedDateKey = todayDateKey
+        }
+
         todos = updatedTodos
     }
 
@@ -888,6 +922,9 @@ struct TodoListView: View {
     }
 
     private func dueDateText(for item: TodoItem) -> String {
+        if item.recurrence != .none {
+            return item.recurrenceSummary
+        }
         if let due = item.dueDate {
             return "Due: \(due.formatted(date: .abbreviated, time: .omitted))"
         } else {
@@ -951,7 +988,8 @@ struct TodoListView: View {
         let parts = [
             item.workspace.displayName,
             item.category.displayName,
-            item.priority == .none ? nil : "Priority: \(priorityText(for: item.priority))"
+            item.priority == .none ? nil : "Priority: \(priorityText(for: item.priority))",
+            item.recurrence == .none ? nil : item.recurrence.displayName
         ]
 
         return parts.compactMap { $0 }.joined(separator: " • ")
@@ -970,7 +1008,10 @@ struct TodoListView: View {
     }
 
     private var openTaskCount: Int {
-        todos.filter { !$0.isCompleted }.count
+        let referenceDate = Date()
+        return todos.filter {
+            isVisibleInPlanner($0, on: referenceDate) && !isItemCompleted($0, on: referenceDate)
+        }.count
     }
 
     private var filteredTaskCount: Int {
@@ -980,8 +1021,10 @@ struct TodoListView: View {
     }
 
     private var attentionCount: Int {
-        todos.filter { item in
-            !item.isCompleted && (
+        let referenceDate = Date()
+        return todos.filter { item in
+            isVisibleInPlanner(item, on: referenceDate) &&
+            !isItemCompleted(item, on: referenceDate) && (
                 item.priority == .high ||
                 item.reminder != .none ||
                 item.dueDate != nil
@@ -990,9 +1033,12 @@ struct TodoListView: View {
     }
 
     private var attentionItems: [TodoItem] {
-        todos
+        let referenceDate = Date()
+        return todos
             .filter { item in
-                !item.isCompleted && item.workspace != .personal && (
+                isVisibleInPlanner(item, on: referenceDate) &&
+                !isItemCompleted(item, on: referenceDate) &&
+                item.workspace != .personal && (
                     item.priority == .high ||
                     item.reminder != .none ||
                     item.dueDate != nil
@@ -1010,11 +1056,21 @@ struct TodoListView: View {
     }
 
     private var schoolTaskCount: Int {
-        todos.filter { !$0.isCompleted && $0.workspace == .school }.count
+        let referenceDate = Date()
+        return todos.filter {
+            isVisibleInPlanner($0, on: referenceDate) &&
+            !isItemCompleted($0, on: referenceDate) &&
+            $0.workspace == .school
+        }.count
     }
 
     private var personalTaskCount: Int {
-        todos.filter { !$0.isCompleted && $0.workspace == .personal }.count
+        let referenceDate = Date()
+        return todos.filter {
+            isVisibleInPlanner($0, on: referenceDate) &&
+            !isItemCompleted($0, on: referenceDate) &&
+            $0.workspace == .personal
+        }.count
     }
 
     private func clearFilters() {
@@ -1037,8 +1093,10 @@ struct TodoListView: View {
     }
 
     private var linkedContextGroups: [(context: String, count: Int, preview: String)] {
-        Dictionary(grouping: todos.filter {
-            !$0.isCompleted &&
+        let referenceDate = Date()
+        return Dictionary(grouping: todos.filter {
+            isVisibleInPlanner($0, on: referenceDate) &&
+            !isItemCompleted($0, on: referenceDate) &&
             $0.workspace != .personal &&
             !$0.effectiveClassLink.isEmpty
         }) { $0.effectiveClassLink }
@@ -1053,17 +1111,21 @@ struct TodoListView: View {
     }
 
     private var studentContextCount: Int {
-        todos.filter {
-            !$0.isCompleted &&
+        let referenceDate = Date()
+        return todos.filter {
+            isVisibleInPlanner($0, on: referenceDate) &&
+            !isItemCompleted($0, on: referenceDate) &&
             $0.workspace != .personal &&
             !$0.effectiveStudentOrGroup.isEmpty
         }.count
     }
 
     private var studentContextPreview: String {
+        let referenceDate = Date()
         let names = todos
             .filter {
-                !$0.isCompleted &&
+                isVisibleInPlanner($0, on: referenceDate) &&
+                !isItemCompleted($0, on: referenceDate) &&
                 $0.workspace != .personal &&
                 !$0.effectiveStudentOrGroup.isEmpty
             }
@@ -1076,6 +1138,26 @@ struct TodoListView: View {
         }
 
         return uniqueNames.prefix(2).joined(separator: " • ")
+    }
+
+    private func shouldShow(_ item: TodoItem, in bucket: TodoItem.Bucket, on referenceDate: Date) -> Bool {
+        if item.recurrence == .none {
+            return item.bucket == bucket
+        }
+        guard bucket == .today else { return false }
+        return item.recurs(on: referenceDate)
+    }
+
+    private func isVisibleInPlanner(_ item: TodoItem, on referenceDate: Date) -> Bool {
+        TodoItem.Bucket.allCases.contains { shouldShow(item, in: $0, on: referenceDate) }
+    }
+
+    private func isItemCompleted(_ item: TodoItem, on referenceDate: Date) -> Bool {
+        if item.recurrence == .none {
+            return item.isCompleted
+        }
+        let key = AttendanceRecord.dateKey(for: referenceDate)
+        return item.recurrenceLastCompletedDateKey == key
     }
 
     private func reminderRank(_ reminder: TodoItem.Reminder) -> Int {

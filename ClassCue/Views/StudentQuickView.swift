@@ -1,4 +1,9 @@
 import SwiftUI
+#if canImport(UIKit)
+import UIKit
+#elseif canImport(AppKit)
+import AppKit
+#endif
 
 struct TodayStudentLookupSession: Identifiable {
     let id = UUID()
@@ -425,10 +430,14 @@ struct TodayStudentLookupView: View {
     }
 
     private var filteredStudents: [StudentSupportProfile] {
-        let query = searchText.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !query.isEmpty else { return session.students }
+        let baseStudents = session.behaviorContext == nil
+            ? session.students
+            : session.students.filter(\.behaviorTrackingEnabled)
 
-        return session.students.filter { profile in
+        let query = searchText.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !query.isEmpty else { return baseStudents }
+
+        return baseStudents.filter { profile in
             profile.name.localizedCaseInsensitiveContains(query) ||
             profile.className.localizedCaseInsensitiveContains(query) ||
             profile.gradeLevel.localizedCaseInsensitiveContains(query) ||
@@ -697,6 +706,10 @@ struct StudentQuickView: View {
     @State private var selectedBehaviorWindow: BehaviorWindow = .today
     @State private var behaviorQuickNoteDrafts: [String: String] = [:]
     @State private var selectedTimelineFilter: TimelineFilter = .all
+    @State private var isBehaviorHistoryExpanded = true
+    @State private var isTimelineExpanded = false
+    @State private var isBehaviorCheckInExpanded = true
+    @State private var externalActionErrorMessage: String?
 
     var body: some View {
         List {
@@ -761,7 +774,7 @@ struct StudentQuickView: View {
                     }
                 }
                 .padding(14)
-                .classTraxCardChrome(accent: ClassTraxSemanticColor.primaryAction, cornerRadius: 20)
+                .classTraxOverviewCardChrome(accent: ClassTraxSemanticColor.primaryAction)
             }
 
             if !behaviorLogs.isEmpty || !studentAttendanceRecords.isEmpty {
@@ -924,80 +937,30 @@ struct StudentQuickView: View {
 
             if !filteredBehaviorLogs.isEmpty {
                 Section(selectedBehaviorSectionTitle) {
-                    ForEach(filteredBehaviorLogs.prefix(6)) { log in
-                        HStack(alignment: .top, spacing: 10) {
-                            Text(log.rating.emoji)
-                                .font(.title3)
-
-                            VStack(alignment: .leading, spacing: 3) {
-                                Text("\(log.behavior.title) • \(log.rating.colorLabel)")
-                                    .font(.subheadline.weight(.semibold))
-                                if !log.segmentTitle.isEmpty {
-                                    Text(log.segmentTitle)
-                                        .font(.caption)
-                                        .foregroundStyle(.secondary)
-                                }
-                                if let noteSummary = log.noteSummary {
-                                    Text(noteSummary)
-                                        .font(.caption)
-                                        .foregroundStyle(.secondary)
-                                        .lineLimit(3)
-                                }
-                                if !log.noteContextTags.isEmpty {
-                                    noteTagRow(log.noteContextTags)
-                                }
-                                Text(log.timestamp.formatted(date: .omitted, time: .shortened))
-                                    .font(.caption2)
-                                    .foregroundStyle(.secondary)
-                            }
-                        }
-                        .padding(.vertical, 2)
-                    }
-                }
-            }
-
-            if !studentTimelineEntries.isEmpty {
-                Section("Student Timeline") {
-                    Picker("Filter", selection: $selectedTimelineFilter) {
-                        ForEach(TimelineFilter.allCases) { filter in
-                            Text(filter.rawValue).tag(filter)
-                        }
-                    }
-                    .pickerStyle(.segmented)
-
-                    if let entry = filteredTimelineEntries.first,
-                       let emailURL = timelineEntryEmailURL(for: entry) {
-                        Button {
-                            openURL(emailURL)
-                        } label: {
-                            Label("Email Parent About Latest Event", systemImage: "envelope.badge")
-                        }
-                        .tint(ClassTraxSemanticColor.primaryAction)
-                    }
-
-                    if filteredTimelineEntries.isEmpty {
-                        Text("No timeline entries for this filter yet.")
-                            .font(.caption)
-                            .foregroundStyle(.secondary)
-                    } else {
-                        ForEach(filteredTimelineEntries.prefix(30)) { entry in
+                    DisclosureGroup("Recent Entries", isExpanded: $isBehaviorHistoryExpanded) {
+                        ForEach(filteredBehaviorLogs.prefix(6)) { log in
                             HStack(alignment: .top, spacing: 10) {
-                                Image(systemName: entry.kind.symbol)
-                                    .font(.caption.weight(.semibold))
-                                    .foregroundStyle(entry.tint)
-                                    .frame(width: 18, height: 18)
+                                Text(log.rating.emoji)
+                                    .font(.title3)
 
                                 VStack(alignment: .leading, spacing: 3) {
-                                    Text(entry.title)
+                                    Text("\(log.behavior.title) • \(log.rating.colorLabel)")
                                         .font(.subheadline.weight(.semibold))
-                                        .foregroundStyle(.primary)
-
-                                    Text(entry.detail)
-                                        .font(.caption)
-                                        .foregroundStyle(.secondary)
-                                        .lineLimit(3)
-
-                                    Text(entry.timestamp, format: .dateTime.month(.abbreviated).day().hour().minute())
+                                    if !log.segmentTitle.isEmpty {
+                                        Text(log.segmentTitle)
+                                            .font(.caption)
+                                            .foregroundStyle(.secondary)
+                                    }
+                                    if let noteSummary = log.noteSummary {
+                                        Text(noteSummary)
+                                            .font(.caption)
+                                            .foregroundStyle(.secondary)
+                                            .lineLimit(3)
+                                    }
+                                    if !log.noteContextTags.isEmpty {
+                                        noteTagRow(log.noteContextTags)
+                                    }
+                                    Text(log.timestamp.formatted(date: .omitted, time: .shortened))
                                         .font(.caption2)
                                         .foregroundStyle(.secondary)
                                 }
@@ -1008,54 +971,116 @@ struct StudentQuickView: View {
                 }
             }
 
+            if !studentTimelineEntries.isEmpty {
+                Section("Student Timeline") {
+                    DisclosureGroup("Timeline Entries", isExpanded: $isTimelineExpanded) {
+                        Picker("Filter", selection: $selectedTimelineFilter) {
+                            ForEach(TimelineFilter.allCases) { filter in
+                                Text(filter.rawValue).tag(filter)
+                            }
+                        }
+                        .pickerStyle(.segmented)
+
+                        if let entry = filteredTimelineEntries.first,
+                           let emailURL = timelineEntryEmailURL(for: entry) {
+                            Button {
+                                openExternalURL(emailURL, actionName: "Email Summary")
+                            } label: {
+                                Label("Email Parent About Latest Event", systemImage: "envelope.badge")
+                            }
+                            .tint(ClassTraxSemanticColor.primaryAction)
+                        }
+
+                        if filteredTimelineEntries.isEmpty {
+                            Text("No timeline entries for this filter yet.")
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                        } else {
+                            ForEach(filteredTimelineEntries.prefix(30)) { entry in
+                                HStack(alignment: .top, spacing: 10) {
+                                    Image(systemName: entry.kind.symbol)
+                                        .font(.caption.weight(.semibold))
+                                        .foregroundStyle(entry.tint)
+                                        .frame(width: 18, height: 18)
+
+                                    VStack(alignment: .leading, spacing: 3) {
+                                        Text(entry.title)
+                                            .font(.subheadline.weight(.semibold))
+                                            .foregroundStyle(.primary)
+
+                                        Text(entry.detail)
+                                            .font(.caption)
+                                            .foregroundStyle(.secondary)
+                                            .lineLimit(3)
+
+                                        Text(entry.timestamp, format: .dateTime.month(.abbreviated).day().hour().minute())
+                                            .font(.caption2)
+                                            .foregroundStyle(.secondary)
+                                    }
+                                }
+                                .padding(.vertical, 2)
+                            }
+                        }
+                    }
+                }
+            }
+
             if onLogBehavior != nil || onLogBehaviorWithNote != nil {
                 Section("Behavior Check-In") {
-                    if !behaviorSegments.isEmpty {
-                        ScrollView(.horizontal, showsIndicators: false) {
-                            HStack(spacing: 8) {
-                                ForEach(behaviorSegments) { segment in
-                                    Button {
-                                        selectedBehaviorSegmentID = segment.id
-                                    } label: {
-                                        Text(segment.title)
-                                            .font(.caption.weight(.semibold))
-                                            .padding(.horizontal, 12)
-                                            .padding(.vertical, 8)
-                                            .background(
-                                                Capsule(style: .continuous)
-                                                    .fill(isSelected(segment: segment) ? ClassTraxSemanticColor.primaryAction.opacity(0.16) : Color(.secondarySystemGroupedBackground))
-                                            )
-                                            .foregroundStyle(isSelected(segment: segment) ? ClassTraxSemanticColor.primaryAction : .primary)
-                                    }
-                                    .buttonStyle(.plain)
-                                }
-                            }
-                            .padding(.vertical, 2)
-                        }
-                    } else if !preferredBehaviorSegmentTitle.isEmpty {
-                        Text(preferredBehaviorSegmentTitle)
-                            .font(.caption.weight(.semibold))
+                    if !profile.behaviorTrackingEnabled {
+                        Text("Behavior tracking is turned off for this student.")
+                            .font(.caption)
                             .foregroundStyle(.secondary)
-                    }
-
-                    ForEach(BehaviorLogItem.BehaviorKind.allCases) { behavior in
-                        VStack(alignment: .leading, spacing: 8) {
-                            HStack(spacing: 12) {
-                                Text(behavior.title)
-                                    .font(.subheadline.weight(.semibold))
-
-                                Spacer()
-
-                                HStack(spacing: 8) {
-                                    ForEach(BehaviorLogItem.Rating.allCases) { rating in
-                                        behaviorRatingButton(behavior: behavior, rating: rating)
+                    } else {
+                        DisclosureGroup("Behavior Actions", isExpanded: $isBehaviorCheckInExpanded) {
+                            if !behaviorSegments.isEmpty {
+                                ScrollView(.horizontal, showsIndicators: false) {
+                                    HStack(spacing: 8) {
+                                        ForEach(behaviorSegments) { segment in
+                                            Button {
+                                                selectedBehaviorSegmentID = segment.id
+                                            } label: {
+                                                Text(segment.title)
+                                                    .font(.caption.weight(.semibold))
+                                                    .padding(.horizontal, 12)
+                                                    .padding(.vertical, 8)
+                                                    .background(
+                                                        Capsule(style: .continuous)
+                                                            .fill(isSelected(segment: segment) ? ClassTraxSemanticColor.primaryAction.opacity(0.16) : Color(.secondarySystemGroupedBackground))
+                                                    )
+                                                    .foregroundStyle(isSelected(segment: segment) ? ClassTraxSemanticColor.primaryAction : .primary)
+                                            }
+                                            .buttonStyle(.plain)
+                                        }
                                     }
+                                    .padding(.vertical, 2)
                                 }
+                            } else if !preferredBehaviorSegmentTitle.isEmpty {
+                                Text(preferredBehaviorSegmentTitle)
+                                    .font(.caption.weight(.semibold))
+                                    .foregroundStyle(.secondary)
                             }
 
-                            behaviorQuickNoteField(for: behavior)
+                            ForEach(BehaviorLogItem.BehaviorKind.allCases) { behavior in
+                                VStack(alignment: .leading, spacing: 8) {
+                                    HStack(spacing: 12) {
+                                        Text(behavior.title)
+                                            .font(.subheadline.weight(.semibold))
+
+                                        Spacer()
+
+                                        HStack(spacing: 8) {
+                                            ForEach(BehaviorLogItem.Rating.allCases) { rating in
+                                                behaviorRatingButton(behavior: behavior, rating: rating)
+                                            }
+                                        }
+                                    }
+
+                                    behaviorQuickNoteField(for: behavior)
+                                }
+                                .padding(.vertical, 3)
+                            }
                         }
-                        .padding(.vertical, 3)
                     }
                 }
             }
@@ -1091,7 +1116,7 @@ struct StudentQuickView: View {
                             HStack(spacing: 10) {
                                 ForEach(parentContactActions) { action in
                                     Button {
-                                        openURL(action.url)
+                                        openExternalURL(action.url, actionName: action.title)
                                     } label: {
                                         Label(action.title, systemImage: action.systemImage)
                                             .frame(maxWidth: .infinity)
@@ -1100,6 +1125,15 @@ struct StudentQuickView: View {
                                     .tint(action.tint)
                                 }
                             }
+
+                            Button {
+                                copyParentNotificationDraft()
+                            } label: {
+                                Label("Copy Parent Update Draft", systemImage: "doc.on.doc")
+                                    .frame(maxWidth: .infinity)
+                            }
+                            .buttonStyle(.bordered)
+                            .tint(ClassTraxSemanticColor.secondaryAction)
                         }
                         .padding(.vertical, 4)
                     }
@@ -1111,7 +1145,7 @@ struct StudentQuickView: View {
                     ForEach(parsedParentPhones, id: \.self) { phone in
                         Button {
                             if let url = phoneURL(for: phone) {
-                                openURL(url)
+                                openExternalURL(url, actionName: "Call Parent")
                             }
                         } label: {
                             Label(phone, systemImage: "phone.fill")
@@ -1122,7 +1156,7 @@ struct StudentQuickView: View {
                     ForEach(parsedParentEmails, id: \.self) { email in
                         Button {
                             if let url = emailURL(for: email, subject: "Re: \(profile.name)") {
-                                openURL(url)
+                                openExternalURL(url, actionName: "Email Parent")
                             }
                         } label: {
                             Label(email, systemImage: "envelope.fill")
@@ -1134,7 +1168,7 @@ struct StudentQuickView: View {
                         let studentEmail = profile.studentEmail.trimmingCharacters(in: .whitespacesAndNewlines)
                         Button {
                             if let url = emailURL(for: studentEmail, subject: "Re: \(profile.name)") {
-                                openURL(url)
+                                openExternalURL(url, actionName: "Email Student")
                             }
                         } label: {
                             Label("Student: \(studentEmail)", systemImage: "envelope")
@@ -1177,6 +1211,19 @@ struct StudentQuickView: View {
                 Button("Done") { dismiss() }
             }
         }
+        .alert(
+            "Action Unavailable",
+            isPresented: Binding(
+                get: { externalActionErrorMessage != nil },
+                set: { if !$0 { externalActionErrorMessage = nil } }
+            ),
+            actions: {
+                Button("OK", role: .cancel) { externalActionErrorMessage = nil }
+            },
+            message: {
+                Text(externalActionErrorMessage ?? "")
+            }
+        )
     }
 
     private struct ParentContactAction: Identifiable {
@@ -1232,7 +1279,7 @@ struct StudentQuickView: View {
 
         for record in studentAttendanceRecords {
             let timestamp = timelineDate(for: record)
-            let classLabel = record.className.trimmingCharacters(in: .whitespacesAndNewlines)
+            let classLabel = sanitizedTimelineText(record.className)
             let attendanceDetail = classLabel.isEmpty ? record.status.rawValue : "\(record.status.rawValue) • \(classLabel)"
             let attendanceTint: Color = record.status == .present ? ClassTraxSemanticColor.success : ClassTraxSemanticColor.reviewWarning
 
@@ -1277,7 +1324,7 @@ struct StudentQuickView: View {
         }
 
         for record in classNoteTimelineRecords {
-            let classLabel = record.className.trimmingCharacters(in: .whitespacesAndNewlines)
+            let classLabel = sanitizedTimelineText(record.className)
             let note = record.assignedHomework.trimmingCharacters(in: .whitespacesAndNewlines)
             let detail = classLabel.isEmpty ? note : "\(classLabel): \(note)"
 
@@ -1495,6 +1542,13 @@ struct StudentQuickView: View {
     }
 
     private func quickBehaviorTemplates(for behavior: BehaviorLogItem.BehaviorKind) -> [String] {
+        let customTemplates = profile.behaviorTemplateOverrides[behavior.rawValue]?
+            .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
+            .filter { !$0.isEmpty } ?? []
+        if !customTemplates.isEmpty {
+            return customTemplates
+        }
+
         switch behavior {
         case .onTask:
             return [
@@ -2006,6 +2060,33 @@ struct StudentQuickView: View {
         return lines.joined(separator: "\n")
     }
 
+    private var parentNotificationDraftBody: String {
+        var lines = ["Class update for \(profile.name):"]
+
+        if let latestBehaviorLog {
+            lines.append("Behavior: \(latestBehaviorLog.behavior.title) • \(latestBehaviorLog.rating.title)")
+        }
+
+        let weekAttendance = weeklyAttendanceSummary
+        if weekAttendance != "No Data" {
+            lines.append("Week attendance: \(weekAttendance)")
+        }
+
+        if let latestClassNote = classNoteTimelineRecords.sorted(by: { timelineDate(for: $0) > timelineDate(for: $1) }).first {
+            let note = latestClassNote.assignedHomework.trimmingCharacters(in: .whitespacesAndNewlines)
+            if !note.isEmpty {
+                lines.append("Class note: \(note)")
+            }
+        }
+
+        lines.append("Sent from ClassTrax")
+        return lines.joined(separator: "\n")
+    }
+
+    private func copyParentNotificationDraft() {
+        copyTextToClipboard(parentNotificationDraftBody)
+    }
+
     private func timelineEntryEmailURL(for entry: StudentTimelineEntry) -> URL? {
         guard !parsedParentEmails.isEmpty else { return nil }
         let recipients = parsedParentEmails.joined(separator: ",")
@@ -2048,6 +2129,22 @@ struct StudentQuickView: View {
         return components.url
     }
 
+    private func openExternalURL(_ url: URL, actionName: String) {
+        openURL(url) { accepted in
+            guard !accepted else { return }
+            externalActionErrorMessage = "\(actionName) could not be opened. Check that a default mail or messaging app is configured on this device."
+        }
+    }
+
+    private func copyTextToClipboard(_ text: String) {
+        #if canImport(UIKit)
+        UIPasteboard.general.string = text
+        #elseif canImport(AppKit)
+        NSPasteboard.general.clearContents()
+        NSPasteboard.general.setString(text, forType: .string)
+        #endif
+    }
+
     private func attendanceSummary(for records: [AttendanceRecord]) -> String {
         let attendanceOnly = records.filter(\.isAttendanceEntry)
         guard !attendanceOnly.isEmpty else { return "No Data" }
@@ -2080,6 +2177,22 @@ struct StudentQuickView: View {
     private func labeledLine(_ label: String, _ value: String) -> String? {
         let trimmed = value.trimmingCharacters(in: .whitespacesAndNewlines)
         return trimmed.isEmpty ? nil : "\(label): \(trimmed)"
+    }
+
+    private func sanitizedTimelineText(_ value: String) -> String {
+        let trimmed = value.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { return "" }
+
+        let normalized = trimmed
+            .lowercased()
+            .replacingOccurrences(of: "_", with: "")
+            .replacingOccurrences(of: " ", with: "")
+
+        if normalized.contains("nsmanagedobject") || normalized.contains("managedobject") {
+            return ""
+        }
+
+        return trimmed
     }
 
     private func quickMetric(title: String, value: String, tint: Color) -> some View {

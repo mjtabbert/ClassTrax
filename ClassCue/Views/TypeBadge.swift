@@ -14,6 +14,8 @@ struct TypeBadge: View {
 
     var label: String {
         switch type {
+        case .homeGroup:
+            return "HOME"
 
         case .math:
             return "MATH"

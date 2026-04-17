@@ -210,7 +210,7 @@ struct AddEditView: View {
                 }
 
                 Section("Block Setup") {
-                    Picker("Class Roster", selection: $selectedClassDefinitionID) {
+                    Picker("Primary Class/Group", selection: $selectedClassDefinitionID) {
                         Text("None").tag(Optional<UUID>.none)
                         ForEach(availableClassDefinitions) { definition in
                             Text(savedClassLabel(for: definition)).tag(Optional(definition.id))
@@ -218,9 +218,10 @@ struct AddEditView: View {
                     }
 
                     TextField("Class Name", text: $name)
+                        .classTraxInputSurface(accent: ClassTraxSemanticColor.primaryAction)
 
                     if !availableClassDefinitions.isEmpty {
-                        DisclosureGroup("Additional Linked Classes / Groups (\(selectedAdditionalClassDefinitionIDs.count))") {
+                        DisclosureGroup("Additional Groups for Mixed Blocks (\(selectedAdditionalClassDefinitionIDs.count))") {
                             VStack(alignment: .leading, spacing: 8) {
                                 ForEach(additionalContextCandidates) { definition in
                                     additionalContextRow(for: definition)
@@ -251,8 +252,9 @@ struct AddEditView: View {
                     }
 
                     TextField("Room / Location", text: $room)
+                        .classTraxInputSurface(accent: ClassTraxSemanticColor.secondaryAction)
 
-                    Text("Choose a primary roster when one class or group should drive the block, then add extra linked classes or groups when the block covers multiple groups or services.")
+                    Text("Use Primary Class/Group for the main roster context. Add Additional Groups only when this block combines more than one class or group.")
                         .font(.caption)
                         .foregroundStyle(.secondary)
                 }
@@ -325,6 +327,7 @@ struct AddEditView: View {
                 if !sortedStudentProfiles.isEmpty {
                     Section("Roster & Supports") {
                         TextField("Whole-block support note for routines, staffing, or class reminders", text: $blockSupportNote, axis: .vertical)
+                            .classTraxInputSurface(accent: ClassTraxSemanticColor.secondaryAction)
 
                         if !linkedRosterSummaryText.isEmpty {
                             Text(linkedRosterSummaryText)
@@ -334,7 +337,7 @@ struct AddEditView: View {
 
                         if !suggestedRosterGroups.isEmpty {
                             DisclosureGroup(
-                                "Suggested Groups (\(selectedSuggestedRosterCount)/\(suggestedRosterGroups.count))",
+                                "Suggested Student Batch Groups (\(selectedSuggestedRosterCount)/\(suggestedRosterGroups.count))",
                                 isExpanded: $showingSuggestedRosterGroups
                             ) {
                                 VStack(alignment: .leading, spacing: 8) {
@@ -348,7 +351,7 @@ struct AddEditView: View {
 
                         if !remainingRosterGroups.isEmpty {
                             DisclosureGroup(
-                                "Roster Groups (\(selectedRemainingRosterCount)/\(remainingRosterGroups.count))",
+                                "Student Batch Groups (\(selectedRemainingRosterCount)/\(remainingRosterGroups.count))",
                                 isExpanded: $showingAllRosterGroups
                             ) {
                                 VStack(alignment: .leading, spacing: 8) {
@@ -1060,7 +1063,7 @@ private struct PreviewCard: View {
             Spacer(minLength: 0)
         }
         .padding(18)
-        .classTraxCardChrome(accent: item.accentColor, cornerRadius: 20)
+        .classTraxOverviewCardChrome(accent: item.accentColor)
     }
 
     private func compactTimeRange(start: Date, end: Date) -> String {

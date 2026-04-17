@@ -106,6 +106,8 @@ struct QuickCaptureView: View {
     @State private var studentOrGroup = ""
     @State private var followUpNote = ""
     @State private var reminder = TodoItem.Reminder.none
+    @State private var recurrence = TodoItem.Recurrence.none
+    @State private var recurrenceWeekday = TodoItem.RecurrenceWeekday.monday
     @State private var noteDestination: NoteDestination = .general
 
     private struct Draft: Codable, Equatable {
@@ -117,6 +119,8 @@ struct QuickCaptureView: View {
         var studentOrGroup: String
         var followUpNote: String
         var reminderRawValue: String
+        var recurrenceRawValue: String
+        var recurrenceWeekdayRawValue: Int?
         var noteDestinationRawValue: String
     }
 
@@ -196,6 +200,7 @@ struct QuickCaptureView: View {
                         axis: .vertical
                     )
                     .lineLimit(3...6)
+                    .classTraxInputSurface(accent: ClassTraxSemanticColor.primaryAction)
                 }
 
                 Section("Current Routing") {
@@ -272,6 +277,7 @@ struct QuickCaptureView: View {
 
                         TextField("Follow-Up Note (Optional)", text: $followUpNote, axis: .vertical)
                             .lineLimit(2...4)
+                            .classTraxInputSurface(accent: ClassTraxSemanticColor.secondaryAction)
                     }
 
                     Section("Reminder") {
@@ -279,6 +285,22 @@ struct QuickCaptureView: View {
                             ForEach(TodoItem.Reminder.allCases, id: \.self) { option in
                                 Label(option.displayName, systemImage: option.systemImage)
                                     .tag(option)
+                            }
+                        }
+                    }
+
+                    Section("Recurrence") {
+                        Picker("Repeats", selection: $recurrence) {
+                            ForEach(TodoItem.Recurrence.allCases, id: \.self) { option in
+                                Text(option.displayName).tag(option)
+                            }
+                        }
+
+                        if recurrence == .weekly {
+                            Picker("Day", selection: $recurrenceWeekday) {
+                                ForEach(TodoItem.RecurrenceWeekday.allCases, id: \.self) { option in
+                                    Text(option.displayName).tag(option)
+                                }
                             }
                         }
                     }
@@ -319,7 +341,9 @@ struct QuickCaptureView: View {
                         }
 
                         TextField("Class or Commitment (Optional)", text: $linkedContext)
+                            .classTraxInputSurface(accent: ClassTraxSemanticColor.primaryAction)
                         TextField("Student or Group (Optional)", text: $studentOrGroup)
+                            .classTraxInputSurface(accent: ClassTraxSemanticColor.secondaryAction)
 
                         if !suggestedStudents.isEmpty {
                             Picker("Saved Student / Group", selection: $studentOrGroup) {
@@ -391,10 +415,13 @@ struct QuickCaptureView: View {
                 captureMetric(title: "Mode", value: target.title, accent: ClassTraxSemanticColor.primaryAction)
                 captureMetric(title: "Workspace", value: workspace.displayName, accent: ClassTraxSemanticColor.secondaryAction)
                 captureMetric(title: "Route", value: target == .task ? category.displayName : noteDestination.title, accent: ClassTraxSemanticColor.reviewWarning)
+                if target == .task {
+                    captureMetric(title: "Repeat", value: recurrence.displayName, accent: .indigo)
+                }
             }
         }
         .padding(16)
-        .classTraxCardChrome(accent: ClassTraxSemanticColor.primaryAction, cornerRadius: 20)
+        .classTraxOverviewCardChrome(accent: ClassTraxSemanticColor.primaryAction)
     }
 
     private func captureMetric(title: String, value: String, accent: Color) -> some View {
@@ -431,7 +458,9 @@ struct QuickCaptureView: View {
                 linkedContext: linkedContext.trimmingCharacters(in: .whitespacesAndNewlines),
                 studentOrGroup: studentOrGroup.trimmingCharacters(in: .whitespacesAndNewlines),
                 followUpNote: followUpNote.trimmingCharacters(in: .whitespacesAndNewlines),
-                reminder: reminder
+                reminder: reminder,
+                recurrence: recurrence,
+                recurrenceWeekday: recurrence == .weekly ? recurrenceWeekday : nil
             ),
             at: 0
         )
@@ -447,6 +476,7 @@ struct QuickCaptureView: View {
             workspace = .school
             category = preferredCategory ?? .prep
             reminder = .none
+            recurrence = .none
             if linkedContext.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
                 linkedContext = preferredContext ?? linkedContext
             }
@@ -626,6 +656,8 @@ struct QuickCaptureView: View {
             studentOrGroup: studentOrGroup,
             followUpNote: followUpNote,
             reminderRawValue: reminder.rawValue,
+            recurrenceRawValue: recurrence.rawValue,
+            recurrenceWeekdayRawValue: recurrenceWeekday.rawValue,
             noteDestinationRawValue: noteDestination.rawValue
         )
     }
@@ -640,6 +672,10 @@ struct QuickCaptureView: View {
         studentOrGroup = draft.studentOrGroup
         followUpNote = draft.followUpNote
         reminder = TodoItem.Reminder(rawValue: draft.reminderRawValue) ?? .none
+        recurrence = TodoItem.Recurrence(rawValue: draft.recurrenceRawValue) ?? .none
+        recurrenceWeekday = draft.recurrenceWeekdayRawValue
+            .flatMap(TodoItem.RecurrenceWeekday.init(rawValue:))
+            ?? .monday
         noteDestination = NoteDestination(rawValue: draft.noteDestinationRawValue) ?? .general
     }
 

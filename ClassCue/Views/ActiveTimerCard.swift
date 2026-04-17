@@ -57,6 +57,8 @@ struct ActiveTimerCard: View {
         }
 
         switch item.type {
+        case .homeGroup:
+            return .cyan
         case .math:
             return .orange
         case .ela:
@@ -99,19 +101,14 @@ struct ActiveTimerCard: View {
         return false
     }
 
-    private var isRainbowCountdown: Bool {
-        remaining > 0 && remaining <= 300
-    }
+    private var isRainbowCountdown: Bool { false }
 
     private var rainbowIntensity: Double {
         guard isRainbowCountdown else { return 0 }
-        return min(max((300 - remaining) / 300, 0), 1)
+        return min(max((120 - remaining) / 120, 0), 1)
     }
 
     private var timerRingLineWidth: CGFloat {
-        if isRainbowCountdown {
-            return 12
-        }
         if isFiveMinuteWarning {
             return 10
         }
@@ -147,7 +144,7 @@ struct ActiveTimerCard: View {
                         .monospacedDigit()
                         .lineLimit(1)
                         .minimumScaleFactor(0.55)
-                        .foregroundStyle(isCriticalCountdown ? .red : (isRainbowCountdown ? .pink : (isFiveMinuteWarning ? .orange : .primary)))
+                        .foregroundStyle(isCriticalCountdown ? .red : (isFiveMinuteWarning ? .orange : .primary))
                         .scaleEffect(isUrgentWarning && pulse ? 1.07 : 0.98)
                         .animation(.easeInOut(duration: 0.55).repeatForever(autoreverses: true), value: pulse)
                 }
@@ -173,7 +170,7 @@ struct ActiveTimerCard: View {
                             .monospacedDigit()
                             .lineLimit(1)
                             .minimumScaleFactor(0.64)
-                            .foregroundStyle(isCriticalCountdown ? .red : (isRainbowCountdown ? .pink : (isFiveMinuteWarning ? .orange : .primary)))
+                            .foregroundStyle(isCriticalCountdown ? .red : (isFiveMinuteWarning ? .orange : .primary))
                             .scaleEffect(isUrgentWarning && pulse ? 1.08 : 0.99)
                             .frame(maxWidth: .infinity, alignment: .center)
                     }
@@ -342,9 +339,6 @@ struct ActiveTimerCard: View {
     }
 
     private var timerRingTrackColor: Color {
-        if isRainbowCountdown {
-            return Color.white.opacity(0.18)
-        }
         if isFiveMinuteWarning {
             return Color.orange.opacity(0.22)
         }
@@ -352,24 +346,6 @@ struct ActiveTimerCard: View {
     }
 
     private var timerRingStyle: AnyShapeStyle {
-        if isRainbowCountdown {
-            let intensity = rainbowIntensity
-            return AnyShapeStyle(
-                AngularGradient(
-                    colors: [
-                        Color.orange.opacity(1 - (intensity * 0.55)),
-                        .yellow,
-                        .green.opacity(0.5 + (intensity * 0.5)),
-                        .blue.opacity(0.35 + (intensity * 0.65)),
-                        .purple.opacity(0.25 + (intensity * 0.75)),
-                        .pink.opacity(0.25 + (intensity * 0.75)),
-                        .red.opacity(0.45 + (intensity * 0.55))
-                    ],
-                    center: .center
-                )
-            )
-        }
-
         return AnyShapeStyle(
             LinearGradient(
                 colors: [isFiveMinuteWarning ? .orange : ringPrimaryColor, ringSecondaryColor],
@@ -393,7 +369,7 @@ struct ActiveTimerCard: View {
                 )
                 .rotationEffect(.degrees(-90))
                 .shadow(
-                    color: (isRainbowCountdown ? Color.pink : (isFiveMinuteWarning ? Color.orange : ringPrimaryColor)).opacity(isFiveMinuteWarning ? 0.26 : 0.14),
+                    color: (isFiveMinuteWarning ? Color.orange : ringPrimaryColor).opacity(isFiveMinuteWarning ? 0.26 : 0.14),
                     radius: isFiveMinuteWarning ? 10 : 6,
                     y: 2
                 )

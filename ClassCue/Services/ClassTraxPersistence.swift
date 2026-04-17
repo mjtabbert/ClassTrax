@@ -123,11 +123,15 @@ final class PersistedStudentSupportProfile: PersistedUUIDModel {
         self.supportRooms = item.supportRooms
         self.supportScheduleNotes = item.supportScheduleNotes
         self.accommodations = item.accommodations
-        self.prompts = item.prompts
+        self.prompts = Self.encodePrompts(
+            basePrompts: item.prompts,
+            behaviorTemplateOverrides: item.behaviorTemplateOverrides
+        )
     }
 
     func asStudentSupportProfile() -> StudentSupportProfile {
-        StudentSupportProfile(
+        let decodedPrompts = Self.decodePrompts(prompts)
+        return StudentSupportProfile(
             id: id,
             name: name,
             className: className,
@@ -152,8 +156,76 @@ final class PersistedStudentSupportProfile: PersistedUUIDModel {
             supportRooms: supportRooms,
             supportScheduleNotes: supportScheduleNotes,
             accommodations: accommodations,
-            prompts: prompts
+            prompts: decodedPrompts.basePrompts,
+            behaviorTemplateOverrides: decodedPrompts.behaviorTemplateOverrides
         )
+    }
+
+    private struct PromptsPayload: Codable {
+        let behaviorTemplateOverrides: [String: [String]]
+    }
+
+    private static let promptsMarkerPrefix = "[[CLASSTRAX_STUDENT_META:"
+    private static let promptsMarkerSuffix = "]]"
+
+    private static func encodePrompts(
+        basePrompts: String,
+        behaviorTemplateOverrides: [String: [String]]
+    ) -> String {
+        let cleanedBase = removePromptsMetadata(from: basePrompts)
+        let normalizedOverrides = behaviorTemplateOverrides
+            .mapValues { templates in
+                templates
+                    .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
+                    .filter { !$0.isEmpty }
+            }
+            .filter { !$0.value.isEmpty }
+
+        let payload = PromptsPayload(behaviorTemplateOverrides: normalizedOverrides)
+        guard
+            let data = try? JSONEncoder().encode(payload),
+            !data.isEmpty
+        else {
+            return cleanedBase
+        }
+
+        let marker = "\(promptsMarkerPrefix)\(data.base64EncodedString())\(promptsMarkerSuffix)"
+        if cleanedBase.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+            return marker
+        }
+        return "\(cleanedBase)\n\(marker)"
+    }
+
+    private static func decodePrompts(_ prompts: String) -> (
+        basePrompts: String,
+        behaviorTemplateOverrides: [String: [String]]
+    ) {
+        guard let range = prompts.range(of: promptsMarkerPrefix),
+              let suffixRange = prompts[range.upperBound...].range(of: promptsMarkerSuffix) else {
+            return (prompts, [:])
+        }
+
+        let encoded = String(prompts[range.upperBound..<suffixRange.lowerBound])
+        let payload = Data(base64Encoded: encoded)
+            .flatMap { try? JSONDecoder().decode(PromptsPayload.self, from: $0) }
+
+        return (
+            removePromptsMetadata(from: prompts),
+            payload?.behaviorTemplateOverrides ?? [:]
+        )
+    }
+
+    private static func removePromptsMetadata(from prompts: String) -> String {
+        guard let range = prompts.range(of: promptsMarkerPrefix),
+              let suffixRange = prompts[range.upperBound...].range(of: promptsMarkerSuffix) else {
+            return prompts
+        }
+
+        var cleaned = prompts
+        cleaned.removeSubrange(range.lowerBound..<suffixRange.upperBound)
+        return cleaned
+            .replacingOccurrences(of: "\n\n\n", with: "\n\n")
+            .trimmingCharacters(in: .whitespacesAndNewlines)
     }
 }
 
@@ -315,12 +387,18 @@ final class PersistedTodoItem: PersistedUUIDModel {
         self.classLink = item.classLink
         self.studentGroupLink = item.studentGroupLink
         self.studentLink = item.studentLink
-        self.followUpNote = item.followUpNote
+        self.followUpNote = Self.encodeFollowUpNote(
+            baseNote: item.followUpNote,
+            recurrence: item.recurrence,
+            recurrenceWeekday: item.recurrenceWeekday,
+            recurrenceLastCompletedDateKey: item.recurrenceLastCompletedDateKey
+        )
         self.reminderRawValue = item.reminder.rawValue
     }
 
     func asTodoItem() -> TodoItem {
-        TodoItem(
+        let decodedMeta = Self.decodeFollowUpNote(followUpNote)
+        return TodoItem(
             id: id,
             task: task,
             isCompleted: isCompleted,
@@ -334,9 +412,88 @@ final class PersistedTodoItem: PersistedUUIDModel {
             classLink: classLink,
             studentGroupLink: studentGroupLink,
             studentLink: studentLink,
-            followUpNote: followUpNote,
-            reminder: TodoItem.Reminder(rawValue: reminderRawValue) ?? .none
+            followUpNote: decodedMeta.baseNote,
+            reminder: TodoItem.Reminder(rawValue: reminderRawValue) ?? .none,
+            recurrence: decodedMeta.recurrence,
+            recurrenceWeekday: decodedMeta.recurrenceWeekday,
+            recurrenceLastCompletedDateKey: decodedMeta.recurrenceLastCompletedDateKey
         )
+    }
+
+    private struct RecurrencePayload: Codable {
+        let recurrenceRawValue: String
+        let recurrenceWeekdayRawValue: Int?
+        let recurrenceLastCompletedDateKey: String?
+    }
+
+    private static let recurrenceMarkerPrefix = "[[CLASSTRAX_TODO_META:"
+    private static let recurrenceMarkerSuffix = "]]"
+
+    private static func encodeFollowUpNote(
+        baseNote: String,
+        recurrence: TodoItem.Recurrence,
+        recurrenceWeekday: TodoItem.RecurrenceWeekday?,
+        recurrenceLastCompletedDateKey: String?
+    ) -> String {
+        let cleanedBase = removeMetadataMarker(from: baseNote)
+        let payload = RecurrencePayload(
+            recurrenceRawValue: recurrence.rawValue,
+            recurrenceWeekdayRawValue: recurrenceWeekday?.rawValue,
+            recurrenceLastCompletedDateKey: recurrenceLastCompletedDateKey
+        )
+
+        guard
+            let data = try? JSONEncoder().encode(payload),
+            !data.isEmpty
+        else {
+            return cleanedBase
+        }
+
+        let encoded = data.base64EncodedString()
+        let marker = "\(recurrenceMarkerPrefix)\(encoded)\(recurrenceMarkerSuffix)"
+        if cleanedBase.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+            return marker
+        }
+        return "\(cleanedBase)\n\(marker)"
+    }
+
+    private static func decodeFollowUpNote(_ note: String) -> (
+        baseNote: String,
+        recurrence: TodoItem.Recurrence,
+        recurrenceWeekday: TodoItem.RecurrenceWeekday?,
+        recurrenceLastCompletedDateKey: String?
+    ) {
+        guard let range = note.range(of: recurrenceMarkerPrefix),
+              let suffixRange = note[range.upperBound...].range(of: recurrenceMarkerSuffix) else {
+            return (note, .none, nil, nil)
+        }
+
+        let encodedRange = range.upperBound..<suffixRange.lowerBound
+        let encoded = String(note[encodedRange])
+        let payloadData = Data(base64Encoded: encoded)
+        let payload = payloadData.flatMap { try? JSONDecoder().decode(RecurrencePayload.self, from: $0) }
+        let recurrence = payload
+            .flatMap { TodoItem.Recurrence(rawValue: $0.recurrenceRawValue) }
+            ?? .none
+        let recurrenceWeekday = payload
+            .flatMap { $0.recurrenceWeekdayRawValue }
+            .flatMap(TodoItem.RecurrenceWeekday.init(rawValue:))
+        let completedKey = payload?.recurrenceLastCompletedDateKey
+
+        return (removeMetadataMarker(from: note), recurrence, recurrenceWeekday, completedKey)
+    }
+
+    private static func removeMetadataMarker(from note: String) -> String {
+        guard let range = note.range(of: recurrenceMarkerPrefix),
+              let suffixRange = note[range.upperBound...].range(of: recurrenceMarkerSuffix) else {
+            return note
+        }
+
+        var cleaned = note
+        cleaned.removeSubrange(range.lowerBound..<suffixRange.upperBound)
+        return cleaned
+            .replacingOccurrences(of: "\n\n\n", with: "\n\n")
+            .trimmingCharacters(in: .whitespacesAndNewlines)
     }
 }
 
@@ -808,22 +965,61 @@ enum ClassTraxPersistence {
     static func describeCloudKitError(_ error: Error) -> String {
         let nsError = error as NSError
 
-        if nsError.domain == CKErrorDomain,
-           let ckError = error as? CKError,
-           ckError.code == .partialFailure,
-           let partialErrors = ckError.partialErrorsByItemID,
-           let firstPartialError = partialErrors.first {
-            let itemDescription: String
-            if let recordID = firstPartialError.key as? CKRecord.ID {
-                itemDescription = recordID.recordName
-            } else {
-                itemDescription = String(describing: firstPartialError.key)
-            }
-
-            return "Partial failure on \(itemDescription): \(describe(error: firstPartialError.value))"
+        if let partialMessage = cloudKitPartialFailureMessage(from: nsError) {
+            return partialMessage
         }
 
         return describe(error: error)
+    }
+
+    private static func cloudKitPartialFailureMessage(from nsError: NSError) -> String? {
+        func formatItemKey(_ key: AnyHashable) -> String {
+            if let recordID = key as? CKRecord.ID {
+                return recordID.recordName
+            }
+            return String(describing: key)
+        }
+
+        func formatPartialDictionary(_ dictionary: [AnyHashable: Any]) -> String? {
+            guard !dictionary.isEmpty else { return nil }
+
+            let details = dictionary.prefix(3).map { key, value -> String in
+                let itemLabel = formatItemKey(key)
+                if let nestedError = value as? NSError {
+                    let short = nestedError.localizedDescription
+                    return "\(itemLabel): \(nestedError.domain)(\(nestedError.code)) \(short)"
+                } else {
+                    return "\(itemLabel): \(value)"
+                }
+            }
+            .joined(separator: " | ")
+
+            return "Partial failure: \(details)"
+        }
+
+        if let dictionary = nsError.userInfo[CKPartialErrorsByItemIDKey] as? [AnyHashable: Any],
+           let formatted = formatPartialDictionary(dictionary) {
+            return formatted
+        }
+
+        if let underlying = nsError.userInfo[NSUnderlyingErrorKey] as? NSError {
+            if let dictionary = underlying.userInfo[CKPartialErrorsByItemIDKey] as? [AnyHashable: Any],
+               let formatted = formatPartialDictionary(dictionary) {
+                return formatted
+            }
+            if underlying.domain == CKErrorDomain,
+               underlying.code == CKError.partialFailure.rawValue,
+               let nested = cloudKitPartialFailureMessage(from: underlying) {
+                return nested
+            }
+        }
+
+        if nsError.domain == CKErrorDomain,
+           nsError.code == CKError.partialFailure.rawValue {
+            return "Partial failure: \(nsError.localizedDescription)"
+        }
+
+        return nil
     }
 
     static func registerCloudKitEventObserver() {

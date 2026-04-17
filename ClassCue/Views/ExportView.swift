@@ -29,6 +29,7 @@ struct ExportView: View {
                             .font(.system(.caption, design: .monospaced))
                             .frame(minHeight: 300)
                             .disabled(true)
+                            .classTraxInputSurface(accent: ClassTraxSemanticColor.secondaryAction, cornerRadius: 12)
                     }
                     .padding(16)
                     .classTraxCardChrome(accent: ClassTraxSemanticColor.secondaryAction, cornerRadius: 20)
@@ -71,7 +72,7 @@ struct ExportView: View {
             }
         }
         .padding(16)
-        .classTraxCardChrome(accent: ClassTraxSemanticColor.primaryAction, cornerRadius: 20)
+        .classTraxOverviewCardChrome(accent: ClassTraxSemanticColor.primaryAction)
     }
 
     private func exportMetric(title: String, value: String, accent: Color) -> some View {

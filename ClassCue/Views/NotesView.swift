@@ -296,7 +296,7 @@ struct NotesView: View {
             compactNotesModeMenu
         }
         .padding(16)
-        .classTraxCardChrome(accent: ClassTraxSemanticColor.secondaryAction, cornerRadius: 22)
+        .classTraxOverviewCardChrome(accent: ClassTraxSemanticColor.secondaryAction)
     }
 
     private var notesHeaderBackground: some View {
@@ -359,6 +359,8 @@ struct NotesView: View {
     private func toolbarCapsuleLabel(title: String, systemImage: String) -> some View {
         Label(title, systemImage: systemImage)
             .font(.caption.weight(.bold))
+            .lineLimit(1)
+            .minimumScaleFactor(0.82)
             .foregroundStyle(ClassTraxSemanticColor.secondaryAction)
             .padding(.horizontal, 10)
             .padding(.vertical, 7)

@@ -25,6 +25,9 @@ struct TodoItem: Identifiable, Codable, Equatable {
     var studentLink: String = ""
     var followUpNote: String = ""
     var reminder: Reminder = .none
+    var recurrence: Recurrence = .none
+    var recurrenceWeekday: RecurrenceWeekday? = nil
+    var recurrenceLastCompletedDateKey: String? = nil
 
     enum Priority: String, Codable, CaseIterable {
 
@@ -165,6 +168,44 @@ struct TodoItem: Identifiable, Codable, Equatable {
         }
     }
 
+    enum Recurrence: String, Codable, CaseIterable {
+        case none
+        case daily
+        case weekdays
+        case weekly
+
+        var displayName: String {
+            switch self {
+            case .none: return "None"
+            case .daily: return "Daily"
+            case .weekdays: return "Weekdays"
+            case .weekly: return "Weekly"
+            }
+        }
+    }
+
+    enum RecurrenceWeekday: Int, Codable, CaseIterable {
+        case sunday = 1
+        case monday = 2
+        case tuesday = 3
+        case wednesday = 4
+        case thursday = 5
+        case friday = 6
+        case saturday = 7
+
+        var displayName: String {
+            switch self {
+            case .sunday: return "Sunday"
+            case .monday: return "Monday"
+            case .tuesday: return "Tuesday"
+            case .wednesday: return "Wednesday"
+            case .thursday: return "Thursday"
+            case .friday: return "Friday"
+            case .saturday: return "Saturday"
+            }
+        }
+    }
+
     init(
         id: UUID = UUID(),
         task: String,
@@ -180,7 +221,10 @@ struct TodoItem: Identifiable, Codable, Equatable {
         studentGroupLink: String = "",
         studentLink: String = "",
         followUpNote: String = "",
-        reminder: Reminder = .none
+        reminder: Reminder = .none,
+        recurrence: Recurrence = .none,
+        recurrenceWeekday: RecurrenceWeekday? = nil,
+        recurrenceLastCompletedDateKey: String? = nil
     ) {
         self.id = id
         self.task = task
@@ -204,6 +248,9 @@ struct TodoItem: Identifiable, Codable, Equatable {
             : (!self.studentGroupLink.isEmpty ? self.studentGroupLink : normalizedLegacyStudent)
         self.followUpNote = followUpNote
         self.reminder = reminder
+        self.recurrence = recurrence
+        self.recurrenceWeekday = recurrence == .weekly ? recurrenceWeekday : nil
+        self.recurrenceLastCompletedDateKey = recurrenceLastCompletedDateKey
     }
 
     init(from decoder: Decoder) throws {
@@ -226,6 +273,12 @@ struct TodoItem: Identifiable, Codable, Equatable {
         }
         followUpNote = try container.decodeIfPresent(String.self, forKey: .followUpNote) ?? ""
         reminder = try container.decodeIfPresent(Reminder.self, forKey: .reminder) ?? .none
+        recurrence = try container.decodeIfPresent(Recurrence.self, forKey: .recurrence) ?? .none
+        recurrenceWeekday = try container.decodeIfPresent(RecurrenceWeekday.self, forKey: .recurrenceWeekday)
+        recurrenceLastCompletedDateKey = try container.decodeIfPresent(String.self, forKey: .recurrenceLastCompletedDateKey)
+        if recurrence != .weekly {
+            recurrenceWeekday = nil
+        }
     }
 
     var effectiveClassLink: String {
@@ -253,5 +306,35 @@ struct TodoItem: Identifiable, Codable, Equatable {
         let group = effectiveStudentGroupLink
         if !group.isEmpty { return group }
         return studentOrGroup.trimmingCharacters(in: .whitespacesAndNewlines)
+    }
+
+    func recurs(on date: Date, calendar: Calendar = .current) -> Bool {
+        switch recurrence {
+        case .none:
+            return false
+        case .daily:
+            return true
+        case .weekdays:
+            return !calendar.isDateInWeekend(date)
+        case .weekly:
+            guard let recurrenceWeekday else { return false }
+            return calendar.component(.weekday, from: date) == recurrenceWeekday.rawValue
+        }
+    }
+
+    var recurrenceSummary: String {
+        switch recurrence {
+        case .none:
+            return ""
+        case .daily:
+            return "Repeats Daily"
+        case .weekdays:
+            return "Repeats Weekdays"
+        case .weekly:
+            if let recurrenceWeekday {
+                return "Repeats Weekly (\(recurrenceWeekday.displayName))"
+            }
+            return "Repeats Weekly"
+        }
     }
 }

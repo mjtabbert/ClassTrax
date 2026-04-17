@@ -52,6 +52,7 @@ struct AddCommitmentView: View {
 
                 Section("Commitment Setup") {
                     TextField("Title", text: $title)
+                        .classTraxInputSurface(accent: ClassTraxSemanticColor.primaryAction)
 
                     Picker("Type", selection: $kind) {
                         ForEach(CommitmentItem.Kind.allCases, id: \.self) { kind in
@@ -87,8 +88,10 @@ struct AddCommitmentView: View {
 
                 Section("Details & Notes") {
                     TextField("Location", text: $location)
+                        .classTraxInputSurface(accent: ClassTraxSemanticColor.secondaryAction)
                     TextField("Notes", text: $notes, axis: .vertical)
                         .lineLimit(3...6)
+                        .classTraxInputSurface(accent: ClassTraxSemanticColor.secondaryAction)
                 }
 
                 if existing != nil {
@@ -157,7 +160,7 @@ struct AddCommitmentView: View {
             }
         }
         .padding(16)
-        .classTraxCardChrome(accent: ClassTraxSemanticColor.primaryAction, cornerRadius: 20)
+        .classTraxOverviewCardChrome(accent: ClassTraxSemanticColor.primaryAction)
     }
 
     private func commitmentMetric(title: String, value: String, accent: Color) -> some View {

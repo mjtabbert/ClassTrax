@@ -32,6 +32,8 @@ struct AddTodoView: View {
     @State private var studentLink = ""
     @State private var followUpNote = ""
     @State private var reminder = TodoItem.Reminder.none
+    @State private var recurrence = TodoItem.Recurrence.none
+    @State private var recurrenceWeekday = TodoItem.RecurrenceWeekday.monday
     @State private var hasDueDate = false
     @State private var dueDate = Date()
     @AppStorage("school_quiet_hours_enabled") private var schoolQuietHoursEnabled = false
@@ -51,6 +53,8 @@ struct AddTodoView: View {
         var studentLink: String
         var followUpNote: String
         var reminder: TodoItem.Reminder
+        var recurrence: TodoItem.Recurrence
+        var recurrenceWeekday: TodoItem.RecurrenceWeekday
         var hasDueDate: Bool
         var dueDate: Date
     }
@@ -97,6 +101,7 @@ struct AddTodoView: View {
 
                 Section("Task Setup") {
                     TextField("Task Name", text: $task)
+                        .classTraxInputSurface(accent: ClassTraxSemanticColor.primaryAction)
 
                     Picker("When", selection: $bucket) {
                         ForEach(TodoItem.Bucket.allCases, id: \.self) { bucket in
@@ -155,6 +160,7 @@ struct AddTodoView: View {
 
                     TextField("Follow-Up Note (Optional)", text: $followUpNote, axis: .vertical)
                         .lineLimit(2...4)
+                        .classTraxInputSurface(accent: ClassTraxSemanticColor.secondaryAction)
                 }
 
                 Section("Reminder") {
@@ -162,6 +168,22 @@ struct AddTodoView: View {
                         ForEach(TodoItem.Reminder.allCases, id: \.self) { option in
                             Label(option.displayName, systemImage: option.systemImage)
                                 .tag(option)
+                        }
+                    }
+                }
+
+                Section("Recurrence") {
+                    Picker("Repeats", selection: $recurrence) {
+                        ForEach(TodoItem.Recurrence.allCases, id: \.self) { option in
+                            Text(option.displayName).tag(option)
+                        }
+                    }
+
+                    if recurrence == .weekly {
+                        Picker("Day", selection: $recurrenceWeekday) {
+                            ForEach(TodoItem.RecurrenceWeekday.allCases, id: \.self) { option in
+                                Text(option.displayName).tag(option)
+                            }
                         }
                     }
                 }
@@ -207,6 +229,8 @@ struct AddTodoView: View {
                     studentLink = existing.effectiveStudentLink
                     followUpNote = existing.followUpNote
                     reminder = existing.reminder
+                    recurrence = existing.recurrence
+                    recurrenceWeekday = existing.recurrenceWeekday ?? defaultRecurrenceWeekday()
 
                     if let existingDueDate = existing.dueDate {
                         hasDueDate = true
@@ -244,10 +268,11 @@ struct AddTodoView: View {
                 taskMetric(title: "Workspace", value: workspace.displayName, accent: ClassTraxSemanticColor.primaryAction)
                 taskMetric(title: "Bucket", value: bucket.displayName, accent: ClassTraxSemanticColor.secondaryAction)
                 taskMetric(title: "Category", value: category.displayName, accent: ClassTraxSemanticColor.reviewWarning)
+                taskMetric(title: "Repeat", value: recurrence.displayName, accent: .indigo)
             }
         }
         .padding(16)
-        .classTraxCardChrome(accent: ClassTraxSemanticColor.primaryAction, cornerRadius: 20)
+        .classTraxOverviewCardChrome(accent: ClassTraxSemanticColor.primaryAction)
     }
 
     private func taskMetric(title: String, value: String, accent: Color) -> some View {
@@ -330,7 +355,9 @@ struct AddTodoView: View {
             studentGroupLink: studentGroupLink.trimmingCharacters(in: .whitespacesAndNewlines),
             studentLink: studentLink.trimmingCharacters(in: .whitespacesAndNewlines),
             followUpNote: followUpNote.trimmingCharacters(in: .whitespacesAndNewlines),
-            reminder: reminder
+            reminder: reminder,
+            recurrence: recurrence,
+            recurrenceWeekday: recurrence == .weekly ? recurrenceWeekday : nil
         )
         
         if let existing,
@@ -357,6 +384,8 @@ struct AddTodoView: View {
             studentLink: studentLink,
             followUpNote: followUpNote,
             reminder: reminder,
+            recurrence: recurrence,
+            recurrenceWeekday: recurrenceWeekday,
             hasDueDate: hasDueDate,
             dueDate: dueDate
         )
@@ -375,6 +404,8 @@ struct AddTodoView: View {
         studentLink = draft.studentLink
         followUpNote = draft.followUpNote
         reminder = draft.reminder
+        recurrence = draft.recurrence
+        recurrenceWeekday = draft.recurrenceWeekday
         hasDueDate = draft.hasDueDate
         dueDate = draft.dueDate
     }
@@ -404,6 +435,11 @@ struct AddTodoView: View {
             of: now
         ) ?? now
         return now >= start
+    }
+
+    private func defaultRecurrenceWeekday() -> TodoItem.RecurrenceWeekday {
+        let weekday = Calendar.current.component(.weekday, from: Date())
+        return TodoItem.RecurrenceWeekday(rawValue: weekday) ?? .monday
     }
 }
 

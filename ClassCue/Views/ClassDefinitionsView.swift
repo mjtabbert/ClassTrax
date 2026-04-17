@@ -321,7 +321,7 @@ struct ClassDefinitionsView: View {
             }
         }
         .padding(16)
-        .background(sectionCardBackground(accent: ClassTraxSemanticColor.primaryAction))
+        .classTraxOverviewCardChrome(accent: ClassTraxSemanticColor.primaryAction)
     }
 
     private func rowAccent(for definition: ClassDefinitionItem) -> Color {

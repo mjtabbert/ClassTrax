@@ -9,6 +9,8 @@ struct ToolbarMenuLabel: View {
         if expanded {
             Label(title, systemImage: systemImage)
                 .font(.caption.weight(.bold))
+                .lineLimit(1)
+                .minimumScaleFactor(0.82)
                 .foregroundStyle(Color.accentColor)
                 .padding(.horizontal, 10)
                 .padding(.vertical, 7)
@@ -38,6 +40,8 @@ struct ToolbarPrimaryActionLabel: View {
     var body: some View {
         Label(title, systemImage: systemImage)
             .font(.subheadline.weight(.bold))
+            .lineLimit(1)
+            .minimumScaleFactor(0.82)
             .foregroundStyle(.white)
             .padding(.horizontal, 18)
             .padding(.vertical, 14)

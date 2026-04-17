@@ -15,6 +15,7 @@ struct EditStudentSupportView: View {
         case supports
         case accommodations
         case prompts
+        case behaviorTemplates
     }
 
     private enum QuickAddSupportRole: Identifiable {
@@ -62,12 +63,16 @@ struct EditStudentSupportView: View {
     @State private var parentEmails = ""
     @State private var studentEmail = ""
     @State private var isSped = false
+    @State private var behaviorTrackingEnabled = true
     @State private var selectedSupportTeacherIDs = Set<UUID>()
     @State private var selectedSupportParaIDs = Set<UUID>()
     @State private var supportRooms = ""
     @State private var supportScheduleNotes = ""
     @State private var accommodations = ""
     @State private var prompts = ""
+    @State private var onTaskTemplates = ""
+    @State private var respectfulTemplates = ""
+    @State private var safeBodyTemplates = ""
     @State private var expandedSections: Set<FormSection> = [.student]
     @State private var showOptionalDetails = false
     @State private var quickAddSupportRole: QuickAddSupportRole?
@@ -116,6 +121,7 @@ struct EditStudentSupportView: View {
                     labeledEntryField("Graduation Year", text: $graduationYear, tint: accent(for: .student))
                         .keyboardType(.numberPad)
                     labeledToggle("Additional Supports / SPED", isOn: $isSped, tint: accent(for: .student))
+                    labeledToggle("Behavior Tracking", isOn: $behaviorTrackingEnabled, tint: accent(for: .student))
                 }
 
                 collapsibleSection(.classes, title: "Classes & Groups", systemImage: "books.vertical") {
@@ -231,6 +237,19 @@ struct EditStudentSupportView: View {
                         labeledEntryField("What to remember during class", text: $prompts, tint: accent(for: .prompts), axis: .vertical)
                             .lineLimit(2...6)
                     }
+
+                    collapsibleSection(.behaviorTemplates, title: "Behavior Templates", systemImage: "text.bubble") {
+                        Text("Customize quick behavior note options for this student. Use one line per template.")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+
+                        labeledEntryField("On Task Templates", text: $onTaskTemplates, tint: accent(for: .behaviorTemplates), axis: .vertical)
+                            .lineLimit(3...6)
+                        labeledEntryField("Respectful Templates", text: $respectfulTemplates, tint: accent(for: .behaviorTemplates), axis: .vertical)
+                            .lineLimit(3...6)
+                        labeledEntryField("Safe Body Templates", text: $safeBodyTemplates, tint: accent(for: .behaviorTemplates), axis: .vertical)
+                            .lineLimit(3...6)
+                    }
                 }
             }
             .navigationTitle(existing == nil ? "Add Student" : "Edit Student")
@@ -293,12 +312,14 @@ struct EditStudentSupportView: View {
             parentEmails: parentEmails.trimmingCharacters(in: .whitespacesAndNewlines),
             studentEmail: studentEmail.trimmingCharacters(in: .whitespacesAndNewlines),
             isSped: isSped,
+            behaviorTrackingEnabled: behaviorTrackingEnabled,
             supportTeacherIDs: Array(selectedSupportTeacherIDs).sorted { $0.uuidString < $1.uuidString },
             supportParaIDs: Array(selectedSupportParaIDs).sorted { $0.uuidString < $1.uuidString },
             supportRooms: supportRooms.trimmingCharacters(in: .whitespacesAndNewlines),
             supportScheduleNotes: supportScheduleNotes.trimmingCharacters(in: .whitespacesAndNewlines),
             accommodations: accommodations.trimmingCharacters(in: .whitespacesAndNewlines),
-            prompts: prompts.trimmingCharacters(in: .whitespacesAndNewlines)
+            prompts: prompts.trimmingCharacters(in: .whitespacesAndNewlines),
+            behaviorTemplateOverrides: behaviorTemplateOverrides()
         )
 
         if let existing, let index = profiles.firstIndex(where: { $0.id == existing.id }) {
@@ -332,12 +353,16 @@ struct EditStudentSupportView: View {
             parentEmails = existing.parentEmails
             studentEmail = existing.studentEmail
             isSped = existing.isSped
+            behaviorTrackingEnabled = existing.behaviorTrackingEnabled
             selectedSupportTeacherIDs = Set(existing.supportTeacherIDs)
             selectedSupportParaIDs = Set(existing.supportParaIDs)
             supportRooms = existing.supportRooms
             supportScheduleNotes = existing.supportScheduleNotes
             accommodations = existing.accommodations
             prompts = existing.prompts
+            onTaskTemplates = joinedTemplates(for: .onTask, in: existing)
+            respectfulTemplates = joinedTemplates(for: .respectful, in: existing)
+            safeBodyTemplates = joinedTemplates(for: .safeBody, in: existing)
             return
         }
 
@@ -384,12 +409,14 @@ struct EditStudentSupportView: View {
             parentEmails: parentEmails,
             studentEmail: studentEmail,
             isSped: isSped,
+            behaviorTrackingEnabled: behaviorTrackingEnabled,
             supportTeacherIDs: Array(selectedSupportTeacherIDs),
             supportParaIDs: Array(selectedSupportParaIDs),
             supportRooms: supportRooms,
             supportScheduleNotes: supportScheduleNotes,
             accommodations: accommodations,
-            prompts: prompts
+            prompts: prompts,
+            behaviorTemplateOverrides: behaviorTemplateOverrides()
         )
     }
 
@@ -400,12 +427,48 @@ struct EditStudentSupportView: View {
         !parentEmails.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ||
         !studentEmail.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ||
         isSped ||
+        !behaviorTrackingEnabled ||
         !supportRooms.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ||
         !supportScheduleNotes.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ||
         !accommodations.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ||
         !prompts.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ||
+        !onTaskTemplates.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ||
+        !respectfulTemplates.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ||
+        !safeBodyTemplates.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ||
         !selectedSupportTeacherIDs.isEmpty ||
         !selectedSupportParaIDs.isEmpty
+    }
+
+    private func behaviorTemplateOverrides() -> [String: [String]] {
+        var overrides: [String: [String]] = [:]
+
+        let onTask = parsedTemplates(from: onTaskTemplates)
+        if !onTask.isEmpty {
+            overrides[BehaviorLogItem.BehaviorKind.onTask.rawValue] = onTask
+        }
+
+        let respectful = parsedTemplates(from: respectfulTemplates)
+        if !respectful.isEmpty {
+            overrides[BehaviorLogItem.BehaviorKind.respectful.rawValue] = respectful
+        }
+
+        let safeBody = parsedTemplates(from: safeBodyTemplates)
+        if !safeBody.isEmpty {
+            overrides[BehaviorLogItem.BehaviorKind.safeBody.rawValue] = safeBody
+        }
+
+        return overrides
+    }
+
+    private func parsedTemplates(from text: String) -> [String] {
+        text
+            .split(whereSeparator: \.isNewline)
+            .map { String($0).trimmingCharacters(in: .whitespacesAndNewlines) }
+            .filter { !$0.isEmpty }
+    }
+
+    private func joinedTemplates(for behavior: BehaviorLogItem.BehaviorKind, in profile: StudentSupportProfile) -> String {
+        (profile.behaviorTemplateOverrides[behavior.rawValue] ?? []).joined(separator: "\n")
     }
 
     private var availableTeacherContacts: [ClassStaffContact] {
@@ -457,7 +520,7 @@ struct EditStudentSupportView: View {
             }
         }
         .padding(12)
-        .classTraxCardChrome(accent: ClassTraxSemanticColor.primaryAction, cornerRadius: 20)
+        .classTraxOverviewCardChrome(accent: ClassTraxSemanticColor.primaryAction)
     }
 
     private func profileMetric(title: String, value: String, accent: Color) -> some View {
@@ -630,6 +693,8 @@ struct EditStudentSupportView: View {
             return ClassTraxSemanticColor.success
         case .prompts:
             return ClassTraxSemanticColor.attendance
+        case .behaviorTemplates:
+            return ClassTraxSemanticColor.secondaryAction
         }
     }
 
@@ -647,14 +712,7 @@ struct EditStudentSupportView: View {
             TextField(title, text: text, axis: axis)
                 .padding(.horizontal, 12)
                 .padding(.vertical, axis == .horizontal ? 9 : 11)
-                .background(
-                    RoundedRectangle(cornerRadius: 12, style: .continuous)
-                        .fill(tint.opacity(0.06))
-                )
-                .overlay(
-                    RoundedRectangle(cornerRadius: 12, style: .continuous)
-                        .stroke(tint.opacity(0.18), lineWidth: 1)
-                )
+                .classTraxInputSurface(accent: tint, cornerRadius: 12)
         }
         .padding(.vertical, 1)
     }
@@ -672,14 +730,7 @@ struct EditStudentSupportView: View {
             content()
                 .padding(.horizontal, 12)
                 .padding(.vertical, 2)
-                .background(
-                    RoundedRectangle(cornerRadius: 12, style: .continuous)
-                        .fill(tint.opacity(0.06))
-                )
-                .overlay(
-                    RoundedRectangle(cornerRadius: 12, style: .continuous)
-                        .stroke(tint.opacity(0.18), lineWidth: 1)
-                )
+                .classTraxInputSurface(accent: tint, cornerRadius: 12)
         }
         .padding(.vertical, 1)
     }
@@ -692,14 +743,7 @@ struct EditStudentSupportView: View {
         }
         .padding(.horizontal, 12)
         .padding(.vertical, 9)
-        .background(
-            RoundedRectangle(cornerRadius: 12, style: .continuous)
-                .fill(tint.opacity(0.06))
-        )
-        .overlay(
-            RoundedRectangle(cornerRadius: 12, style: .continuous)
-                .stroke(tint.opacity(0.18), lineWidth: 1)
-        )
+        .classTraxInputSurface(accent: tint, cornerRadius: 12)
         .padding(.vertical, 1)
     }
 }

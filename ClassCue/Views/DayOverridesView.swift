@@ -212,7 +212,7 @@ struct DayOverridesView: View {
             }
         }
         .padding(16)
-        .classTraxCardChrome(accent: ClassTraxSemanticColor.primaryAction, cornerRadius: 20)
+        .classTraxOverviewCardChrome(accent: ClassTraxSemanticColor.primaryAction)
     }
 
     private func overridesMetric(title: String, value: String, accent: Color) -> some View {

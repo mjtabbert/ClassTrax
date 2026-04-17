@@ -416,9 +416,13 @@ struct DailyExportView: View {
     // MARK: - Commitments
 
     private var commitmentsExportText: String {
+        let today = Date()
         let todayWeekday = Calendar.current.component(.weekday, from: Date())
         let todayCommitments = commitments.filter { $0.dayOfWeek == todayWeekday }
-        let todayTodos = todos.filter { $0.bucket == .today && !$0.isCompleted }
+        let todayDateKey = AttendanceRecord.dateKey(for: today)
+        let todayTodos = todos.filter { todo in
+            isTodoActiveForExport(todo, on: today) && !isTodoCompletedForExport(todo, dateKey: todayDateKey)
+        }
         guard !todayCommitments.isEmpty || !todayTodos.isEmpty else { return "" }
 
         var lines = ["COMMITMENTS / PLANNER"]
@@ -443,11 +447,26 @@ struct DailyExportView: View {
             lines.append("  Tasks")
             for todo in todayTodos {
                 let pri = todo.priority == .none ? "" : " [\(todo.priority.rawValue)]"
-                lines.append("    \(todo.task)\(pri)")
+                let recurrence = todo.recurrence == .none ? "" : " (\(todo.recurrenceSummary))"
+                lines.append("    \(todo.task)\(pri)\(recurrence)")
             }
         }
 
         return lines.joined(separator: "\n")
+    }
+
+    private func isTodoActiveForExport(_ todo: TodoItem, on date: Date) -> Bool {
+        if todo.recurrence != .none {
+            return todo.recurs(on: date)
+        }
+        return todo.bucket == .today
+    }
+
+    private func isTodoCompletedForExport(_ todo: TodoItem, dateKey: String) -> Bool {
+        if todo.recurrence == .none {
+            return todo.isCompleted
+        }
+        return todo.recurrenceLastCompletedDateKey == dateKey
     }
 
     // MARK: - Block Notes

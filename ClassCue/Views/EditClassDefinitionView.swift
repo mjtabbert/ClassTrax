@@ -56,6 +56,7 @@ struct EditClassDefinitionView: View {
 
                 Section(detailsSectionTitle) {
                     TextField(namePlaceholder, text: $name)
+                        .classTraxInputSurface(accent: ClassTraxSemanticColor.primaryAction)
 
                     Picker("Type", selection: $scheduleType) {
                         ForEach(ClassDefinitionItem.ScheduleKind.alphabetizedCases, id: \.self) { type in
@@ -71,6 +72,7 @@ struct EditClassDefinitionView: View {
                     }
 
                     TextField("Default Room / Location", text: $defaultLocation)
+                        .classTraxInputSurface(accent: ClassTraxSemanticColor.secondaryAction)
                 }
                 Section("Student Links") {
                     DisclosureGroup(isExpanded: $showLinkedStudents) {
@@ -155,7 +157,7 @@ struct EditClassDefinitionView: View {
             }
         }
         .padding(16)
-        .classTraxCardChrome(accent: ClassTraxSemanticColor.primaryAction, cornerRadius: 20)
+        .classTraxOverviewCardChrome(accent: ClassTraxSemanticColor.primaryAction)
     }
 
     private func editorMetric(title: String, value: String, accent: Color) -> some View {

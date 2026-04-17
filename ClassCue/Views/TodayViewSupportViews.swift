@@ -4660,19 +4660,24 @@ extension TodayView {
             let linkedContextNames = item.linkedInstructionalContextNames(using: classDefinitions, workflowMode: teacherWorkflowMode)
             let hasMultipleContexts = linkedContextNames.count > 1
             let roster = rosterStudents(for: item)
-            let behaviorSummary = behaviorSnapshot(for: item, roster: roster)
-            let recentBehaviorNotes = recentBehaviorNotes(for: item, roster: roster)
-            let needsSupportStudents = needsSupportStudents(for: item, roster: roster)
-            let behaviorPatternInsights = behaviorPatternInsights(for: item, roster: roster)
+            let behaviorRoster = behaviorTrackedStudents(from: roster)
+            let behaviorSummary = behaviorSnapshot(for: item, roster: behaviorRoster)
+            let recentBehaviorNotes = recentBehaviorNotes(for: item, roster: behaviorRoster)
+            let needsSupportStudents = needsSupportStudents(for: item, roster: behaviorRoster)
+            let behaviorPatternInsights = behaviorPatternInsights(for: item, roster: behaviorRoster)
             let classBehaviorNote = latestClassBehaviorNote(for: item)
-            let classBehaviorSnapshot = classBehaviorSnapshot(for: item, roster: roster, now: now)
+            let classBehaviorSnapshot = classBehaviorSnapshot(for: item, roster: behaviorRoster, now: now)
             VStack(alignment: .leading, spacing: compact ? 7 : 9) {
                 Text(currentContextCardTitle)
                     .font(.caption.weight(.semibold))
                     .foregroundStyle(.secondary)
 
                 Button {
-                    openBlock(item)
+                    if roster.isEmpty {
+                        openBlock(item)
+                    } else {
+                        rosterItem = item
+                    }
                 } label: {
                     HStack(alignment: .top, spacing: 12) {
                         ZStack {
@@ -4782,6 +4787,14 @@ extension TodayView {
                 HStack(spacing: 8) {
                     if isHomeworkEnabled {
                         taskStatusPill(
+                            title: "Homework",
+                            isComplete: hasHomeworkLogged(for: item, now: now),
+                            color: .cyan
+                        )
+                    }
+
+                    if isHomeworkEnabled {
+                        taskStatusPill(
                             title: "Assigned Work",
                             isComplete: !classHomeworkText(for: item, now: now)
                                 .trimmingCharacters(in: .whitespacesAndNewlines)
@@ -4863,16 +4876,24 @@ extension TodayView {
                             .font(compact ? .caption2 : .caption)
                             .foregroundStyle(.secondary)
 
+                        if behaviorRoster.isEmpty {
+                            Text("No behavior-tracked students are linked to this block.")
+                                .font(compact ? .caption2 : .caption)
+                                .foregroundStyle(.secondary)
+                        }
+
                         HStack(spacing: 10) {
                             Button {
-                                markAllStudentsOK(for: item, roster: roster)
+                                markAllStudentsOK(for: item, roster: behaviorRoster)
                             } label: {
-                                Label("All Students OK", systemImage: "checkmark.circle.fill")
+                                Label("Log All Students OK", systemImage: "checkmark.circle.fill")
                                     .frame(maxWidth: .infinity, alignment: .leading)
+                                    .lineLimit(1)
+                                    .minimumScaleFactor(0.82)
                             }
                             .buttonStyle(.borderedProminent)
                             .tint(.green)
-                            .disabled(roster.isEmpty)
+                            .disabled(behaviorRoster.isEmpty)
 
                             Button {
                                 classBehaviorNoteItem = item
@@ -4916,7 +4937,7 @@ extension TodayView {
                                 presentHomeworkCapture(for: item, now: now)
                             } label: {
                                 Label(
-                                    "Assigned Work",
+                                    "Homework Check-In",
                                     systemImage: "text.book.closed"
                                 )
                                     .frame(maxWidth: .infinity)
@@ -4941,6 +4962,8 @@ extension TodayView {
                             } label: {
                                 Label(hasMultipleContexts ? "Choose Student Group (\(roster.count))" : "Students (\(roster.count))", systemImage: "person.text.rectangle")
                                     .frame(maxWidth: .infinity)
+                                    .lineLimit(1)
+                                    .minimumScaleFactor(0.82)
                             }
                             .buttonStyle(.bordered)
                             .tint(.mint)
@@ -4958,6 +4981,7 @@ extension TodayView {
                                 .buttonStyle(.borderedProminent)
                                 .tint(.pink)
                                 .controlSize(compact ? .small : .regular)
+                                .disabled(behaviorRoster.isEmpty)
                                 .opacity(behaviorSummary.totalCount > 0 ? 0.58 : 1)
                             }
                         }
@@ -4979,6 +5003,8 @@ extension TodayView {
                     } label: {
                         Label(hasMultipleContexts ? "Classes / Groups & More" : rosterAndMoreLabel, systemImage: "ellipsis.circle")
                             .frame(maxWidth: .infinity, alignment: .leading)
+                            .lineLimit(1)
+                            .minimumScaleFactor(0.82)
                     }
                     .buttonStyle(.bordered)
                     .tint(dashboardSecondaryTint)
@@ -5299,6 +5325,17 @@ extension TodayView {
 
         let gradeKey = normalizedStudentKey(GradeLevelOption.normalized(item.gradeLevel))
 
+        let nameMatchedProfiles = studentSupportProfiles
+            .filter { profile in
+                let profileGradeKey = normalizedStudentKey(GradeLevelOption.normalized(profile.gradeLevel))
+                guard classNamesMatch(scheduleClassName: item.className, profileClassName: profile.className) else { return false }
+                if gradeKey.isEmpty || profileGradeKey.isEmpty {
+                    return true
+                }
+                return profileGradeKey == gradeKey
+            }
+            .sorted { $0.name.localizedCaseInsensitiveCompare($1.name) == .orderedAscending }
+
         let contextMatchedProfiles = studentSupportProfiles
             .filter { profile in
                 if let targetClassDefinitionID {
@@ -5323,22 +5360,42 @@ extension TodayView {
                     return profileGradeKey.isEmpty || profileGradeKey == gradeKey
                 }
 
-                let profileGradeKey = normalizedStudentKey(GradeLevelOption.normalized(profile.gradeLevel))
-                guard classNamesMatch(scheduleClassName: item.className, profileClassName: profile.className) else { return false }
-                if gradeKey.isEmpty || profileGradeKey.isEmpty {
-                    return true
-                }
-                return profileGradeKey == gradeKey
+                return nameMatchedProfiles.contains(where: { $0.id == profile.id })
             }
             .sorted { $0.name.localizedCaseInsensitiveCompare($1.name) == .orderedAscending }
 
-        guard !explicitLinkedProfiles.isEmpty else {
+        let resolvedContextProfiles: [StudentSupportProfile] = {
+            guard contextMatchedProfiles.isEmpty else { return contextMatchedProfiles }
+
+            if let targetClassDefinitionID,
+               let targetDefinition = classDefinitions.first(where: { $0.id == targetClassDefinitionID }) {
+                let targetName = targetDefinition.name
+                return studentSupportProfiles
+                    .filter { profile in
+                        let profileGradeKey = normalizedStudentKey(GradeLevelOption.normalized(profile.gradeLevel))
+                        guard classNamesMatch(scheduleClassName: targetName, profileClassName: profile.className) else { return false }
+                        if gradeKey.isEmpty || profileGradeKey.isEmpty {
+                            return true
+                        }
+                        return profileGradeKey == gradeKey
+                    }
+                    .sorted { $0.name.localizedCaseInsensitiveCompare($1.name) == .orderedAscending }
+            }
+
+            if !item.linkedClassDefinitionIDs.isEmpty {
+                return nameMatchedProfiles
+            }
+
             return contextMatchedProfiles
+        }()
+
+        guard !explicitLinkedProfiles.isEmpty else {
+            return resolvedContextProfiles
         }
 
         var mergedProfiles = explicitLinkedProfiles
         let existingIDs = Set(explicitLinkedProfiles.map(\.id))
-        mergedProfiles.append(contentsOf: contextMatchedProfiles.filter { !existingIDs.contains($0.id) })
+        mergedProfiles.append(contentsOf: resolvedContextProfiles.filter { !existingIDs.contains($0.id) })
         return mergedProfiles
     }
 
@@ -6397,6 +6454,18 @@ extension TodayView {
         )
     }
 
+    private func hasHomeworkLogged(for item: AlarmItem, now: Date) -> Bool {
+        let dateKey = AttendanceRecord.dateKey(for: now)
+        return attendanceRecords.contains { record in
+            guard record.dateKey == dateKey else { return false }
+            guard attendanceRecordMatchesClass(record, item: item) else { return false }
+
+            let hasAssigned = !record.assignedHomework.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+            let hasMissing = !record.absentHomework.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+            return hasAssigned || hasMissing
+        }
+    }
+
     private struct ClassAttendanceSnapshot {
         let weeklyPresentCount: Int
         let weeklyTotalCount: Int
@@ -6749,6 +6818,15 @@ extension TodayView {
     }
 
     func markAllStudentsOK(for item: AlarmItem, roster: [StudentSupportProfile]) {
+        guard !roster.isEmpty else {
+            let timestamp = Date().formatted(date: .omitted, time: .shortened)
+            let existing = latestClassBehaviorNote(for: item)?.note.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+            let marker = "All students OK logged at \(timestamp)."
+            let updated = existing.isEmpty ? marker : "\(existing)\n\(marker)"
+            saveClassBehaviorNote(updated, for: item)
+            return
+        }
+
         for profile in roster {
             let latestProfile = latestStudentProfile(for: profile)
             onLogBehavior(latestProfile, .onTask, .onTask, item.id)
@@ -7029,6 +7107,8 @@ extension TodayView {
     func cardActionLabel(_ title: String, accent: Color) -> some View {
         Text(title)
             .font(.caption.weight(.semibold))
+            .lineLimit(1)
+            .minimumScaleFactor(0.82)
             .foregroundStyle(accent)
             .padding(.horizontal, 10)
             .padding(.vertical, 6)
@@ -7635,11 +7715,6 @@ extension TodayView {
                     .foregroundStyle(.primary)
                     .lineLimit(1)
                     .minimumScaleFactor(0.85)
-
-                Text(headerStatusText(for: now))
-                    .font(.footnote)
-                    .foregroundStyle(.secondary)
-                    .lineLimit(2)
             }
 
             Spacer(minLength: 8)
@@ -7901,6 +7976,12 @@ extension TodayView {
         studentSupportProfiles.first(where: { $0.id == profile.id }) ?? profile
     }
 
+    func behaviorTrackedStudents(from students: [StudentSupportProfile]) -> [StudentSupportProfile] {
+        students
+            .map(latestStudentProfile(for:))
+            .filter(\.behaviorTrackingEnabled)
+    }
+
     func presentStudentLookup(
         title: String,
         subtitle: String,
@@ -7944,7 +8025,7 @@ extension TodayView {
             return
         }
 
-        let roster = rosterStudents(for: item)
+        let roster = behaviorTrackedStudents(from: rosterStudents(for: item))
         presentStudentLookup(
             title: "\(item.className) Behavior",
             subtitle: "Tap a behavior state to start a quick note with the block and timestamp already filled in.",
@@ -8031,7 +8112,9 @@ extension TodayView {
                 fallbackToAllStudents: false
             )
         case .behavior:
-            let students = rosterStudents(for: item, targetClassDefinitionID: selection.classDefinitionID)
+            let students = behaviorTrackedStudents(
+                from: rosterStudents(for: item, targetClassDefinitionID: selection.classDefinitionID)
+            )
             presentStudentLookup(
                 title: "\(selection.title) Behavior",
                 subtitle: "Tap a behavior state to start a quick note with the block and timestamp already filled in.",
@@ -8162,6 +8245,8 @@ extension TodayView {
         guard let item else { return nil }
 
         switch item.type {
+        case .homeGroup:
+            return .prep
         case .math, .ela, .science, .socialStudies:
             return .prep
         case .assembly:
@@ -8259,6 +8344,8 @@ extension TodayView {
         guard let item else { return Color.cyan }
 
         switch item.type {
+        case .homeGroup:
+            return .cyan
         case .math:
             return .orange
         case .ela:

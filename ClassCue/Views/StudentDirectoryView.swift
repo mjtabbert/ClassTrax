@@ -20,6 +20,7 @@ struct StudentDirectoryView: View {
     let showsRosterDataTools: Bool
     let onImportedStudents: (([StudentSupportProfile]) -> Void)?
     let onSavedProfiles: (([StudentSupportProfile]) -> Void)?
+    let onSavedClassDefinitions: (([ClassDefinitionItem], [StudentSupportProfile]) -> Void)?
     let onSavedTeacherContacts: (([ClassStaffContact]) -> Void)?
     let onSavedParaContacts: (([ClassStaffContact]) -> Void)?
     let onPrepareStudentEditor: (() -> Void)?
@@ -127,6 +128,7 @@ struct StudentDirectoryView: View {
         showsRosterDataTools: Bool = false,
         onImportedStudents: (([StudentSupportProfile]) -> Void)? = nil,
         onSavedProfiles: (([StudentSupportProfile]) -> Void)? = nil,
+        onSavedClassDefinitions: (([ClassDefinitionItem], [StudentSupportProfile]) -> Void)? = nil,
         onSavedTeacherContacts: (([ClassStaffContact]) -> Void)? = nil,
         onSavedParaContacts: (([ClassStaffContact]) -> Void)? = nil,
         onPrepareStudentEditor: (() -> Void)? = nil,
@@ -145,6 +147,7 @@ struct StudentDirectoryView: View {
         self.showsRosterDataTools = showsRosterDataTools
         self.onImportedStudents = onImportedStudents
         self.onSavedProfiles = onSavedProfiles
+        self.onSavedClassDefinitions = onSavedClassDefinitions
         self.onSavedTeacherContacts = onSavedTeacherContacts
         self.onSavedParaContacts = onSavedParaContacts
         self.onPrepareStudentEditor = onPrepareStudentEditor
@@ -261,7 +264,16 @@ struct StudentDirectoryView: View {
             }
             .sheet(isPresented: $showingSavedClasses) {
                 NavigationStack {
-                    ClassDefinitionsView(classDefinitions: $classDefinitions, profiles: $profiles)
+                    ClassDefinitionsView(
+                        classDefinitions: $classDefinitions,
+                        profiles: $profiles,
+                        onCommitChanges: { updatedDefinitions, updatedProfiles in
+                            classDefinitions = updatedDefinitions
+                            profiles = updatedProfiles
+                            onSavedProfiles?(updatedProfiles)
+                            onSavedClassDefinitions?(updatedDefinitions, updatedProfiles)
+                        }
+                    )
                 }
             }
             .sheet(isPresented: $showingStudentBulkEntry) {
@@ -313,6 +325,9 @@ struct StudentDirectoryView: View {
                         },
                         onOpenRecord: {
                             quickViewProfile = nil
+                            let selectedProfile = latestProfile(for: profile)
+                            searchText = selectedProfile.name
+                            groupingMode = .none
                         },
                         onLogBehavior: onLogBehavior.map { callback in
                             { behavior, rating, segmentID in
@@ -509,12 +524,18 @@ struct StudentDirectoryView: View {
         horizontalSizeClass != .compact
     }
 
+    private var isSearching: Bool {
+        !searchText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+    }
+
     private var directoryList: some View {
         List(selection: $selection) {
-            Section {
-                directoryOverviewCard
-                    .listRowInsets(EdgeInsets(top: 8, leading: 16, bottom: 8, trailing: 16))
-                    .listRowBackground(Color.clear)
+            if !isSearching {
+                Section {
+                    directoryOverviewCard
+                        .listRowInsets(EdgeInsets(top: 8, leading: 16, bottom: 8, trailing: 16))
+                        .listRowBackground(Color.clear)
+                }
             }
 
             if !duplicateGroups.isEmpty {
@@ -548,29 +569,31 @@ struct StudentDirectoryView: View {
                 }
             }
 
-            Section {
-                HStack(spacing: 12) {
-                    compactPickerMenu(
-                        title: "Group By",
-                        systemImage: "square.grid.2x2",
-                        selection: $groupingMode
-                    ) {
-                        ForEach(GroupingMode.allCases) { mode in
-                            Text(mode.rawValue).tag(mode)
+            if !isSearching {
+                Section {
+                    HStack(spacing: 12) {
+                        compactPickerMenu(
+                            title: "Group By",
+                            systemImage: "square.grid.2x2",
+                            selection: $groupingMode
+                        ) {
+                            ForEach(GroupingMode.allCases) { mode in
+                                Text(mode.rawValue).tag(mode)
+                            }
                         }
-                    }
 
-                    compactPickerMenu(
-                        title: "Sort",
-                        systemImage: "arrow.up.arrow.down",
-                        selection: $nameSortMode
-                    ) {
-                        ForEach(NameSortMode.allCases) { mode in
-                            Text(mode.rawValue).tag(mode)
+                        compactPickerMenu(
+                            title: "Sort",
+                            systemImage: "arrow.up.arrow.down",
+                            selection: $nameSortMode
+                        ) {
+                            ForEach(NameSortMode.allCases) { mode in
+                                Text(mode.rawValue).tag(mode)
+                            }
                         }
                     }
+                    .listRowBackground(sectionCardBackground(accent: .indigo))
                 }
-                .listRowBackground(sectionCardBackground(accent: .indigo))
             }
 
             if groupingMode == .className {
@@ -740,7 +763,7 @@ struct StudentDirectoryView: View {
                 overviewMetricButton(title: "Classes", value: "\(classDefinitions.count)", accent: .indigo) {
                     searchText = ""
                     groupingMode = .className
-                    expandedClassSections = Set(classRosterSections.map(\.id))
+                    expandedClassSections.removeAll()
                 }
                 overviewMetricButton(title: "Teachers", value: "\(teacherContacts.count)", accent: .teal) {
                     showingTeacherList = true
@@ -774,7 +797,7 @@ struct StudentDirectoryView: View {
             }
         }
         .padding(16)
-        .background(sectionCardBackground(accent: ClassTraxSemanticColor.primaryAction))
+        .classTraxOverviewCardChrome(accent: ClassTraxSemanticColor.primaryAction)
     }
 
     private var directoryOverviewSubtitle: String {
@@ -1319,6 +1342,7 @@ struct StudentDirectoryView: View {
                     .font(.body.monospaced())
                     .focused($isPasteEditorFocused)
                     .frame(minHeight: 260)
+                    .classTraxInputSurface(accent: ClassTraxSemanticColor.secondaryAction, cornerRadius: 12)
             }
 
             Section {

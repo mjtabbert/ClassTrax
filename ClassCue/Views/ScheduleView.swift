@@ -281,22 +281,51 @@ struct ScheduleView: View {
             .buttonStyle(.plain)
             .accessibilityLabel("Home")
 
-            HStack(spacing: 6) {
-                scheduleNavButton(title: "Today", isSelected: false, action: openTodayTab)
-                scheduleNavButton(title: "Schedule", isSelected: true, action: { })
-                scheduleNavButton(title: "Planner", isSelected: false, action: openTodoTab)
+            if horizontalSizeClass == .compact {
+                Menu {
+                    Button("Today", systemImage: "house") {
+                        openTodayTab()
+                    }
+
+                    Button("Schedule", systemImage: "calendar", role: .cancel) { }
+                        .disabled(true)
+
+                    Button("Planner", systemImage: "checklist") {
+                        openTodoTab()
+                    }
+                } label: {
+                    Label("Schedule", systemImage: "arrow.right.circle")
+                        .font(.subheadline.weight(.semibold))
+                        .foregroundStyle(ClassTraxSemanticColor.primaryAction)
+                        .padding(.horizontal, 12)
+                        .padding(.vertical, 10)
+                        .background(
+                            Capsule(style: .continuous)
+                                .fill(Color(.systemBackground))
+                        )
+                        .overlay(
+                            Capsule(style: .continuous)
+                                .stroke(ClassTraxSemanticColor.primaryAction.opacity(0.18), lineWidth: 1)
+                        )
+                }
+            } else {
+                HStack(spacing: 6) {
+                    scheduleNavButton(title: "Today", systemImage: "house", isSelected: false, action: openTodayTab)
+                    scheduleNavButton(title: "Schedule", systemImage: "calendar", isSelected: true, action: { })
+                    scheduleNavButton(title: "Planner", systemImage: "checklist", isSelected: false, action: openTodoTab)
+                }
+                .frame(maxWidth: 420)
+                .padding(.horizontal, 10)
+                .padding(.vertical, 8)
+                .background(
+                    Capsule(style: .continuous)
+                        .fill(Color(.systemBackground))
+                )
+                .overlay(
+                    Capsule(style: .continuous)
+                        .stroke(Color.black.opacity(0.05), lineWidth: 1)
+                )
             }
-            .frame(maxWidth: 420)
-            .padding(.horizontal, 10)
-            .padding(.vertical, 8)
-            .background(
-                Capsule(style: .continuous)
-                    .fill(Color(.systemBackground))
-            )
-            .overlay(
-                Capsule(style: .continuous)
-                    .stroke(Color.black.opacity(0.05), lineWidth: 1)
-            )
 
             Spacer(minLength: 0)
 
@@ -433,23 +462,25 @@ struct ScheduleView: View {
         }
     }
 
-    private func scheduleNavButton(title: String, isSelected: Bool, action: @escaping () -> Void) -> some View {
+    private func scheduleNavButton(title: String, systemImage: String, isSelected: Bool, action: @escaping () -> Void) -> some View {
         Button(action: action) {
-            Text(title)
-                .font((horizontalSizeClass == .compact ? Font.subheadline : .headline).weight(.semibold))
-                .lineLimit(1)
-                .minimumScaleFactor(0.5)
-                .foregroundStyle(isSelected ? ClassTraxSemanticColor.primaryAction : .primary)
-                .frame(maxWidth: .infinity)
-                .padding(.horizontal, horizontalSizeClass == .compact ? 8 : 10)
-                .padding(.vertical, horizontalSizeClass == .compact ? 10 : 12)
-                .background(
-                    Capsule(style: .continuous)
-                        .fill(isSelected ? ClassTraxSemanticColor.primaryAction.opacity(0.14) : Color.clear)
-                )
+            Label(title, systemImage: systemImage)
+                .labelStyle(.iconOnly)
+            .font((horizontalSizeClass == .compact ? Font.subheadline : .headline).weight(.semibold))
+            .lineLimit(1)
+            .minimumScaleFactor(0.5)
+            .foregroundStyle(isSelected ? ClassTraxSemanticColor.primaryAction : .primary)
+            .frame(maxWidth: .infinity)
+            .padding(.horizontal, horizontalSizeClass == .compact ? 8 : 10)
+            .padding(.vertical, horizontalSizeClass == .compact ? 10 : 12)
+            .background(
+                Capsule(style: .continuous)
+                    .fill(isSelected ? ClassTraxSemanticColor.primaryAction.opacity(0.14) : Color.clear)
+            )
         }
         .buttonStyle(.plain)
         .disabled(isSelected)
+        .accessibilityLabel(title)
     }
 
     private var scheduleBackground: some View {
@@ -613,7 +644,7 @@ struct ScheduleView: View {
             }
         }
         .padding(16)
-        .classTraxCardChrome(accent: ClassTraxSemanticColor.primaryAction, cornerRadius: 20)
+        .classTraxOverviewCardChrome(accent: ClassTraxSemanticColor.primaryAction)
     }
 
     private func todayScheduleLayout(now: Date) -> some View {

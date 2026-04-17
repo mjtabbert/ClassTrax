@@ -31,6 +31,7 @@ struct AlarmItem: Identifiable, Codable, Hashable {
 
     enum ScheduleType: String, Codable, CaseIterable {
 
+        case homeGroup
         case math
         case ela
         case science
@@ -47,6 +48,8 @@ struct AlarmItem: Identifiable, Codable, Hashable {
         // Used by TypeBadge
         var themeColor: Color {
             switch self {
+            case .homeGroup:
+                return .blue
             case .math:
                 return .red
             case .ela:
@@ -76,6 +79,8 @@ struct AlarmItem: Identifiable, Codable, Hashable {
 
         var displayName: String {
             switch self {
+            case .homeGroup:
+                return "Home Group"
             case .math:
                 return "Math"
             case .ela:
@@ -105,6 +110,8 @@ struct AlarmItem: Identifiable, Codable, Hashable {
 
         var symbolName: String {
             switch self {
+            case .homeGroup:
+                return "house.fill"
             case .math:
                 return "function"
             case .ela:
@@ -137,6 +144,8 @@ struct AlarmItem: Identifiable, Codable, Hashable {
             let rawValue = try container.decode(String.self)
 
             switch rawValue {
+            case "homeGroup":
+                self = .homeGroup
             case "math":
                 self = .math
             case "ela":
@@ -454,6 +463,8 @@ struct AlarmItem: Identifiable, Codable, Hashable {
             return .classroom
         case .resourceSped:
             switch scheduleType {
+            case .homeGroup:
+                return .classroom
             case .studyTime:
                 return .intervention
             case .prep, .transition, .blank:
@@ -463,6 +474,8 @@ struct AlarmItem: Identifiable, Codable, Hashable {
             }
         case .hybrid:
             switch scheduleType {
+            case .homeGroup:
+                return .classroom
             case .studyTime:
                 return .intervention
             case .prep, .transition:

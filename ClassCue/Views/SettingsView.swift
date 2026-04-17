@@ -452,7 +452,7 @@ struct SettingsView: View {
                 .foregroundStyle(.secondary)
         }
         .padding(16)
-        .classTraxCardChrome(accent: ClassTraxSemanticColor.primaryAction, cornerRadius: 22)
+        .classTraxOverviewCardChrome(accent: ClassTraxSemanticColor.primaryAction)
     }
 
     @ViewBuilder
@@ -1867,7 +1867,29 @@ struct SettingsView: View {
 
     @ViewBuilder
     private var classDefinitionsDestinationView: some View {
-        ClassDefinitionsView(classDefinitions: $classDefinitions, profiles: $studentProfiles)
+        ClassDefinitionsView(
+            classDefinitions: $classDefinitions,
+            profiles: $studentProfiles,
+            onCommitChanges: { updatedDefinitions, updatedProfiles in
+                classDefinitions = updatedDefinitions
+                studentProfiles = updatedProfiles
+                ClassTraxPersistence.saveFirstSlice(
+                    alarms: alarms,
+                    studentProfiles: updatedProfiles,
+                    classDefinitions: updatedDefinitions,
+                    teacherContacts: teacherContacts,
+                    paraContacts: paraContacts,
+                    commitments: commitments,
+                    into: modelContext
+                )
+                savedClassDefinitions = (try? JSONEncoder().encode(updatedDefinitions.sorted {
+                    $0.displayName.localizedCaseInsensitiveCompare($1.displayName) == .orderedAscending
+                })) ?? Data()
+                savedStudentProfiles = (try? JSONEncoder().encode(updatedProfiles.sorted {
+                    $0.name.localizedCaseInsensitiveCompare($1.name) == .orderedAscending
+                })) ?? Data()
+            }
+        )
     }
 
     @ViewBuilder
@@ -1888,6 +1910,25 @@ struct SettingsView: View {
                     commitments: commitments,
                     into: modelContext
                 )
+            },
+            onSavedClassDefinitions: { updatedDefinitions, updatedProfiles in
+                classDefinitions = updatedDefinitions
+                studentProfiles = updatedProfiles
+                ClassTraxPersistence.saveFirstSlice(
+                    alarms: alarms,
+                    studentProfiles: updatedProfiles,
+                    classDefinitions: updatedDefinitions,
+                    teacherContacts: teacherContacts,
+                    paraContacts: paraContacts,
+                    commitments: commitments,
+                    into: modelContext
+                )
+                savedClassDefinitions = (try? JSONEncoder().encode(updatedDefinitions.sorted {
+                    $0.displayName.localizedCaseInsensitiveCompare($1.displayName) == .orderedAscending
+                })) ?? Data()
+                savedStudentProfiles = (try? JSONEncoder().encode(updatedProfiles.sorted {
+                    $0.name.localizedCaseInsensitiveCompare($1.name) == .orderedAscending
+                })) ?? Data()
             },
             onSavedTeacherContacts: { updatedContacts in
                 teacherContacts = updatedContacts

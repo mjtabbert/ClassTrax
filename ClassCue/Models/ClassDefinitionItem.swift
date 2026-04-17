@@ -131,6 +131,7 @@ enum SupportStaffRole: String, Codable, CaseIterable, Identifiable {
 
 struct ClassDefinitionItem: Identifiable, Codable, Equatable, Hashable {
     enum ScheduleKind: String, Codable, CaseIterable {
+        case homeGroup
         case math
         case ela
         case science
@@ -146,6 +147,7 @@ struct ClassDefinitionItem: Identifiable, Codable, Equatable, Hashable {
 
         var displayName: String {
             switch self {
+            case .homeGroup: return "Home Group"
             case .math: return "Math"
             case .ela: return "ELA"
             case .science: return "Science"
@@ -208,6 +210,7 @@ struct ClassDefinitionItem: Identifiable, Codable, Equatable, Hashable {
 
     var symbolName: String {
         switch scheduleKind {
+        case .homeGroup: return "house.fill"
         case .math: return "function"
         case .ela: return "text.book.closed.fill"
         case .science: return "atom"
@@ -225,6 +228,8 @@ struct ClassDefinitionItem: Identifiable, Codable, Equatable, Hashable {
 
     var themeColor: Color {
         switch scheduleKind {
+        case .homeGroup:
+            return .blue
         case .math:
             return .red
         case .ela:
@@ -258,6 +263,8 @@ struct ClassDefinitionItem: Identifiable, Codable, Equatable, Hashable {
             return .classroom
         case .resourceSped:
             switch scheduleKind {
+            case .homeGroup:
+                return .classroom
             case .studyTime:
                 return .intervention
             case .prep, .transition, .blank:
@@ -267,6 +274,8 @@ struct ClassDefinitionItem: Identifiable, Codable, Equatable, Hashable {
             }
         case .hybrid:
             switch scheduleKind {
+            case .homeGroup:
+                return .classroom
             case .studyTime:
                 return .intervention
             case .prep, .transition:

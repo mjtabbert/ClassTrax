@@ -54,12 +54,14 @@ struct StudentSupportProfile: Identifiable, Codable, Equatable {
     var parentEmails: String = ""
     var studentEmail: String = ""
     var isSped: Bool = false
+    var behaviorTrackingEnabled: Bool = true
     var supportTeacherIDs: [UUID] = []
     var supportParaIDs: [UUID] = []
     var supportRooms: String = ""
     var supportScheduleNotes: String = ""
     var accommodations: String = ""
     var prompts: String = ""
+    var behaviorTemplateOverrides: [String: [String]] = [:]
 
     init(
         id: UUID = UUID(),
@@ -75,12 +77,14 @@ struct StudentSupportProfile: Identifiable, Codable, Equatable {
         parentEmails: String = "",
         studentEmail: String = "",
         isSped: Bool = false,
+        behaviorTrackingEnabled: Bool = true,
         supportTeacherIDs: [UUID] = [],
         supportParaIDs: [UUID] = [],
         supportRooms: String = "",
         supportScheduleNotes: String = "",
         accommodations: String = "",
-        prompts: String = ""
+        prompts: String = "",
+        behaviorTemplateOverrides: [String: [String]] = [:]
     ) {
         self.id = id
         self.name = name
@@ -95,12 +99,14 @@ struct StudentSupportProfile: Identifiable, Codable, Equatable {
         self.parentEmails = parentEmails
         self.studentEmail = studentEmail
         self.isSped = isSped
+        self.behaviorTrackingEnabled = behaviorTrackingEnabled
         self.supportTeacherIDs = supportTeacherIDs
         self.supportParaIDs = supportParaIDs
         self.supportRooms = supportRooms
         self.supportScheduleNotes = supportScheduleNotes
         self.accommodations = accommodations
         self.prompts = prompts
+        self.behaviorTemplateOverrides = behaviorTemplateOverrides
     }
 
     init(from decoder: Decoder) throws {
@@ -121,11 +127,13 @@ struct StudentSupportProfile: Identifiable, Codable, Equatable {
         parentEmails = try container.decodeIfPresent(String.self, forKey: .parentEmails) ?? ""
         studentEmail = try container.decodeIfPresent(String.self, forKey: .studentEmail) ?? ""
         isSped = try container.decodeIfPresent(Bool.self, forKey: .isSped) ?? false
+        behaviorTrackingEnabled = try container.decodeIfPresent(Bool.self, forKey: .behaviorTrackingEnabled) ?? true
         supportTeacherIDs = try container.decodeIfPresent([UUID].self, forKey: .supportTeacherIDs) ?? []
         supportParaIDs = try container.decodeIfPresent([UUID].self, forKey: .supportParaIDs) ?? []
         supportRooms = try container.decodeIfPresent(String.self, forKey: .supportRooms) ?? ""
         supportScheduleNotes = try container.decodeIfPresent(String.self, forKey: .supportScheduleNotes) ?? ""
         accommodations = try container.decodeIfPresent(String.self, forKey: .accommodations) ?? ""
         prompts = try container.decodeIfPresent(String.self, forKey: .prompts) ?? ""
+        behaviorTemplateOverrides = try container.decodeIfPresent([String: [String]].self, forKey: .behaviorTemplateOverrides) ?? [:]
     }
 }
